@@ -4,6 +4,42 @@
         import { fbSync } from './firebase-sync.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
 
+        // ---- App accent colour theme ----
+        const APP_COLORS = [
+            { id: 'orange', label: 'Orange', main: '#FF9F0A', dark: '#FF6A00' },
+            { id: 'red',    label: 'Red',    main: '#ff4e4e', dark: '#d62828' },
+            { id: 'blue',   label: 'Blue',   main: '#5ab0ff', dark: '#2563EB' },
+            { id: 'green',  label: 'Green',  main: '#5fe08c', dark: '#16a34a' },
+            { id: 'teal',   label: 'Teal',   main: '#22d3ee', dark: '#0891b2' },
+            { id: 'purple', label: 'Purple', main: '#c084fc', dark: '#9333ea' },
+            { id: 'pink',   label: 'Pink',   main: '#f472b6', dark: '#ec4899' },
+        ];
+        function applyAppColor(id) {
+            const c = APP_COLORS.find(x => x.id === id) || APP_COLORS[0];
+            document.documentElement.style.setProperty('--orange',      c.main);
+            document.documentElement.style.setProperty('--orange-dark', c.dark);
+        }
+        applyAppColor(LS.get('appColor', 'orange'));
+
+        function buildColorSwatches() {
+            const grid = document.getElementById('app-color-grid');
+            if (!grid) return;
+            const active = LS.get('appColor', 'orange');
+            grid.innerHTML = APP_COLORS.map(c => `
+                <button type="button" class="app-color-swatch${c.id === active ? ' on' : ''}" data-color-id="${c.id}">
+                    <div class="app-color-dot" style="background:linear-gradient(135deg,${c.main},${c.dark})"></div>
+                    <span class="app-color-label">${c.label}</span>
+                </button>`).join('');
+            grid.querySelectorAll('.app-color-swatch').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.colorId;
+                    LS.set('appColor', id);
+                    applyAppColor(id);
+                    grid.querySelectorAll('.app-color-swatch').forEach(b => b.classList.toggle('on', b.dataset.colorId === id));
+                });
+            });
+        }
+
         const grid = document.getElementById('alg-grid');
         const categoryFilter = document.getElementById('category-filter');
         const searchInput = document.getElementById('search-input');
@@ -2576,6 +2612,7 @@
             document.querySelectorAll('.pe-tab-content').forEach(c => {
                 c.style.display = c.dataset.peContent === tabId ? '' : 'none';
             });
+            if (tabId === 'appearance') buildColorSwatches();
         }));
 
         // Avatar file: read & downscale to 256x256 (cap stored size)

@@ -2592,6 +2592,11 @@
 
         /* ========= Session color applied to timer UI ========= */
         #puzzle-timer { color: var(--session-accent, var(--text)); transition: color 0.2s; }
+        /* Phase colors must override session accent */
+        #puzzle-timer.ready      { color: #5fe08c !important; }
+        #puzzle-timer.arming     { color: #ff6b6b !important; }
+        #puzzle-timer.running    { color: var(--session-accent, var(--orange)) !important; }
+        #puzzle-timer.inspecting { color: #5ab0ff !important; }
         .topbar-session-pill { color: var(--session-accent, var(--orange)); }
 
         /* ========= Session list with pencil per row ========= */
@@ -4518,3 +4523,69 @@
         @media (max-width: 640px) {
             .mobile-side-close-bar { display: flex; }
         }
+
+        /* ============ Account page mobile fixes ============ */
+        @media (max-width: 640px) {
+            /* Profile header: stack avatar + meta, hide redundant auth button */
+            .profile-row {
+                flex-wrap: wrap;
+                align-items: flex-start;
+            }
+            .profile-auth { display: none !important; }
+
+            /* PR table: hide Ao100 column, shrink font */
+            .pr-row {
+                grid-template-columns: 1.4fr repeat(3, 1fr);
+                font-size: 0.78rem;
+                gap: 6px;
+                padding: 8px 8px;
+            }
+            .pr-row > *:nth-child(5) { display: none; } /* Ao100 column */
+            .pr-row-head > *:nth-child(5) { display: none; }
+
+            /* PR top cards: 2 columns already handled */
+            .pr-grid { gap: 10px; }
+            .pr-cell { padding: 12px 14px; }
+            .pr-cell .val { font-size: 1.4rem; }
+
+            /* Heatmap: scrollable on mobile */
+            .heatmap-scroll { overflow-x: auto; }
+        }
+
+        /* ============ App colour theme swatches ============ */
+        .app-color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+            gap: 10px;
+        }
+        .app-color-swatch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 12px;
+            transition: background 0.15s;
+        }
+        .app-color-swatch:hover { background: rgba(255,255,255,0.05); }
+        .app-color-swatch.on { background: rgba(255,255,255,0.08); }
+        .app-color-dot {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            transition: border-color 0.15s, transform 0.15s;
+        }
+        .app-color-swatch.on .app-color-dot {
+            border-color: #fff;
+            transform: scale(1.15);
+        }
+        .app-color-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: 'Ubuntu', sans-serif;
+        }
+        .app-color-swatch.on .app-color-label { color: var(--text-main); }
