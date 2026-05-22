@@ -6,7 +6,7 @@
 // Safari and iOS do NOT support Web Bluetooth.
 // ============================================================================
 
-import { connectSmartPuzzle } from "https://cdn.cubing.net/js/cubing/bluetooth";
+import { connectSmartPuzzle } from "https://cdn.cubing.net/v0/js/cubing/bluetooth";
 
 export async function connectCube({ onMove, onSolved, onName, onError, onDisconnect } = {}) {
     if (!navigator.bluetooth) {

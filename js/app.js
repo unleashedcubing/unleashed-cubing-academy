@@ -1,5 +1,5 @@
-        import { Alg } from "https://cdn.cubing.net/js/cubing/alg";
-        import { randomScrambleForEvent } from "https://cdn.cubing.net/js/cubing/scramble";
+        import { Alg } from "https://cdn.cubing.net/v0/js/cubing/alg";
+        import { randomScrambleForEvent } from "https://cdn.cubing.net/v0/js/cubing/scramble";
         import { db } from './data.js';
         import { fbSync } from './firebase-sync.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
@@ -2799,7 +2799,7 @@
             const pid = puzzleSelect.value;
             if (pid !== '333' && pid !== '222') return;   // only the cubes cubing.js fully solves
             try {
-                const pmod = await import("https://cdn.cubing.net/js/cubing/puzzles");
+                const pmod = await import("https://cdn.cubing.net/v0/js/cubing/puzzles");
                 const puzzle = pid === '333' ? pmod.cube3x3x3 : pmod.cube2x2x2;
                 const kp = await puzzle.kpuzzle();
                 let state = kp.startState();

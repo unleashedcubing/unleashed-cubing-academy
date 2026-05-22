@@ -23,7 +23,7 @@
 // ============================================================================
 
 import { fbSync } from './firebase-sync.js';
-import { randomScrambleForEvent } from "https://cdn.cubing.net/js/cubing/scramble";
+import { randomScrambleForEvent } from "https://cdn.cubing.net/v0/js/cubing/scramble";
 
 function requireDb() {
     if (!fbSync.enabled) throw new Error('Cloud sync is not configured. Edit firebase-config.js.');
