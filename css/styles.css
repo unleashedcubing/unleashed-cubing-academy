@@ -138,6 +138,8 @@
             .nav-item { padding: 10px 12px; }
             .sidebar-foot { display: none; }
             .main-content { padding: 20px 16px; }
+            /* Hide collapse toggle — doesn't make sense on horizontal top bar */
+            .sidebar-toggle { display: none !important; }
         }
 
         header {
@@ -2364,6 +2366,9 @@
             background: var(--card-bg);
             border: 1px solid rgba(255,255,255,0.06);
             border-radius: 18px;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
         }
         .timer-center-stack #puzzle-scramble {
             text-align: center;
@@ -3089,6 +3094,11 @@
         #timer-view {
             --orange: var(--session-accent, #FF9F0A);
             --orange-dark: var(--session-accent, #FF6A00);
+        }
+        /* Prevent text selection + allow touch-timing on the timer main col */
+        .timer-main-col {
+            user-select: none;
+            -webkit-user-select: none;
         }
         /* Replace the hardcoded graph-legend swatch on the timer page only */
         #timer-view .graph-legend i.lg-time {

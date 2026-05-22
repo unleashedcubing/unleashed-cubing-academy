@@ -1425,7 +1425,19 @@
             timer: trainTimer,
             isActive: () => trainView.style.display !== 'none' && trainActive.style.display !== 'none'
         });
-        bindTap(document.getElementById('train-tap'), trainTimer);
+        // Touch-anywhere for trainer (non-mouse pointer on non-interactive areas)
+        trainActive.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (e.target.closest('button, input, select, a, [data-act], .case-check')) return;
+            e.preventDefault();
+            trainTimer.press();
+        });
+        trainActive.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (e.target.closest('button, input, select, a')) return;
+            e.preventDefault();
+            trainTimer.release();
+        });
 
         document.getElementById('train-start').addEventListener('click', () => {
             const picked = [...trainCaselist.querySelectorAll('input:checked')].map(cb => cb.dataset.case);
@@ -1970,7 +1982,21 @@
             timer: puzzleTimer,
             isActive: () => timerView.style.display !== 'none'
         });
-        bindTap(document.getElementById('puzzle-tap'), puzzleTimer);
+        // Touch-anywhere for puzzle timer (non-mouse pointer on non-interactive areas)
+        timerView.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (e.target.closest('button, input, select, a, [data-act], .session-card, .solve-row, .modal-backdrop')) return;
+            if (inputMode !== 'timer') return;
+            e.preventDefault();
+            puzzleTimer.press();
+        });
+        timerView.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (e.target.closest('button, input, select, a')) return;
+            if (inputMode !== 'timer') return;
+            e.preventDefault();
+            puzzleTimer.release();
+        });
 
         sessionSelect.addEventListener('change', () => {
             puzzleStore.activeId = sessionSelect.value;
@@ -2391,7 +2417,6 @@
 
         // ---- Input methods: Timer / Typing / Stackmat ----
         let inputMode = LS.get('inputMode', 'timer');
-        const puzzleTapBtn   = document.getElementById('puzzle-tap');
         const puzzleHintEl   = document.getElementById('puzzle-hint');
         const puzzleTypeUI   = document.getElementById('puzzle-type-ui');
         const puzzleTypeIn   = document.getElementById('puzzle-type-input');
@@ -2401,7 +2426,6 @@
             const isTimer    = inputMode === 'timer';
             const isType     = inputMode === 'type';
             const isStackmat = inputMode === 'stackmat';
-            puzzleTapBtn.style.display     = isTimer    ? '' : 'none';
             puzzleTypeUI.style.display     = isType     ? 'flex' : 'none';
             puzzleStackmatUI.style.display = isStackmat ? 'block' : 'none';
             puzzleHintEl.style.display     = isTimer    ? '' : 'none';
