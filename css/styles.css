@@ -2368,7 +2368,7 @@
             border-radius: 18px;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: manipulation;
+            touch-action: none;
         }
         .timer-center-stack #puzzle-scramble {
             text-align: center;

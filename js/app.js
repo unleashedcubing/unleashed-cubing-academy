@@ -1465,13 +1465,11 @@
         trainActive.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'mouse') return;
             if (e.target.closest('button, input, select, a, [data-act], .case-check')) return;
-            e.preventDefault();
             trainTimer.press();
         });
         trainActive.addEventListener('pointerup', (e) => {
             if (e.pointerType === 'mouse') return;
             if (e.target.closest('button, input, select, a')) return;
-            e.preventDefault();
             trainTimer.release();
         });
 
@@ -2023,14 +2021,12 @@
             if (e.pointerType === 'mouse') return;
             if (e.target.closest('button, input, select, a, [data-act], .session-card, .solve-row, .modal-backdrop')) return;
             if (inputMode !== 'timer') return;
-            e.preventDefault();
             puzzleTimer.press();
         });
         timerView.addEventListener('pointerup', (e) => {
             if (e.pointerType === 'mouse') return;
             if (e.target.closest('button, input, select, a')) return;
             if (inputMode !== 'timer') return;
-            e.preventDefault();
             puzzleTimer.release();
         });
 
