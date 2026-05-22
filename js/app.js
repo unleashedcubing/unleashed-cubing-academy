@@ -19,7 +19,7 @@
             document.documentElement.style.setProperty('--orange',      c.main);
             document.documentElement.style.setProperty('--orange-dark', c.dark);
         }
-        applyAppColor(LS.get('appColor', 'orange'));
+        applyAppColor((() => { try { const v = localStorage.getItem('uc_appColor'); return v ? JSON.parse(v) : 'orange'; } catch(e) { return 'orange'; } })());
 
         function buildColorSwatches() {
             const grid = document.getElementById('app-color-grid');
