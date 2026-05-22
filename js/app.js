@@ -623,6 +623,13 @@
                 if (mode === 'stats') renderStats();
                 if (mode === 'quests') renderQuests();
                 if (mode === 'battles') showBattlesLobby();
+                // Mobile FAB: only visible on timer page; close side sheet if leaving timer
+                const fab = document.getElementById('mobile-side-fab');
+                if (fab) fab.style.display = (mode === 'timer') ? '' : 'none';
+                if (mode !== 'timer') {
+                    document.querySelector('.timer-side')?.classList.remove('mobile-open');
+                    document.getElementById('mobile-side-overlay')?.style && (document.getElementById('mobile-side-overlay').style.display = 'none');
+                }
             });
         });
 
@@ -1726,12 +1733,20 @@
             currentScramble = '';
             puzzleScrambleEl.textContent = 'Generating scramble…';
             let scr = '';
-            try {
-                scr = (await randomScrambleForEvent(ev)).toString();
-            } catch (err) {
-                console.error(err);
-                puzzleScrambleEl.textContent = 'Scramble unavailable — please retry.';
-                return;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    scr = (await randomScrambleForEvent(ev)).toString();
+                    break;
+                } catch (err) {
+                    if (attempt < 2) {
+                        await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+                        continue;
+                    }
+                    console.error('Scramble generation failed after 3 attempts:', err);
+                    puzzleScrambleEl.innerHTML = 'Scramble unavailable — <button id="retry-scr-btn" style="background:none;border:none;color:var(--orange);cursor:pointer;font-family:inherit;font-size:inherit;text-decoration:underline;padding:0;">retry</button>';
+                    document.getElementById('retry-scr-btn')?.addEventListener('click', nextPuzzleScramble);
+                    return;
+                }
             }
             if (puzzleSelect.value !== ev) return; // puzzle changed while awaiting
             currentScramble = scr;
@@ -2183,11 +2198,29 @@
                     : 'Edit firebase-config.js with your Firebase project credentials to enable cloud sync, accounts, and (later) 1v1 battles.';
             }
         }
+        // ---- Sign-in modal ----
+        const signinModal  = document.getElementById('signin-modal');
+        const signinClose  = document.getElementById('signin-close');
+        const signinGoogle = document.getElementById('signin-google-btn');
+        const signinWca    = document.getElementById('signin-wca-btn');
+        const signinSkip   = document.getElementById('signin-skip-btn');
+        function openSigninModal() { if (signinModal) signinModal.style.display = 'flex'; }
+        function closeSigninModal() { if (signinModal) signinModal.style.display = 'none'; }
+        if (signinClose)  signinClose.addEventListener('click',  closeSigninModal);
+        if (signinSkip)   signinSkip.addEventListener('click',   closeSigninModal);
+        if (signinModal)  signinModal.addEventListener('click', e => { if (e.target === signinModal) closeSigninModal(); });
+        if (signinGoogle) signinGoogle.addEventListener('click', () => { closeSigninModal(); fbSync.signIn(); });
+        if (signinWca)    signinWca.addEventListener('click',    () => {
+            closeSigninModal();
+            sessionStorage.setItem('wca_signin_intent', '1');
+            startWcaLogin();
+        });
+
         // Delegate sign-in / sign-out clicks
         document.addEventListener('click', (e) => {
             const b = e.target.closest('[data-auth]');
             if (!b) return;
-            if (b.dataset.auth === 'signin')  fbSync.signIn();
+            if (b.dataset.auth === 'signin')  openSigninModal();
             if (b.dataset.auth === 'signout') fbSync.signOut();
         });
 
@@ -2219,6 +2252,27 @@
             renderAuthWidget();
         });
         renderAuthWidget();   // initial render (signed-out state until auth resolves)
+
+        // ---- Mobile: bottom-sheet for session overview + time list ----
+        const mobileSideOverlay = document.getElementById('mobile-side-overlay');
+        const mobileSideFab     = document.getElementById('mobile-side-fab');
+        const mobileSideClose   = document.querySelector('#mobile-side-close');
+        const timerSideEl       = document.querySelector('.timer-side');
+
+        function openMobileSide() {
+            if (!timerSideEl) return;
+            timerSideEl.classList.add('mobile-open');
+            if (mobileSideOverlay) mobileSideOverlay.style.display = 'block';
+        }
+        function closeMobileSide() {
+            if (timerSideEl) timerSideEl.classList.remove('mobile-open');
+            if (mobileSideOverlay) mobileSideOverlay.style.display = 'none';
+        }
+        if (mobileSideFab)     mobileSideFab.addEventListener('click',   openMobileSide);
+        if (mobileSideClose)   mobileSideClose.addEventListener('click',  closeMobileSide);
+        if (mobileSideOverlay) mobileSideOverlay.addEventListener('click', e => {
+            if (e.target === mobileSideOverlay) closeMobileSide();
+        });
 
         // ---- Timer settings modal ----
         const settingsModal = document.getElementById('timer-settings-modal');
@@ -3224,6 +3278,7 @@
         // ---- WCA OAuth callback handling (runs once on every page load) ----
         handleWcaCallback().then(result => {
             if (!result || !result.wca_id) return;
+            sessionStorage.removeItem('wca_signin_intent');
             profile.wca_id = result.wca_id;
             profile.wca_name = result.name || '';
             profile.wca_verified = true;

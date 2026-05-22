@@ -4295,3 +4295,216 @@
             font-weight: 600;
             text-align: center;
         }
+
+        /* ============ Sign-in choice modal ============ */
+        .signin-panel {
+            width: min(360px, 94vw);
+        }
+        .signin-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 8px 0 0;
+        }
+        .signin-sub {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin: 0 0 20px;
+            line-height: 1.4;
+        }
+        .signin-opt-btn {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100% !important;
+            padding: 12px 16px !important;
+            font-size: 0.95rem !important;
+            margin-bottom: 10px;
+        }
+        .signin-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: rgba(255,255,255,0.18);
+            font-size: 0.8rem;
+            margin: 4px 0 10px;
+        }
+        .signin-divider::before,
+        .signin-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+        .signin-wca-note {
+            font-size: 0.76rem;
+            color: rgba(255,255,255,0.3);
+            text-align: center;
+            line-height: 1.4;
+            margin: 2px 0 16px;
+        }
+        .signin-skip-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.3);
+            font-size: 0.82rem;
+            cursor: pointer;
+            text-align: center;
+            padding: 6px;
+            font-family: 'Ubuntu', sans-serif;
+            transition: color 0.15s;
+        }
+        .signin-skip-btn:hover { color: rgba(255,255,255,0.6); }
+
+        /* ============ Mobile overlay backdrop ============ */
+        .mobile-side-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 300;
+        }
+        /* Mobile FAB */
+        .mobile-side-fab {
+            display: none;
+            position: fixed;
+            bottom: 66px;
+            right: 16px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+            border: none;
+            color: #1a1108;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(255,159,10,0.4);
+            z-index: 250;
+            transition: transform 0.15s;
+        }
+        .mobile-side-fab:active { transform: scale(0.92); }
+
+        /* ============ Mobile layout (≤640px) ============ */
+        @media (max-width: 640px) {
+            /* Show FAB */
+            .mobile-side-fab { display: inline-flex; }
+
+            /* Show auth icon-button in mobile top bar */
+            .sidebar-auth { display: flex !important; margin-left: auto; padding: 0; }
+            .sidebar:not(.collapsed) .auth-btn.auth-icon-btn { display: inline-flex !important; }
+            .auth-btn.auth-text-btn { display: none !important; }
+            #sidebar-auth .auth-user { display: none !important; }
+
+            /* Hide graphs */
+            .timer-graphs-row { display: none !important; }
+
+            /* Max 2 widgets */
+            .widgets-row .widget-slot:nth-child(n+3) { display: none !important; }
+
+            /* Hide desktop timer-side; shown as bottom sheet when .mobile-open */
+            .timer-side { display: none !important; }
+            .timer-side.mobile-open {
+                display: flex !important;
+                position: fixed;
+                bottom: 56px;
+                left: 0;
+                right: 0;
+                max-height: 78vh;
+                background: rgba(12,12,14,0.98);
+                border-top: 1px solid rgba(255,255,255,0.1);
+                border-radius: 20px 20px 0 0;
+                z-index: 310;
+                overflow-y: auto;
+                flex-direction: column;
+                gap: 12px;
+                padding: 12px;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+            }
+
+            /* Session rail → fixed bottom bar */
+            .session-rail {
+                display: flex !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                flex-direction: row !important;
+                height: 56px;
+                padding: 0 10px !important;
+                background: rgba(12,12,14,0.97);
+                border-top: 1px solid rgba(255,255,255,0.09);
+                border-radius: 0 !important;
+                z-index: 200;
+                gap: 6px !important;
+                align-items: center;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+            }
+            .session-rail-list {
+                flex-direction: row !important;
+                width: auto;
+                flex: 1;
+                overflow-x: auto;
+                scrollbar-width: none;
+                align-items: center;
+                gap: 5px !important;
+            }
+            .session-rail-list::-webkit-scrollbar { display: none; }
+            .session-rail-add {
+                min-width: 36px;
+                width: 36px !important;
+                height: 36px !important;
+                flex-shrink: 0;
+                border-radius: 10px !important;
+            }
+            /* Session cards: horizontal compact chips */
+            .session-card {
+                min-height: 36px !important;
+                width: auto !important;
+                min-width: 36px;
+                padding: 6px 10px !important;
+                flex-direction: row !important;
+                gap: 5px;
+                border-radius: 10px !important;
+            }
+            .session-card-ic { font-size: 1rem; }
+            .session-card-name {
+                writing-mode: horizontal-tb !important;
+                transform: none !important;
+                max-height: none !important;
+                max-width: 70px;
+                font-size: 0.72rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .session-card:not(.is-active) .session-card-name { display: none; }
+            /* Active card: bigger, show name */
+            .session-card.is-active {
+                padding: 6px 12px !important;
+            }
+            /* Add padding-bottom to timer to clear the session rail */
+            .timer-layout { padding-bottom: 64px; }
+            /* Main content padding */
+            .main-content { padding: 14px 12px; }
+        }
+
+        /* Mobile close bar inside timer-side: only visible on mobile */
+        .mobile-side-close-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 4px 8px;
+            flex-shrink: 0;
+        }
+        .mobile-side-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+        @media (max-width: 640px) {
+            .mobile-side-close-bar { display: flex; }
+        }
