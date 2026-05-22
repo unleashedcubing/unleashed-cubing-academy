@@ -1425,12 +1425,23 @@
             return [pre, base, post].filter(Boolean).join(' ').trim();
         }
 
+        function trainPuzzleId(category) {
+            if (category.startsWith('2x2'))      return '2x2x2';
+            if (category.startsWith('4x4'))      return '4x4x4';
+            if (category.startsWith('5x5'))      return '5x5x5';
+            if (category.startsWith('Pyraminx')) return 'pyraminx';
+            return '3x3x3';
+        }
         function showScramble() {
             if (!trainPool.length) return;
             trainCurrent = trainPool[Math.floor(Math.random() * trainPool.length)];
             const scr = genScramble(trainCurrent);
             scrambleEl.textContent = scr || '(already solved)';
-            const orient = (trainCurrent.category === 'F2L' || trainCurrent.category === 'AF2L') ? '' : 'z2';
+            const cat = trainCurrent.category;
+            const isPyra = cat.startsWith('Pyraminx');
+            const isF2L  = cat === 'F2L' || cat === 'AF2L';
+            const orient = (isF2L || isPyra) ? '' : 'z2';
+            trainCube.setAttribute('puzzle', trainPuzzleId(cat));
             trainCube.setAttribute('experimental-setup-alg', (orient ? orient + ' ' : '') + scr);
             trainCube.alg = '';
             revealBox.innerHTML = '';
@@ -2937,16 +2948,26 @@
         function updateBattlesGate() {
             const total = totalSolvesAll();
             const unlocked = battlesUnlocked();
+            const signedIn = !!fbSync.getUser();
             const gateEl = document.getElementById('battles-gate');
             const actionsEl = document.querySelector('#battles-lobby .battles-actions');
             const rulesEl = document.querySelector('#battles-lobby .battles-rules');
+            const signinPrompt = document.getElementById('battles-signin-prompt');
             if (unlocked) {
                 if (gateEl) gateEl.style.display = 'none';
-                if (actionsEl) actionsEl.style.display = '';
-                if (rulesEl) rulesEl.style.display = '';
+                if (signedIn) {
+                    if (actionsEl) actionsEl.style.display = '';
+                    if (rulesEl) rulesEl.style.display = '';
+                    if (signinPrompt) signinPrompt.style.display = 'none';
+                } else {
+                    if (actionsEl) actionsEl.style.display = 'none';
+                    if (rulesEl) rulesEl.style.display = 'none';
+                    if (signinPrompt) signinPrompt.style.display = '';
+                }
             } else {
                 if (actionsEl) actionsEl.style.display = 'none';
                 if (rulesEl) rulesEl.style.display = 'none';
+                if (signinPrompt) signinPrompt.style.display = 'none';
                 if (gateEl) {
                     gateEl.style.display = '';
                     const pct = Math.min(100, (total / BATTLES_MIN_SOLVES) * 100);
@@ -3168,6 +3189,12 @@
                 msg.style.color = '#ff6b6b';
             }
         });
+        document.getElementById('battles-signin-btn')?.addEventListener('click', () => openSigninModal());
+        // Re-evaluate gate when auth state changes (e.g. after signing in from battles page)
+        fbSync.onUserChange(() => {
+            if (battlesView.style.display !== 'none') updateBattlesGate();
+        });
+
         battleReadyBtn.addEventListener('click', async () => {
             if (!battleCode || !fbSync.getUser()) return;
             const me = fbSync.getUser();
