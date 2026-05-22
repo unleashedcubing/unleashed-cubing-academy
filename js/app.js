@@ -2948,7 +2948,10 @@
         function updateBattlesGate() {
             const total = totalSolvesAll();
             const unlocked = battlesUnlocked();
-            const signedIn = !!fbSync.getUser();
+            // Wait for Firebase auth to resolve before deciding sign-in state.
+            // Before resolution getUser() returns null even for signed-in users.
+            const authReady = fbSync.isInitialAuthResolved();
+            const signedIn  = !!fbSync.getUser();
             const gateEl = document.getElementById('battles-gate');
             const actionsEl = document.querySelector('#battles-lobby .battles-actions');
             const rulesEl = document.querySelector('#battles-lobby .battles-rules');
@@ -2959,10 +2962,16 @@
                     if (actionsEl) actionsEl.style.display = '';
                     if (rulesEl) rulesEl.style.display = '';
                     if (signinPrompt) signinPrompt.style.display = 'none';
-                } else {
+                } else if (authReady) {
+                    // Auth resolved and not signed in → show prompt
                     if (actionsEl) actionsEl.style.display = 'none';
                     if (rulesEl) rulesEl.style.display = 'none';
                     if (signinPrompt) signinPrompt.style.display = '';
+                } else {
+                    // Auth still loading — hide everything, will re-run when resolved
+                    if (actionsEl) actionsEl.style.display = 'none';
+                    if (rulesEl) rulesEl.style.display = 'none';
+                    if (signinPrompt) signinPrompt.style.display = 'none';
                 }
             } else {
                 if (actionsEl) actionsEl.style.display = 'none';
@@ -3190,10 +3199,10 @@
             }
         });
         document.getElementById('battles-signin-btn')?.addEventListener('click', () => openSigninModal());
-        // Re-evaluate gate when auth state changes (e.g. after signing in from battles page)
-        fbSync.onUserChange(() => {
-            if (battlesView.style.display !== 'none') updateBattlesGate();
-        });
+        // Re-evaluate gate whenever auth state changes (sign-in / sign-out / initial resolve).
+        // No view-visibility guard: must fire even when battles tab is hidden so that
+        // mobile redirect sign-ins (which reload the page) still update correctly.
+        fbSync.onUserChange(() => updateBattlesGate());
 
         battleReadyBtn.addEventListener('click', async () => {
             if (!battleCode || !fbSync.getUser()) return;
