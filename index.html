@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unleashed Cubing</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@1&family=Inter:wght@900&family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+
+    <link rel="icon" href="uc_logo.jpg">
+
+    <script type="module" src="https://cdn.cubing.net/js/cubing/twisty"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" id="app-sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-mark">
+                    <img src="uc_logo.jpg" alt="logo" onerror="this.remove()">
+                    <span class="brand-fallback">UC</span>
+                </div>
+                <div class="brand-text"><b>Unleashed<br>Cubing<br>Academy</b></div>
+                <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-mode="learn" title="Algorithms">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.6"/><rect x="3" y="13" width="8" height="8" rx="1.6"/><rect x="13" y="13" width="8" height="8" rx="1.6"/></svg>
+                    <span>Algorithms</span>
+                </button>
+                <button class="nav-item" data-mode="train" title="Trainer">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <span>Trainer</span>
+                </button>
+                <button class="nav-item" data-mode="timer" title="Timer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V8.5"/><path d="M9.5 2.5h5"/></svg>
+                    <span>Timer</span>
+                </button>
+                <button class="nav-item" data-mode="battles" title="Battles">
+                    <!-- Trophy -->
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h2.5c.83 0 1.5.67 1.5 1.5v2c0 2.21-1.79 4-4 4h-.16A6.99 6.99 0 0 1 13 16.92V19h3v2H8v-2h3v-2.08A6.99 6.99 0 0 1 6.16 12.5H6c-2.21 0-4-1.79-4-4v-2C2 5.67 2.67 5 3.5 5H6V3zm0 4H4v1.5c0 1.1.9 2 2 2V7zm12 0v3.5c1.1 0 2-.9 2-2V7h-2z"/></svg>
+                    <span>Battles</span>
+                </button>
+                <button class="nav-item" data-mode="stats" title="Account">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="5" height="9" rx="1.2"/><rect x="9.5" y="5" width="5" height="16" rx="1.2"/><rect x="16" y="9" width="5" height="12" rx="1.2"/></svg>
+                    <span>Account</span>
+                </button>
+                <button class="nav-item" data-mode="quests" title="Quests">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M14 2l2 6 6 1-4.5 4.4L19 20l-7-4-7 4 1.5-6.6L2 9l6-1z"/></svg>
+                    <span>Quests</span>
+                </button>
+            </nav>
+            <div class="sidebar-foot">
+                <div id="sidebar-auth" class="sidebar-auth"></div>
+                <div class="sidebar-foot-note">UC Academy · Beta</div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="learn-view">
+                <div class="page-heading" id="cube-picker-heading">
+                    <h1 class="page-title">Algorithms</h1>
+                    <p class="page-sub">Pick a cube to browse its algorithm sets.</p>
+                </div>
+                <!-- Cube-picker landing: shown when no cube is selected -->
+                <div class="cube-picker" id="cube-picker">
+                    <button type="button" class="cube-tile" data-cube="3x3">
+                        <img src="Cube_Clipart/333.svg" alt="3x3 cube" class="cube-tile-img">
+                        <span class="cube-tile-label">3x3</span>
+                        <span class="cube-tile-count">PLL · OLL · COLL · F2L</span>
+                    </button>
+                    <button type="button" class="cube-tile" data-cube="2x2">
+                        <img src="Cube_Clipart/222.svg" alt="2x2 cube" class="cube-tile-img">
+                        <span class="cube-tile-label">2x2</span>
+                        <span class="cube-tile-count">CLL · EG · Ortega</span>
+                    </button>
+                    <button type="button" class="cube-tile" data-cube="4x4">
+                        <img src="Cube_Clipart/444.svg" alt="4x4 cube" class="cube-tile-img">
+                        <span class="cube-tile-label">4x4</span>
+                        <span class="cube-tile-count">Parity Algs</span>
+                    </button>
+                    <button type="button" class="cube-tile" data-cube="5x5">
+                        <img src="Cube_Clipart/555.svg" alt="5x5 cube" class="cube-tile-img">
+                        <span class="cube-tile-label">5x5</span>
+                        <span class="cube-tile-count">L2C · L2E</span>
+                    </button>
+                    <button type="button" class="cube-tile" data-cube="Pyraminx">
+                        <img src="Cube_Clipart/pyram.svg" alt="Pyraminx" class="cube-tile-img">
+                        <span class="cube-tile-label">Pyraminx</span>
+                        <span class="cube-tile-count">L4E · Last Layer</span>
+                    </button>
+                </div>
+                <div class="controls" id="learn-controls" style="display:none;">
+                    <button class="cube-back-btn" id="cube-back-btn" title="Back to cube selection">← All cubes</button>
+                    <select id="category-filter">
+                        <optgroup label="3x3">
+                            <option value="PLL">PLL</option>
+                            <option value="OLL">OLL</option>
+                            <option value="COLL">COLL</option>
+                            <option value="F2L">F2L</option>
+                            <option value="AF2L">Advanced F2L</option>
+                            <option value="Winter Variation">Winter Variation</option>
+                            <option value="Summer Variation">Summer Variation</option>
+                        </optgroup>
+                        <optgroup label="2x2">
+                            <option value="2x2 CLL">2x2 CLL</option>
+                            <option value="2x2 EG-1">2x2 EG-1</option>
+                            <option value="2x2 EG-2">2x2 EG-2</option>
+                            <option value="2x2 Ortega OLL">2x2 Ortega OLL</option>
+                            <option value="2x2 Ortega PBL">2x2 Ortega PBL</option>
+                        </optgroup>
+                        <optgroup label="4x4">
+                            <option value="4x4 OLL Parity">4x4 OLL Parity</option>
+                            <option value="4x4 PLL Parity">4x4 PLL Parity</option>
+                        </optgroup>
+                        <optgroup label="5x5">
+                            <option value="5x5 L2C">5x5 Last 2 Centers</option>
+                            <option value="5x5 L2E">5x5 Last 2 Edges</option>
+                        </optgroup>
+                        <optgroup label="Pyraminx">
+                            <option value="Pyraminx L4E">Pyraminx L4E</option>
+                            <option value="Pyraminx Last Layer">Pyraminx Last Layer</option>
+                        </optgroup>
+                    </select>
+                    <input type="text" id="search-input" placeholder="Search algorithms (e.g., T Perm, R U R')">
+                    <div class="group-toggle">
+                        <button class="group-toggle-btn" data-group="name">By Name</button>
+                        <button class="group-toggle-btn" data-group="category">By Category</button>
+                    </div>
+                </div>
+
+                <div class="grid" id="alg-grid" style="display:none;"></div>
+                <div id="loading-indicator" style="display:none;">Rendering cases...</div>
+            </div>
+
+            <div id="train-view" style="display:none;">
+                <div class="train-panel" id="train-setup">
+                    <div class="train-row trainer-toolbar">
+                        <select id="train-category">
+                            <optgroup label="3x3">
+                                <option value="PLL">PLL</option>
+                                <option value="OLL">OLL</option>
+                                <option value="COLL">COLL</option>
+                                <option value="F2L">F2L</option>
+                                <option value="AF2L">Advanced F2L</option>
+                                <option value="Winter Variation">Winter Variation</option>
+                                <option value="Summer Variation">Summer Variation</option>
+                            </optgroup>
+                            <optgroup label="2x2">
+                                <option value="2x2 CLL">2x2 CLL</option>
+                                <option value="2x2 EG-1">2x2 EG-1</option>
+                                <option value="2x2 EG-2">2x2 EG-2</option>
+                                <option value="2x2 Ortega OLL">2x2 Ortega OLL</option>
+                                <option value="2x2 Ortega PBL">2x2 Ortega PBL</option>
+                            </optgroup>
+                            <optgroup label="4x4">
+                                <option value="4x4 OLL Parity">4x4 OLL Parity</option>
+                                <option value="4x4 PLL Parity">4x4 PLL Parity</option>
+                            </optgroup>
+                            <optgroup label="5x5">
+                                <option value="5x5 L2C">5x5 Last 2 Centers</option>
+                                <option value="5x5 L2E">5x5 Last 2 Edges</option>
+                            </optgroup>
+                            <optgroup label="Pyraminx">
+                                <option value="Pyraminx L4E">Pyraminx L4E</option>
+                                <option value="Pyraminx Last Layer">Pyraminx Last Layer</option>
+                            </optgroup>
+                        </select>
+                        <div class="group-toggle">
+                            <button class="group-toggle-btn" data-train-group="name">By Name</button>
+                            <button class="group-toggle-btn" data-train-group="category">By Category</button>
+                        </div>
+                    </div>
+                    <div class="train-row">
+                        <button class="train-quick-btn" data-pick="all">Select All</button>
+                        <button class="train-quick-btn" data-pick="none">Clear</button>
+                        <button class="train-quick-btn" data-pick="learning">Only Learning</button>
+                        <button class="train-quick-btn" data-pick="learned">Only Learned</button>
+                    </div>
+                    <div id="train-caselist"></div>
+                    <button class="train-cta" id="train-start">Start Training</button>
+                </div>
+
+                <div class="train-panel" id="train-active" style="display:none;">
+                    <div id="train-scramble" class="uc-scramble">—</div>
+                    <div class="cube-container train-cube-wrap" id="train-cube-wrap">
+                        <twisty-player id="train-cube" alg="" background="none" control-panel="none" viewer-link="none"></twisty-player>
+                    </div>
+                    <div id="train-timer" class="uc-bigtimer">0.00</div>
+                    <div class="uc-hint">Hold <b>Space</b> (or tap below), release to start — press again to stop</div>
+                    <div id="train-reveal-box" class="uc-reveal"></div>
+                    <div class="uc-stats">
+                        <span>Solves <b id="ts-count">0</b></span>
+                        <span>Last <b id="ts-last">—</b></span>
+                        <span>Best <b id="ts-best">—</b></span>
+                        <span>Avg <b id="ts-avg">—</b></span>
+                    </div>
+                    <div class="train-row">
+                        <button class="train-quick-btn" id="train-tap">Tap to time</button>
+                        <button class="train-quick-btn" id="train-cube-toggle">Hide cube</button>
+                        <button class="train-quick-btn" id="train-skip">Skip case</button>
+                        <button class="train-quick-btn" id="train-back">Back to selection</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="timer-view" style="display:none;">
+                <div class="timer-layout">
+                    <div class="timer-main-col">
+                        <!-- Visible controls bar above the scramble: cube selector + timer settings -->
+                        <div class="timer-controls-bar">
+                            <select id="puzzle-select" class="puzzle-select-prominent">
+                                <option value="222">2x2</option>
+                                <option value="333" selected>3x3</option>
+                                <option value="444">4x4</option>
+                                <option value="555">5x5</option>
+                                <option value="666">6x6</option>
+                                <option value="777">7x7</option>
+                                <option value="pyram">Pyraminx</option>
+                                <option value="skewb">Skewb</option>
+                                <option value="minx">Megaminx</option>
+                                <option value="sq1">Square-1</option>
+                                <option value="clock">Clock</option>
+                            </select>
+                            <button class="train-quick-btn settings-gear" id="open-timer-settings" title="Timer settings">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3a1 1 0 0 0-.8-.98l-1.8-.36-.5-1.21.94-1.58a1 1 0 0 0-.16-1.2l-1.42-1.42a1 1 0 0 0-1.2-.16l-1.58.95-1.21-.5-.36-1.8A1 1 0 0 0 13 2h-2a1 1 0 0 0-.98.8l-.36 1.8-1.21.5L6.87 4.16a1 1 0 0 0-1.2.16L4.25 5.74a1 1 0 0 0-.16 1.2L5.04 8.52l-.5 1.21-1.8.36a1 1 0 0 0-.74.97v2a1 1 0 0 0 .8.98l1.8.36.5 1.21-.94 1.58a1 1 0 0 0 .16 1.2l1.42 1.42a1 1 0 0 0 1.2.16l1.58-.94 1.21.5.36 1.8A1 1 0 0 0 11 22h2a1 1 0 0 0 .98-.8l.36-1.8 1.21-.5 1.58.94a1 1 0 0 0 1.2-.16l1.42-1.42a1 1 0 0 0 .16-1.2l-.94-1.58.5-1.21 1.8-.36A1 1 0 0 0 21 13z"/></svg>
+                                Settings
+                            </button>
+                        </div>
+
+                        <div class="timer-hidden-controls">
+                            <div class="cube-container" id="puzzle-cube-wrap" style="display:none;">
+                                <twisty-player id="puzzle-cube" puzzle="3x3x3" visualization="2D" alg="" background="none" control-panel="none" viewer-link="none"></twisty-player>
+                            </div>
+                        </div>
+
+                        <!-- Center stack: scramble → timer (with feedback beside) → widgets -->
+                        <div class="timer-center-stack">
+                            <div id="puzzle-scramble" class="uc-scramble">—</div>
+                            <div class="timer-with-feedback">
+                                <div id="puzzle-timer" class="uc-bigtimer">0.00</div>
+                                <div id="solve-feedback-inline" class="solve-feedback-inline" aria-hidden="true"></div>
+                            </div>
+                            <div class="uc-hint" id="puzzle-hint">Hold <b>Space</b> (or tap below), release to start — press again to stop</div>
+                            <div class="widgets-row" id="widgets-row" aria-label="Stat widgets"></div>
+
+                            <!-- Typing input (only shown in Type mode) -->
+                            <div id="puzzle-type-ui" class="puzzle-type-ui" style="display:none;">
+                                <input type="text" id="puzzle-type-input" placeholder="Type time (e.g. 12.34 or 1:02.34)">
+                                <button class="train-quick-btn" id="puzzle-type-submit">Record</button>
+                                <button class="train-quick-btn" id="puzzle-type-dnf">DNF</button>
+                            </div>
+                            <!-- Stackmat placeholder -->
+                            <div id="puzzle-stackmat-ui" class="puzzle-stackmat-ui" style="display:none;">
+                                <button class="train-quick-btn" id="puzzle-stackmat-connect">🎧 Connect Stackmat (audio jack)</button>
+                                <div class="stackmat-note">Stackmat support uses the audio jack via Web Audio. Plug your Stackmat into the headphone-in / line-in port and click Connect. Coming in the next pass.</div>
+                            </div>
+
+                            <div class="train-row" style="justify-content:center; margin-top:8px;">
+                                <button class="train-quick-btn" id="puzzle-tap">Tap to time</button>
+                                <button class="train-quick-btn" id="puzzle-skip">New scramble</button>
+                            </div>
+                        </div>
+
+                        <!-- Graphs row below the timer -->
+                        <div class="timer-graphs-row">
+                            <div class="train-panel timer-graph-panel">
+                                <div class="panel-title">Progress <span class="graph-legend"><i class="lg-time"></i>time <i class="lg-pb"></i>PB</span></div>
+                                <svg id="puzzle-graph" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
+                            </div>
+                            <div class="train-panel timer-graph-panel">
+                                <div class="panel-title">Time Distribution</div>
+                                <svg id="puzzle-hist" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right rail: Session Overview + Time List -->
+                    <div class="timer-side">
+                        <div class="train-panel session-overview-panel">
+                            <div class="panel-title">
+                                <span><span class="panel-title-icon">👻</span> Session Overview</span>
+                                <button class="train-quick-btn icon-only" id="puzzle-clear" title="Clear session">🗑</button>
+                            </div>
+                            <div class="stats-grid" id="puzzle-stats-grid"></div>
+                        </div>
+                        <div class="train-panel time-list-panel">
+                            <div class="panel-title">
+                                <span><span class="panel-title-icon">⏱</span> Time List</span>
+                                <button type="button" class="time-list-search-btn" id="time-list-search-btn" title="Search times">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                                </button>
+                            </div>
+                            <div class="time-list-search" id="time-list-search" style="display:none;">
+                                <input type="text" id="time-list-search-input" placeholder="Search notes, or: sub 10, sub-pb, dnf, pb">
+                            </div>
+                            <div class="solve-list" id="puzzle-solves"></div>
+                        </div>
+                    </div>
+
+                    <!-- Vertical session rail (now on the far right, with vertical names) -->
+                    <nav class="session-rail" id="session-rail" aria-label="Sessions">
+                        <button type="button" class="session-rail-add" id="session-rail-add" title="New session" aria-label="New session">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                        <div class="session-rail-list" id="session-rail-list"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <div id="battles-view" style="display:none;">
+                <div class="battles-lobby" id="battles-lobby">
+                    <div class="train-panel battles-gate" id="battles-gate" style="display:none;">
+                        <div class="gate-lock">🔒</div>
+                        <div class="gate-title">Battles unlock at 150 solves</div>
+                        <div class="gate-sub">Get more reps in the Timer first — once you've recorded 150 solves on any cube, the arena opens.</div>
+                        <div class="gate-bar"><div class="gate-bar-fill"></div></div>
+                        <div class="gate-count">0 / 150</div>
+                        <div class="gate-bypass">
+                            <button type="button" class="gate-bypass-toggle" id="gate-bypass-toggle">Have a beta-tester code?</button>
+                            <div class="gate-bypass-form" id="gate-bypass-form" style="display:none;">
+                                <input type="text" id="gate-bypass-input" placeholder="Beta code" maxlength="10">
+                                <button type="button" class="train-quick-btn" id="gate-bypass-submit">Unlock</button>
+                            </div>
+                            <div class="gate-bypass-msg" id="gate-bypass-msg"></div>
+                        </div>
+                    </div>
+                    <div class="train-panel battles-hero">
+                        <div class="battles-hero-title">⚔ 1v1 Battles</div>
+                        <div class="battles-hero-sub">Race another cuber in real time — same scramble, fastest finish wins.</div>
+                    </div>
+                    <div class="battles-actions">
+                        <div class="train-panel battles-card">
+                            <div class="panel-title">Create a Battle</div>
+                            <div class="settings-row" style="margin-bottom:10px;">
+                                <label class="pe-hint">Event:</label>
+                                <select id="battle-create-event">
+                                    <option value="222">2x2</option>
+                                    <option value="333" selected>3x3</option>
+                                    <option value="pyram">Pyraminx</option>
+                                </select>
+                                <label class="pe-hint" style="margin-left:8px;">Players:</label>
+                                <select id="battle-create-size">
+                                    <option value="2">1v1</option>
+                                    <option value="3">1v1v1</option>
+                                </select>
+                            </div>
+                            <button class="train-cta" id="battle-create-btn">Create Battle</button>
+                            <div class="pe-hint" style="margin-top:10px;">You'll get a 6-char code and a shareable invite link.</div>
+                        </div>
+                        <div class="train-panel battles-card">
+                            <div class="panel-title">Join a Battle</div>
+                            <input type="text" id="battle-join-code" placeholder="6-character code" maxlength="6" style="text-transform:uppercase; letter-spacing:3px; font-family:'Ubuntu Mono', monospace; font-size:1.2rem; text-align:center;">
+                            <button class="train-cta" id="battle-join-btn" style="margin-top:10px;">Join</button>
+                        </div>
+                    </div>
+                    <div class="train-panel battles-rules">
+                        <div class="panel-title">How it works</div>
+                        <ol class="battles-howto">
+                            <li>Both players sign in with Google.</li>
+                            <li>Click <b>Ready</b> when you're prepared. When everyone is ready the scramble unlocks.</li>
+                            <li>Use the Timer (Space) or your smart cube. The first to submit a valid (non-DNF) time wins.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="battles-room" id="battles-room" style="display:none;">
+                    <div class="train-panel">
+                        <div class="battles-room-head">
+                            <div>
+                                <div class="battles-room-code">Code: <b id="battle-code"></b></div>
+                                <div class="battles-room-event"><span id="battle-event"></span> · <span id="battle-state">waiting</span></div>
+                            </div>
+                            <div class="battles-room-controls">
+                                <button class="train-quick-btn" id="battle-copy-link">📋 Copy invite</button>
+                                <button class="train-quick-btn" id="battle-leave">Leave</button>
+                            </div>
+                        </div>
+                        <div id="battle-scramble" class="uc-scramble" style="margin-top:14px;">Waiting for players…</div>
+                        <div class="battles-players" id="battle-players"></div>
+                        <div class="battles-controls">
+                            <button class="train-cta" id="battle-ready-btn">Ready</button>
+                            <div class="uc-bigtimer" id="battle-timer">0.00</div>
+                            <div class="pe-hint" id="battle-hint">Press Space to start the timer when scramble is unlocked.</div>
+                        </div>
+                        <div class="battles-result" id="battle-result" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stats-view" style="display:none;">
+                <div class="train-panel">
+                    <div class="panel-title">Account</div>
+                    <p style="color:var(--text-muted); line-height:1.6;">
+                        Personal records, practice distribution, algorithm progress, avatar
+                        customization and WCA linking land here in the next step.
+                    </p>
+                </div>
+            </div>
+
+            <div id="quests-view" style="display:none;"></div>
+        </main>
+
+        <!-- Solve note dialog (Shift+3 on Timer page) -->
+        <div id="solve-note-modal" class="modal-backdrop" style="display:none;">
+            <div class="modal-panel">
+                <div class="modal-head">
+                    <div class="modal-title" id="solve-note-title">Solve Note</div>
+                    <button class="modal-close" id="solve-note-close" title="Close">✕</button>
+                </div>
+                <div class="modal-body solve-note-body">
+                    <div class="solve-note-meta" id="solve-note-meta"></div>
+                    <input type="text" id="solve-note-input" placeholder="Type a note, or tap a tag below…" maxlength="120" autocomplete="off">
+                    <div class="solve-note-chips-label">Quick tags</div>
+                    <div class="solve-note-chips" id="solve-note-chips">
+                        <button type="button" data-tag="LL skip">LL skip</button>
+                        <button type="button" data-tag="Lucky">Lucky</button>
+                        <button type="button" data-tag="New PB">New PB</button>
+                        <button type="button" data-tag="Easy cross">Easy cross</button>
+                        <button type="button" data-tag="OLL skip">OLL skip</button>
+                        <button type="button" data-tag="PLL skip">PLL skip</button>
+                        <button type="button" data-tag="Unlucky">Unlucky</button>
+                        <button type="button" data-tag="Lookahead">Lookahead</button>
+                    </div>
+                </div>
+                <div class="solve-note-actions">
+                    <button class="train-quick-btn" id="solve-note-clear">Clear</button>
+                    <button class="train-cta" id="solve-note-save">Save note</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global algorithm Spotlight search (open with ? on Timer page) -->
+        <div id="alg-spotlight" class="modal-backdrop" style="display:none;">
+            <div class="modal-panel spotlight-panel">
+                <div class="spotlight-input-row">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                    <input type="text" id="alg-spotlight-input" placeholder="Search algorithms (e.g. 2x2 CLL sune, T perm, OLL 21)" autocomplete="off">
+                    <button class="modal-close" id="alg-spotlight-close" title="Close">✕</button>
+                </div>
+                <div class="spotlight-results" id="alg-spotlight-results"></div>
+                <div class="spotlight-hint">Match by puzzle, category, or case name in any order. Press <kbd>Esc</kbd> to close.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding / Welcome Quiz (first sign-in) -->
+    <div id="onboard-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel onboard-panel">
+            <div class="modal-head">
+                <div class="modal-title" id="onboard-title">Welcome to Unleashed Cubing</div>
+                <button class="modal-close" id="onboard-skip" title="Skip for now">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="onboard-step" data-step="1">
+                    <p class="onboard-lead">Let's tailor the app to you in 30 seconds. Pick the events you cube — you can change this any time in Edit Profile.</p>
+                    <div class="settings-section-title">Which events do you practice?</div>
+                    <div class="onboard-chip-grid" id="onboard-events"></div>
+                </div>
+                <div class="onboard-step" data-step="2" style="display:none;">
+                    <p class="onboard-lead">Which method(s) do you solve with?</p>
+                    <div class="settings-section-title">Preferred method</div>
+                    <div class="onboard-chip-grid" id="onboard-methods"></div>
+                </div>
+                <div class="onboard-step" data-step="3" style="display:none;">
+                    <p class="onboard-lead">Link your WCA account?</p>
+                    <p class="pe-hint" style="margin-bottom:14px;">Optional — verifies your WCA ID and pulls your official records. You can do this later in Edit Profile.</p>
+                    <button class="train-cta" id="onboard-wca-btn" style="width:auto; padding:14px 24px;">Verify with WCA</button>
+                    <div class="pe-hint" id="onboard-wca-status" style="margin-top:10px;"></div>
+                </div>
+                <div class="onboard-step" data-step="4" style="display:none;">
+                    <p class="onboard-lead">🎉 You're all set!</p>
+                    <p style="color:var(--text-muted); line-height:1.7;">
+                        Click <b>Algorithms</b> to learn cases, <b>Timer</b> to record solves,
+                        <b>Battles</b> to race friends, and <b>Account</b> to track progress.
+                    </p>
+                </div>
+            </div>
+            <div class="onboard-footer">
+                <button class="train-quick-btn" id="onboard-back" style="visibility:hidden;">Back</button>
+                <div class="onboard-dots" id="onboard-dots"></div>
+                <button class="train-cta" id="onboard-next">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timer settings modal -->
+    <div id="timer-settings-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel">
+            <div class="modal-head">
+                <div class="modal-title">Timer Settings</div>
+                <button class="modal-close" id="close-timer-settings" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <div class="settings-section-title">Sessions</div>
+                    <div class="session-list" id="session-list"></div>
+                    <div class="settings-row" style="margin-top:8px;">
+                        <button class="train-quick-btn" id="session-new">+ New session</button>
+                        <button class="train-quick-btn" id="session-delete">Delete current</button>
+                    </div>
+                    <select id="session-select" style="display:none;"></select>
+                    <button id="session-rename" style="display:none;"></button>
+                </div>
+                <div class="settings-section">
+                    <div class="settings-section-title">Timer behaviour</div>
+                    <div class="settings-row">
+                        <button class="train-quick-btn" id="ps-inspection">Inspection: Off</button>
+                        <button class="train-quick-btn" id="ps-focus">Focus: Off</button>
+                        <button class="train-quick-btn" id="ps-hold">Hold: 0.0s</button>
+                        <button class="train-quick-btn" id="ps-precision">Decimals: 2</button>
+                        <button class="train-quick-btn" id="puzzle-cube-toggle">Hide cube</button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <div class="settings-section-title">Input method</div>
+                    <div class="settings-row input-method-row">
+                        <button class="train-quick-btn input-mode-btn" data-input="timer">Timer (Space)</button>
+                        <button class="train-quick-btn input-mode-btn" data-input="type">Typing</button>
+                        <button class="train-quick-btn input-mode-btn" data-input="stackmat">Stackmat</button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <div class="settings-section-title">Smart cube (Bluetooth)</div>
+                    <div class="settings-row">
+                        <button class="train-quick-btn" id="smart-cube-connect">🔵 Connect Smart Cube</button>
+                        <span class="smart-cube-status" id="smart-cube-status">Not connected</span>
+                    </div>
+                    <div class="pe-hint" style="margin-top:6px;">
+                        Supports GAN, GiiKER, GoCube, MoYu AI via Web Bluetooth (Chrome / Edge / Opera).
+                        Moves stream into the on-screen cube; the timer auto-starts on your first move
+                        after a scramble.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile modal (redesigned) -->
+    <div id="profile-edit-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel pe-panel">
+            <div class="pe-header">
+                <div class="pe-header-title">Edit Profile</div>
+                <button class="modal-close" id="close-profile-edit" aria-label="Close">✕</button>
+            </div>
+
+            <div class="pe-tabs">
+                <button type="button" class="pe-tab on" data-pe-tab="identity">Identity</button>
+                <button type="button" class="pe-tab"    data-pe-tab="avatar">Avatar</button>
+                <button type="button" class="pe-tab"    data-pe-tab="wca">WCA</button>
+                <button type="button" class="pe-tab"    data-pe-tab="socials">Socials</button>
+            </div>
+
+            <div class="pe-tab-content" data-pe-content="identity">
+                <div class="pe-field">
+                    <label for="pe-event">Main event</label>
+                    <select id="pe-event"></select>
+                </div>
+                <div class="pe-field">
+                    <label for="pe-cubes">Main cubes</label>
+                    <input type="text" id="pe-cubes" placeholder="GAN 12 UI, MoYu RS3M 2020">
+                </div>
+                <div class="pe-field">
+                    <label for="pe-bio">Bio <span class="pe-hint-inline">(no links)</span></label>
+                    <textarea id="pe-bio" rows="3" maxlength="240" placeholder="Tell people about your cubing journey…"></textarea>
+                </div>
+            </div>
+
+            <div class="pe-tab-content" data-pe-content="avatar" style="display:none;">
+                <div class="pe-avatar-stage">
+                    <div class="pe-avatar-preview pfp-frame" id="pe-avatar-preview">
+                        <div class="pfp-inner"><img id="pe-avatar-img" src="default-user-image.png" alt=""></div>
+                    </div>
+                    <div class="pe-avatar-cta">
+                        <label class="train-cta pe-upload-btn">
+                            Upload image
+                            <input type="file" id="pe-avatar-file" accept="image/*" style="display:none;">
+                        </label>
+                        <button class="train-quick-btn" id="pe-avatar-clear" type="button">Use default</button>
+                    </div>
+                </div>
+                <div class="pe-field">
+                    <label>Frame</label>
+                    <div class="pe-frames" id="pe-frames"></div>
+                </div>
+            </div>
+
+            <div class="pe-tab-content" data-pe-content="wca" style="display:none;">
+                <div class="pe-field">
+                    <label for="pe-wca">WCA ID</label>
+                    <input type="text" id="pe-wca" placeholder="YYYYNAME##" maxlength="10">
+                    <span class="pe-hint-inline">Format: 4 digits + 4 letters + 2 digits (e.g. 2016SMITH01)</span>
+                </div>
+                <button type="button" class="train-cta" id="pe-wca-verify" style="width:100%;">Verify with WCA</button>
+                <div class="pe-hint" id="pe-wca-verified-note"></div>
+            </div>
+
+            <div class="pe-tab-content" data-pe-content="socials" style="display:none;">
+                <div class="pe-field">
+                    <label>YouTube</label>
+                    <input type="text" id="pe-yt" placeholder="@handle or URL">
+                </div>
+                <div class="pe-field">
+                    <label>Instagram</label>
+                    <input type="text" id="pe-ig" placeholder="@handle">
+                </div>
+                <div class="pe-field">
+                    <label>X / Twitter</label>
+                    <input type="text" id="pe-tw" placeholder="@handle">
+                </div>
+                <div class="pe-field">
+                    <label>TikTok</label>
+                    <input type="text" id="pe-tt" placeholder="@handle">
+                </div>
+                <div class="pe-field">
+                    <label>Twitch</label>
+                    <input type="text" id="pe-tv" placeholder="@handle">
+                </div>
+            </div>
+
+            <div class="pe-footer">
+                <button class="pe-cancel" id="pe-cancel">Cancel</button>
+                <button class="train-cta pe-save" id="pe-save">Save changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solve feedback (star for PB, ↑/↓ vs current Ao5) -->
+    <div id="solve-feedback" class="solve-feedback" aria-hidden="true"></div>
+
+    <!-- Widget picker modal -->
+    <div id="widget-picker-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel" style="width:min(440px, 100%);">
+            <div class="modal-head">
+                <div class="modal-title">Widget</div>
+                <button class="modal-close" id="widget-picker-close">✕</button>
+            </div>
+            <div class="modal-body widget-picker-body">
+                <button class="widget-option" data-widget="ao5"><span class="wo-ic">📊</span> Average (Ao5)</button>
+                <button class="widget-option" data-widget="ao12"><span class="wo-ic">📈</span> Average (Ao12)</button>
+                <button class="widget-option" data-widget="streak"><span class="wo-ic">🔥</span> Sub-X Streak</button>
+                <div class="streak-thresholds" id="streak-thresholds" style="display:none;">
+                    <button data-streak="10">10s</button>
+                    <button data-streak="15">15s</button>
+                    <button data-streak="20">20s</button>
+                    <button data-streak="30">30s</button>
+                    <button data-streak="custom">Custom</button>
+                </div>
+                <button class="widget-option" data-widget="comparison"><span class="wo-ic">⚖</span> Time Comparison</button>
+                <button class="widget-option" data-widget="scramble"><span class="wo-ic">🎲</span> Scramble Preview</button>
+                <button class="widget-option" data-widget="goal"><span class="wo-ic">📅</span> Daily Goal</button>
+                <button class="widget-option widget-rearrange" id="widget-rearrange-btn">↕ Rearrange Widgets</button>
+                <button class="widget-option widget-remove" data-widget="empty">🗑 Remove Widget</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget expand modal (click a widget to see a larger view) -->
+    <div id="widget-expand-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel" style="width:min(560px, 100%);">
+            <div class="modal-head">
+                <div class="modal-title" id="widget-expand-title">Widget</div>
+                <button class="modal-close" id="widget-expand-close">✕</button>
+            </div>
+            <div class="modal-body" id="widget-expand-body"></div>
+        </div>
+    </div>
+
+    <!-- Create / Edit Session modal -->
+    <div id="session-create-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel" style="width:min(520px, 100%);">
+            <div class="modal-head">
+                <div class="modal-title" id="session-create-title">Create Session</div>
+                <button class="modal-close" id="session-create-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section" id="sc-identity-section">
+                    <div class="settings-section-title">Session Identity</div>
+                    <div class="sc-field">
+                        <label for="sc-name">Session Name</label>
+                        <input type="text" id="sc-name" placeholder="e.g. Main, OH, Solo" maxlength="40">
+                    </div>
+                    <div class="sc-field">
+                        <label for="sc-desc">Description (optional)</label>
+                        <textarea id="sc-desc" rows="2" maxlength="160" placeholder="Tap to add description"></textarea>
+                    </div>
+                </div>
+                <div class="settings-section" id="sc-visual-section">
+                    <div class="settings-section-title">Visual Customization</div>
+                    <div class="sc-field">
+                        <label>Session Icon</label>
+                        <div class="sc-icon-tabs">
+                            <button type="button" class="sc-icon-tab on" data-tab="general">General</button>
+                            <button type="button" class="sc-icon-tab" data-tab="cubes">Cube Events</button>
+                        </div>
+                        <div class="sc-icon-grid" id="sc-icons" data-active-tab="general">
+                            <!-- General icons -->
+                            <button type="button" data-icon="🎲" data-tab="general">🎲</button>
+                            <button type="button" data-icon="☯" data-tab="general">☯</button>
+                            <button type="button" data-icon="🔥" data-tab="general">🔥</button>
+                            <button type="button" data-icon="⭐" data-tab="general">⭐</button>
+                            <button type="button" data-icon="⚡" data-tab="general">⚡</button>
+                            <button type="button" data-icon="🎯" data-tab="general">🎯</button>
+                            <button type="button" data-icon="👑" data-tab="general">👑</button>
+                            <button type="button" data-icon="🏆" data-tab="general">🏆</button>
+                            <button type="button" data-icon="🧩" data-tab="general">🧩</button>
+                            <button type="button" data-icon="💎" data-tab="general">💎</button>
+                            <button type="button" data-icon="🌙" data-tab="general">🌙</button>
+                            <button type="button" data-icon="☀" data-tab="general">☀</button>
+                            <!-- Cube event icons (WCA-style mini-cube SVG with a label) -->
+                            <button type="button" data-icon="cube:222"   data-tab="cubes" title="2x2">${'' /*svg*/}</button>
+                            <button type="button" data-icon="cube:333"   data-tab="cubes" title="3x3"></button>
+                            <button type="button" data-icon="cube:444"   data-tab="cubes" title="4x4"></button>
+                            <button type="button" data-icon="cube:555"   data-tab="cubes" title="5x5"></button>
+                            <button type="button" data-icon="cube:666"   data-tab="cubes" title="6x6"></button>
+                            <button type="button" data-icon="cube:777"   data-tab="cubes" title="7x7"></button>
+                            <button type="button" data-icon="cube:pyram" data-tab="cubes" title="Pyraminx"></button>
+                            <button type="button" data-icon="cube:skewb" data-tab="cubes" title="Skewb"></button>
+                            <button type="button" data-icon="cube:minx"  data-tab="cubes" title="Megaminx"></button>
+                            <button type="button" data-icon="cube:sq1"   data-tab="cubes" title="Square-1"></button>
+                            <button type="button" data-icon="cube:clock" data-tab="cubes" title="Clock"></button>
+                            <button type="button" data-icon="cube:oh"    data-tab="cubes" title="One-Handed"></button>
+                            <button type="button" data-icon="cube:bld"   data-tab="cubes" title="Blindfolded"></button>
+                            <button type="button" data-icon="cube:fmc"   data-tab="cubes" title="FMC"></button>
+                        </div>
+                    </div>
+                    <div class="sc-field">
+                        <label>Color Theme</label>
+                        <div class="sc-theme-grid" id="sc-themes">
+                            <button type="button" data-theme="orange" style="--c:#FF9F0A">Orange</button>
+                            <button type="button" data-theme="blue"   style="--c:#5ab0ff">Blue</button>
+                            <button type="button" data-theme="green"  style="--c:#5fe08c">Green</button>
+                            <button type="button" data-theme="teal"   style="--c:#22d3ee">Teal</button>
+                            <button type="button" data-theme="purple" style="--c:#c084fc">Purple</button>
+                            <button type="button" data-theme="pink"   style="--c:#f472b6">Pink</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-section sc-import-section" id="sc-import-section">
+                    <div class="settings-section-title">Import from CSTimer <span class="pe-hint-inline">(optional)</span></div>
+                    <label class="sc-import-drop" id="sc-import-drop">
+                        <input type="file" id="sc-import-file" accept=".txt" style="display:none;">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                        <span class="sc-import-label" id="sc-import-label">Click to choose a CSTimer export (.txt or .csv)</span>
+                    </label>
+                    <div class="sc-import-status" id="sc-import-status"></div>
+                </div>
+                <div id="sc-sessions-table-wrap" style="display:none;"></div>
+                <div class="sc-actions">
+                    <button class="train-quick-btn" id="sc-cancel">Cancel</button>
+                    <button class="train-cta" id="sc-save" style="width:auto; padding:12px 24px;">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="solve-popup">
+        <div class="solve-popup-time" id="solve-popup-time"></div>
+        <div class="solve-popup-meta" id="solve-popup-date"></div>
+        <div class="solve-popup-scramble" id="solve-popup-scramble"></div>
+        <div class="solve-popup-actions">
+            <button data-act="ok">OK</button>
+            <button data-act="+2">+2</button>
+            <button data-act="dnf">DNF</button>
+            <button data-act="copy">Copy scramble</button>
+            <button data-act="delete">Delete</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+    <div id="graph-tooltip"></div>
+</body>
+</html>
