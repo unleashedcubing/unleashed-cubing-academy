@@ -1339,8 +1339,10 @@
             const items = db.filter(it => it.category === cat);
             const order = groupOrder(cat);
             const caseHTML = (it) => {
-                const learned = learnedSet.has(it.name);
-                return `<label class="case-check ${learned ? 'is-learned' : ''}">
+                const learned  = learnedSet.has(it.name);
+                const learning = learningSet.has(it.name);
+                const cls = learned ? 'is-learned' : learning ? 'is-learning' : '';
+                return `<label class="case-check ${cls}">
                     <input type="checkbox" data-case="${it.name}" checked>
                     <span>${it.name}</span>
                 </label>`;
@@ -1390,12 +1392,15 @@
             btn.addEventListener('click', () => {
                 const pick = btn.dataset.pick;
                 trainCaselist.querySelectorAll('input[type=checkbox]').forEach(cb => {
-                    const learned = learnedSet.has(cb.dataset.case);
-                    if (pick === 'all') cb.checked = true;
-                    else if (pick === 'none') cb.checked = false;
-                    else if (pick === 'learning') cb.checked = !learned;
-                    else if (pick === 'learned') cb.checked = learned;
+                    if (pick === 'all')      cb.checked = true;
+                    else if (pick === 'none')     cb.checked = false;
+                    else if (pick === 'learning') cb.checked = learningSet.has(cb.dataset.case);
+                    else if (pick === 'learned')  cb.checked = learnedSet.has(cb.dataset.case);
                 });
+                if (pick === 'learning') {
+                    const anyChecked = [...trainCaselist.querySelectorAll('input:checked')].length > 0;
+                    if (!anyChecked) alert('No cases marked as Learning yet.\n\nGo to Algorithms, open any case, and tap "Mark Learning" to add it here.');
+                }
             });
         });
 
@@ -1706,60 +1711,149 @@
                 ${rows || '<span class="solve-list-empty">No matches.</span>'}`;
         }
         function renderGraph() {
-            const seq = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
             puzzleGraph._gdata = null;
+            const seq = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
             if (seq.length < 2) {
-                puzzleGraph.innerHTML = `<text x="300" y="80" fill="#888" font-size="14" text-anchor="middle">Not enough solves yet</text>`;
+                puzzleGraph.innerHTML = `<text x="300" y="100" fill="#888" font-size="14" text-anchor="middle">Not enough solves yet</text>`;
                 return;
             }
             const min = Math.min(...seq), max = Math.max(...seq), range = (max - min) || 1;
-            const W = 600, H = 150, pad = 14;
-            const X = i => pad + (i / (seq.length - 1)) * (W - 2 * pad);
-            const Y = v => H - pad - ((v - min) / range) * (H - 2 * pad);
+            const W = 600, H = 200;
+            const padL = 50, padR = 10, padT = 14, padB = 26;
+            const plotW = W - padL - padR, plotH = H - padT - padB;
+            const X = i => padL + (seq.length > 1 ? i / (seq.length - 1) : 0.5) * plotW;
+            const Y = v => padT + plotH - ((v - min) / range) * plotH;
+            const fmtY = v => v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v).toString();
+
+            // Grid step: find a nice interval giving 2–6 lines
+            const gSteps = [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60];
+            const step = gSteps.find(s => range / s >= 2 && range / s <= 6) || (range / 4);
+            const gridFirst = Math.ceil(min / step) * step;
+
+            let svg = `<defs><linearGradient id="gAreaGrad" x1="0" y1="0" x2="0" y2="1">` +
+                `<stop offset="0%" stop-color="#FF9F0A" stop-opacity="0.22"/>` +
+                `<stop offset="100%" stop-color="#FF9F0A" stop-opacity="0.02"/>` +
+                `</linearGradient></defs>`;
+
+            // Horizontal grid lines + Y-axis labels
+            for (let k = 0; k < 10; k++) {
+                const v = Math.round((gridFirst + k * step) * 10000) / 10000;
+                if (v > max + step * 0.01) break;
+                const gy = Y(v);
+                if (gy < padT - 2 || gy > padT + plotH + 2) continue;
+                svg += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+                svg += `<text x="${padL - 5}" y="${(gy + 3.5).toFixed(1)}" fill="#666" font-size="10" text-anchor="end">${fmtY(v)}</text>`;
+            }
+
+            // Area fill under time line
             const timePts = seq.map((v, i) => [X(i), Y(v)]);
+            const baseY = padT + plotH;
+            const areaPath = `M${timePts[0][0].toFixed(1)},${baseY} ` +
+                timePts.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(' ') +
+                ` L${timePts[timePts.length - 1][0].toFixed(1)},${baseY} Z`;
+            svg += `<path d="${areaPath}" fill="url(#gAreaGrad)"/>`;
+
+            // PB line (dashed green)
             let run = Infinity;
             const pbPts = seq.map((v, i) => { run = Math.min(run, v); return [X(i), Y(run)]; });
-            const poly = pts => pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-            puzzleGraph.innerHTML =
-                `<polyline points="${poly(pbPts)}" fill="none" stroke="#5fe08c" stroke-width="2" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>` +
-                `<polyline points="${poly(timePts)}" fill="none" stroke="#FF9F0A" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
-                timePts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.3" fill="#FF6A00"/>`).join('');
+            svg += `<polyline points="${pbPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#5fe08c" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>`;
+
+            // Time line
+            svg += `<polyline points="${timePts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#FF9F0A" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+
+            // Solve dots (skip when dense)
+            if (seq.length <= 80) {
+                svg += timePts.map(([cx, cy]) =>
+                    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.5" fill="#FF6A00" stroke="rgba(0,0,0,0.35)" stroke-width="0.5"/>`
+                ).join('');
+            }
+
+            // Baseline + solve-count labels
+            svg += `<line x1="${padL}" y1="${baseY}" x2="${W - padR}" y2="${baseY}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
+            svg += `<text x="${padL}" y="${H - 4}" fill="#555" font-size="9" text-anchor="start">1</text>`;
+            if (seq.length > 2) svg += `<text x="${W - padR}" y="${H - 4}" fill="#555" font-size="9" text-anchor="end">${seq.length}</text>`;
+
+            puzzleGraph.innerHTML = svg;
             puzzleGraph._gdata = { seq, timePts };
         }
         function renderHistogram() {
+            puzzleHist._hdata = null;
             const vals = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
             if (vals.length < 3) {
-                puzzleHist.innerHTML = `<text x="300" y="80" fill="#888" font-size="14" text-anchor="middle">Not enough solves yet</text>`;
+                puzzleHist.innerHTML = `<text x="300" y="100" fill="#888" font-size="14" text-anchor="middle">Not enough solves yet</text>`;
                 return;
             }
             const minV = Math.min(...vals), maxV = Math.max(...vals);
-            const lo = Math.floor(minV), hi = Math.floor(maxV);
-            const numBuckets = Math.max(hi - lo + 1, 1);
+            const spread = maxV - minV;
+
+            // Smart bucket size based on spread
+            let bucketSize;
+            if      (spread <= 1.5)  bucketSize = 0.25;
+            else if (spread <= 4)    bucketSize = 0.5;
+            else if (spread <= 15)   bucketSize = 1;
+            else if (spread <= 40)   bucketSize = 2;
+            else if (spread <= 120)  bucketSize = 5;
+            else                     bucketSize = 10;
+
+            const bucketStart = Math.floor(minV / bucketSize) * bucketSize;
+            const numBuckets = Math.min(50, Math.ceil((maxV - bucketStart) / bucketSize) + 1);
             const counts = new Array(numBuckets).fill(0);
+            const bucketData = Array.from({ length: numBuckets }, (_, i) => ({
+                lo: bucketStart + i * bucketSize,
+                hi: bucketStart + (i + 1) * bucketSize
+            }));
+
             vals.forEach(v => {
-                let b = Math.floor(v) - lo;
-                if (b < 0) b = 0;
-                if (b >= numBuckets) b = numBuckets - 1;
-                counts[b]++;
+                let b = Math.floor((v - bucketStart) / bucketSize);
+                counts[Math.max(0, Math.min(numBuckets - 1, b))]++;
             });
+
             const maxC = Math.max(...counts);
-            const W = 600, H = 150, pad = 14, gap = numBuckets > 20 ? 1 : 3;
-            const bw = (W - 2 * pad - gap * (numBuckets - 1)) / numBuckets;
-            const labelEvery = numBuckets <= 12 ? 1 : numBuckets <= 24 ? 2 : 5;
+            const peakBucket = counts.indexOf(maxC);
+            const sorted = [...vals].sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            const medianBucket = Math.max(0, Math.min(numBuckets - 1, Math.floor((median - bucketStart) / bucketSize)));
+
+            const W = 600, H = 200;
+            const padL = 10, padR = 10, padT = 18, padB = 30;
+            const plotW = W - padL - padR, plotH = H - padT - padB;
+            const gap = numBuckets > 25 ? 1 : numBuckets > 15 ? 2 : 3;
+            const bw = (plotW - gap * (numBuckets - 1)) / numBuckets;
+            const labelEvery = numBuckets <= 10 ? 1 : numBuckets <= 20 ? 2 : numBuckets <= 40 ? 4 : 8;
+
+            const fmtBkt = v => bucketSize >= 1 ? Math.round(v) + 's' : v.toFixed(bucketSize === 0.25 ? 2 : 1) + 's';
+
             let svg = '';
+
+            // Baseline
+            svg += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
+
+            // Bars
             counts.forEach((c, i) => {
-                const h = maxC ? (c / maxC) * (H - 2 * pad - 14) : 0;
-                const x = pad + i * (bw + gap);
-                const y = H - pad - 12 - h;
-                if (h > 0) {
-                    svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="#FF9F0A" rx="2"/>`;
-                    svg += `<text x="${(x + bw/2).toFixed(1)}" y="${(y - 3).toFixed(1)}" fill="#aaa" font-size="9" text-anchor="middle">${c}</text>`;
-                }
-                if (i % labelEvery === 0) {
-                    svg += `<text x="${(x + bw/2).toFixed(1)}" y="${H - 2}" fill="#888" font-size="9" text-anchor="middle">${lo + i}</text>`;
+                if (c === 0) return;
+                const barH = (c / maxC) * plotH;
+                const x = padL + i * (bw + gap);
+                const y = padT + plotH - barH;
+                const isPeak = i === peakBucket;
+                svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${barH.toFixed(1)}" fill="${isPeak ? '#FFD60A' : '#FF9F0A'}" opacity="${isPeak ? 1 : 0.78}" rx="2"/>`;
+                if (bw >= 14 && barH > 14) {
+                    svg += `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" fill="${isPeak ? '#FFD60A' : '#aaa'}" font-size="10" text-anchor="middle">${c}</text>`;
                 }
             });
+
+            // Median indicator line
+            const mx = padL + medianBucket * (bw + gap) + bw / 2;
+            svg += `<line x1="${mx.toFixed(1)}" y1="${padT}" x2="${mx.toFixed(1)}" y2="${padT + plotH}" stroke="rgba(95,224,140,0.5)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+            svg += `<text x="${mx.toFixed(1)}" y="${padT - 3}" fill="#5fe08c" font-size="9" text-anchor="middle">med</text>`;
+
+            // X-axis labels
+            for (let i = 0; i < numBuckets; i += labelEvery) {
+                const x = padL + i * (bw + gap) + bw / 2;
+                svg += `<text x="${x.toFixed(1)}" y="${H - 4}" fill="#666" font-size="10" text-anchor="middle">${fmtBkt(bucketData[i].lo)}</text>`;
+            }
+
             puzzleHist.innerHTML = svg;
+            puzzleHist._hdata = { counts, bucketData, bucketSize, padL, gap, bw, padT, plotH, W: 600 };
         }
         function refreshPuzzle() {
             updatePuzzleStats();
@@ -1767,22 +1861,46 @@
             renderGraph();
             renderHistogram();
         }
-        // Graph hover tooltip (wired once; reads _gdata set by renderGraph each render)
+        // Graph hover tooltips (wired once; read _gdata / _hdata set by render functions)
         {
             const gTip = document.getElementById('graph-tooltip');
+            function showTip(e, text) {
+                if (!gTip) return;
+                gTip.textContent = text;
+                gTip.style.display = 'block';
+                gTip.style.left = (e.clientX + 14) + 'px';
+                gTip.style.top  = (e.clientY - 36) + 'px';
+            }
+            function hideTip() { if (gTip) gTip.style.display = 'none'; }
+
             puzzleGraph.addEventListener('mousemove', (e) => {
                 const d = puzzleGraph._gdata;
-                if (!d || !gTip) return;
+                if (!d) return hideTip();
                 const rect = puzzleGraph.getBoundingClientRect();
                 const svgX = (e.clientX - rect.left) / rect.width * 600;
                 let best = 0, bestD = Infinity;
                 d.timePts.forEach(([px], i) => { const dd = Math.abs(svgX - px); if (dd < bestD) { bestD = dd; best = i; } });
-                gTip.textContent = fmt(d.seq[best]) + 's';
-                gTip.style.display = 'block';
-                gTip.style.left = (e.clientX + 14) + 'px';
-                gTip.style.top  = (e.clientY - 32) + 'px';
+                showTip(e, `#${best + 1}: ${fmt(d.seq[best])}s`);
             });
-            puzzleGraph.addEventListener('mouseleave', () => { if (gTip) gTip.style.display = 'none'; });
+            puzzleGraph.addEventListener('mouseleave', hideTip);
+
+            puzzleHist.addEventListener('mousemove', (e) => {
+                const d = puzzleHist._hdata;
+                if (!d) return hideTip();
+                const rect = puzzleHist.getBoundingClientRect();
+                const svgX = (e.clientX - rect.left) / rect.width * d.W;
+                let hovBucket = -1;
+                for (let i = 0; i < d.counts.length; i++) {
+                    const x = d.padL + i * (d.bw + d.gap);
+                    if (svgX >= x && svgX <= x + d.bw) { hovBucket = i; break; }
+                }
+                if (hovBucket < 0 || d.counts[hovBucket] === 0) return hideTip();
+                const b = d.bucketData[hovBucket];
+                const fmtB = v => d.bucketSize >= 1 ? Math.round(v) + 's' : v.toFixed(d.bucketSize === 0.25 ? 2 : 1) + 's';
+                const n = d.counts[hovBucket];
+                showTip(e, `${fmtB(b.lo)}–${fmtB(b.hi)}: ${n} solve${n !== 1 ? 's' : ''}`);
+            });
+            puzzleHist.addEventListener('mouseleave', hideTip);
         }
 
         async function nextPuzzleScramble() {
@@ -2260,11 +2378,12 @@
             if (profileAuth) profileAuth.innerHTML = html;
             if (profileName) profileName.textContent = user ? (user.displayName || user.email || 'Cuber') : 'Cuber';
             if (profileStub) {
-                profileStub.textContent = fbSync.enabled
-                    ? (user
-                        ? 'Solves and progress sync across devices. Avatar customization & WCA-ID linking land here next.'
-                        : 'Sign in to sync your solves, learned algorithms and settings across devices.')
-                    : 'Edit firebase-config.js with your Firebase project credentials to enable cloud sync, accounts, and (later) 1v1 battles.';
+                if (!fbSync.enabled) {
+                    profileStub.textContent = 'Edit firebase-config.js with your Firebase project credentials to enable cloud sync, accounts, and (later) 1v1 battles.';
+                } else if (!user) {
+                    profileStub.textContent = 'Sign in to sync your solves, learned algorithms and settings across devices.';
+                }
+                // When signed in, leave the existing "Click Edit profile to add a bio..." text from renderStats.
             }
         }
         // ---- Sign-in modal ----
@@ -2295,7 +2414,10 @@
 
         // When auth state changes, reload state from (newly synced) localStorage and refresh UI.
         fbSync.onUserChange((user) => {
-            // Refresh in-memory state from LS
+            // Refresh in-memory state from LS (cloud sync may have updated it)
+            const freshP = LS.get('profile', {});
+            Object.assign(profile, DEFAULT_PROFILE, freshP);
+            profile.socials = Object.assign({}, DEFAULT_PROFILE.socials, freshP.socials || {});
             learnedSet.clear();
             LS.get('learned', []).forEach(n => learnedSet.add(n));
             Object.keys(mainChoices).forEach(k => delete mainChoices[k]);
@@ -3257,10 +3379,31 @@
             { id: 'eg',      label: 'EG (2×2)' },
             { id: 'lbl',     label: 'Beginner / LBL' }
         ];
+        const ONBOARD_ALGSETS = [
+            { category: 'F2L',              label: 'F2L' },
+            { category: 'AF2L',             label: 'Advanced F2L' },
+            { category: 'OLL',              label: 'OLL' },
+            { category: 'PLL',              label: 'PLL' },
+            { category: 'COLL',             label: 'COLL' },
+            { category: 'Winter Variation', label: 'Winter Variation' },
+            { category: 'Summer Variation', label: 'Summer Variation' },
+            { category: '2x2 Ortega OLL',   label: '2x2 Ortega OLL' },
+            { category: '2x2 Ortega PBL',   label: '2x2 Ortega PBL' },
+            { category: '2x2 CLL',          label: '2x2 CLL' },
+            { category: '2x2 EG-1',         label: '2x2 EG-1' },
+            { category: '2x2 EG-2',         label: '2x2 EG-2' },
+            { category: 'Pyraminx Last Layer', label: 'Pyraminx LL' },
+            { category: 'Pyraminx L4E',     label: 'Pyraminx L4E' },
+            { category: '4x4 OLL Parity',   label: '4x4 OLL Parity' },
+            { category: '4x4 PLL Parity',   label: '4x4 PLL Parity' },
+            { category: '5x5 L2C',          label: '5x5 L2C' },
+            { category: '5x5 L2E',          label: '5x5 L2E' },
+        ];
 
         const onboardModal = document.getElementById('onboard-modal');
         let onboardStep = 1;
-        const onboardSelections = { events: new Set(), methods: new Set() };
+        const onboardSelections = { events: new Set(), methods: new Set(), algsets: new Set() };
+        const ONBOARD_TOTAL_STEPS = 5;
 
         function renderOnboardChips() {
             const evEl = document.getElementById('onboard-events');
@@ -3273,27 +3416,33 @@
                 const on = onboardSelections.methods.has(m.id);
                 return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-method="${m.id}">${m.label}</button>`;
             }).join('');
+            const asEl = document.getElementById('onboard-algsets');
+            if (asEl) asEl.innerHTML = ONBOARD_ALGSETS.map(a => {
+                const on = onboardSelections.algsets.has(a.category);
+                const count = db.filter(it => it.category === a.category).length;
+                return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-algset="${a.category}">${a.label} <span style="opacity:0.55;font-size:0.78em">${count}</span></button>`;
+            }).join('');
         }
         function renderOnboardDots() {
-            const total = 4;
             const dots = document.getElementById('onboard-dots');
             let s = '';
-            for (let i = 1; i <= total; i++) s += `<span class="onboard-dot ${i === onboardStep ? 'active' : ''}"></span>`;
+            for (let i = 1; i <= ONBOARD_TOTAL_STEPS; i++) s += `<span class="onboard-dot ${i === onboardStep ? 'active' : ''}"></span>`;
             dots.innerHTML = s;
         }
         function showOnboardStep(n) {
-            onboardStep = Math.max(1, Math.min(4, n));
+            onboardStep = Math.max(1, Math.min(ONBOARD_TOTAL_STEPS, n));
             onboardModal.querySelectorAll('.onboard-step').forEach(el => {
                 el.style.display = (parseInt(el.dataset.step, 10) === onboardStep) ? '' : 'none';
             });
             document.getElementById('onboard-back').style.visibility = onboardStep > 1 ? 'visible' : 'hidden';
-            document.getElementById('onboard-next').textContent = onboardStep === 4 ? 'Finish' : 'Next';
+            document.getElementById('onboard-next').textContent = onboardStep === ONBOARD_TOTAL_STEPS ? 'Finish' : 'Next';
             renderOnboardDots();
         }
         function openOnboarding() {
             // Pre-fill from existing profile if any
             onboardSelections.events  = new Set((profile.events  || []).slice());
             onboardSelections.methods = new Set((profile.methods || []).slice());
+            onboardSelections.algsets = new Set();
             renderOnboardChips();
             showOnboardStep(1);
             onboardModal.style.display = 'flex';
@@ -3306,7 +3455,15 @@
                 // If user picked exactly one event, set it as main_event too
                 if (profile.events.length === 1) profile.main_event = profile.events[0];
                 saveProfile();
+                // Mark selected alg sets as fully learned
+                if (onboardSelections.algsets.size > 0) {
+                    onboardSelections.algsets.forEach(cat => {
+                        db.filter(it => it.category === cat).forEach(it => learnedSet.add(it.name));
+                    });
+                    saveLearned();
+                }
                 if (statsView.style.display !== 'none') renderStats();
+                renderCards();
             }
             onboardModal.style.display = 'none';
         }
@@ -3326,9 +3483,17 @@
             else onboardSelections.methods.add(id);
             renderOnboardChips();
         });
+        document.getElementById('onboard-algsets').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-onboard-algset]');
+            if (!b) return;
+            const cat = b.dataset.onboardAlgset;
+            if (onboardSelections.algsets.has(cat)) onboardSelections.algsets.delete(cat);
+            else onboardSelections.algsets.add(cat);
+            renderOnboardChips();
+        });
         document.getElementById('onboard-back').addEventListener('click', () => showOnboardStep(onboardStep - 1));
         document.getElementById('onboard-next').addEventListener('click', () => {
-            if (onboardStep === 4) { closeOnboarding(true); return; }
+            if (onboardStep === ONBOARD_TOTAL_STEPS) { closeOnboarding(true); return; }
             showOnboardStep(onboardStep + 1);
         });
         document.getElementById('onboard-skip').addEventListener('click', () => {

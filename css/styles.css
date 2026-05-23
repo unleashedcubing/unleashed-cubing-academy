@@ -527,7 +527,8 @@
         }
         .case-check:hover { background: rgba(255,159,10,0.08); }
         .case-check input { accent-color: var(--orange); cursor: pointer; }
-        .case-check.is-learned { color: #5fe08c; }
+        .case-check.is-learned  { color: #5fe08c; }
+        .case-check.is-learning { color: #5ab0ff; }
         .train-cta {
             display: block;
             width: 100%;
@@ -2426,7 +2427,7 @@
         }
         .timer-graph-panel svg {
             width: 100%;
-            height: 160px;
+            height: 190px;
         }
         .timer-shortcuts-hint {
             display: flex;
@@ -2588,7 +2589,7 @@
         .timer-center-stack #puzzle-scramble { font-size: 1.25rem; }
         .timer-with-feedback { min-height: 92px; gap: 12px; }
         .timer-center-stack { padding: 18px 14px 8px; gap: 10px; }
-        .timer-graph-panel svg { height: 130px; }
+        .timer-graph-panel svg { height: 158px; }
 
         /* ========= Session color applied to timer UI ========= */
         #puzzle-timer { color: var(--session-accent, var(--text)); transition: color 0.2s; }

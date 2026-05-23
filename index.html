@@ -268,11 +268,11 @@
                         <div class="timer-graphs-row">
                             <div class="train-panel timer-graph-panel">
                                 <div class="panel-title">Progress <span class="graph-legend"><i class="lg-time"></i>time <i class="lg-pb"></i>PB</span></div>
-                                <svg id="puzzle-graph" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
+                                <svg id="puzzle-graph" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
                             </div>
                             <div class="train-panel timer-graph-panel">
                                 <div class="panel-title">Time Distribution</div>
-                                <svg id="puzzle-hist" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
+                                <svg id="puzzle-hist" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
                             </div>
                         </div>
 
@@ -477,12 +477,17 @@
                     <div class="onboard-chip-grid" id="onboard-methods"></div>
                 </div>
                 <div class="onboard-step" data-step="3" style="display:none;">
+                    <p class="onboard-lead">Which alg sets do you already know? We'll mark them as learned so you can focus on what's next.</p>
+                    <div class="settings-section-title">Already know these</div>
+                    <div class="onboard-chip-grid" id="onboard-algsets"></div>
+                </div>
+                <div class="onboard-step" data-step="4" style="display:none;">
                     <p class="onboard-lead">Link your WCA account?</p>
                     <p class="pe-hint" style="margin-bottom:14px;">Optional — verifies your WCA ID and pulls your official records. You can do this later in Edit Profile.</p>
                     <button class="train-cta" id="onboard-wca-btn" style="width:auto; padding:14px 24px;">Verify with WCA</button>
                     <div class="pe-hint" id="onboard-wca-status" style="margin-top:10px;"></div>
                 </div>
-                <div class="onboard-step" data-step="4" style="display:none;">
+                <div class="onboard-step" data-step="5" style="display:none;">
                     <p class="onboard-lead">🎉 You're all set!</p>
                     <p style="color:var(--text-muted); line-height:1.7;">
                         Click <b>Algorithms</b> to learn cases, <b>Timer</b> to record solves,
