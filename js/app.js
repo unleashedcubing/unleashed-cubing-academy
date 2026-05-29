@@ -92,7 +92,8 @@
             events: [],     // from onboarding: list of event ids the user cubes
             methods: [],    // from onboarding: list of method ids
             onboarded: false,
-            socials: { youtube: '', instagram: '' }
+            socials: { youtube: '', instagram: '' },
+            dailyQuestLog: {}  // { 'YYYY-MM-DD-questId': xpAwarded }
         };
 
         // Avatar frame tiers — Discord-Nitro-style animated borders unlocked by activity
@@ -762,30 +763,63 @@
 
         // ============================================================
         //   XP + Level system
-        //   XP = 1 per solve + 5 per algorithm learned + 25 per battle win
-        //   Level n requires totalXp >= 50 * n * (n+1) / 2 (triangular)
-        //     L1: 50, L2: 150, L3: 300, L4: 500, L5: 750, L10: 2750…
+        //   XP comes from:
+        //     • Activity base: 1 XP per solve, 2 XP per alg learned
+        //     • Quest completion: XP shown on each quest card
+        //       - Permanent quests (borders/milestones): computed live from conditions
+        //       - Daily quests: awarded once per day, stored in profile.dailyQuestLog
+        //   Level thresholds: L(n) = 100n  (L1=100, L2=200, L3=300…)
         // ============================================================
         function computeXp() {
-            const solveXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
-                acc + getPuzzleAllSolves(pid).length, 0);
-            const algXp   = (typeof learnedSet !== 'undefined' ? learnedSet.size : 0) * 5;
-            const battlesWon = (profile && profile.battlesWon) || 0;
-            return solveXp + algXp + battlesWon * 25;
+            const q = questDef();
+            // Base activity XP
+            const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
+                acc + getPuzzleAllSolves(pid).length, 0)
+                + learnedSet.size * 2;
+            // Permanent quest XP (battles unlock + border milestones) — deterministic
+            const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
+                const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
+                return sum + (done ? quest.xp : 0);
+            }, 0);
+            // Daily quest XP — stored in profile
+            const dailyXp = Object.values((profile && profile.dailyQuestLog) || {})
+                .reduce((a, b) => a + b, 0);
+            return actXp + permanentXp + dailyXp;
         }
-        function xpForLevel(n) { return 50 * n * (n + 1) / 2; }
+        // Level n starts at (n-1)*100 XP, unlocks at n*100 XP
+        function xpForLevel(n) { return n * 100; }
         function levelFromXp(xp) {
-            let n = 1;
-            while (xpForLevel(n) <= xp) n++;
-            return n - 1 >= 1 ? n - 1 : 1;
+            return Math.max(1, Math.floor(xp / 100) + 1);
         }
         function levelProgress() {
             const xp = computeXp();
             const lvl = levelFromXp(xp);
-            const base = lvl === 1 ? 0 : xpForLevel(lvl);
-            const next = xpForLevel(lvl + 1);
+            const base = (lvl - 1) * 100;
+            const next = lvl * 100;
             const pct = ((xp - base) / (next - base)) * 100;
             return { xp, level: lvl, base, next, pct, into: xp - base, span: next - base };
+        }
+        const LEVEL_NAMES = [
+            '', 'Novice', 'Learner', 'Solver', 'Practitioner',
+            'Competitor', 'Speedcuber', 'Sharpshooter', 'Expert',
+            'Elite', 'Master', 'Champion', 'Legend'
+        ];
+        function levelName(n) { return LEVEL_NAMES[Math.min(n, LEVEL_NAMES.length - 1)] || `Level ${n}`; }
+        // Award daily quest XP (call from renderQuests). Idempotent per day-questId pair.
+        function awardDailyQuests(quests) {
+            const today = new Date().toISOString().slice(0, 10);
+            let changed = false;
+            if (!profile.dailyQuestLog) profile.dailyQuestLog = {};
+            quests.forEach(quest => {
+                const done = quest.have >= quest.need;
+                const key = today + '-' + quest.id;
+                if (done && !profile.dailyQuestLog[key]) {
+                    profile.dailyQuestLog[key] = quest.xp;
+                    changed = true;
+                }
+            });
+            if (changed) saveProfile();
+            return changed;
         }
 
         // ============================================================
@@ -849,7 +883,21 @@
         }
         function renderQuests() {
             const q = questDef();
+            // Award any newly-completed daily quests before computing XP
+            const newAwards = awardDailyQuests(q.daily);
             const lp = levelProgress();
+            const nextName = levelName(lp.level + 1);
+
+            // XP breakdown for tooltip/display
+            const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
+                acc + getPuzzleAllSolves(pid).length, 0) + learnedSet.size * 2;
+            const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
+                const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
+                return sum + (done ? quest.xp : 0);
+            }, 0);
+            const dailyXpTotal = Object.values((profile && profile.dailyQuestLog) || {})
+                .reduce((a, b) => a + b, 0);
+
             const section = (title, sub, items) => `
                 <div class="train-panel quest-section">
                     <div class="panel-title">
@@ -858,23 +906,34 @@
                     </div>
                     <div class="quest-grid">${items.map(questCard).join('')}</div>
                 </div>`;
+
             questsView.innerHTML = `
                 <div class="quests-grid-outer">
                     <div class="train-panel quest-hero">
                         <div class="quest-hero-head">
                             <div>
                                 <div class="quest-hero-eyebrow">Your Progress</div>
-                                <div class="quest-hero-level">Level ${lp.level}</div>
+                                <div class="quest-hero-level">
+                                    <span class="quest-lvl-num">Level ${lp.level}</span>
+                                    <span class="quest-lvl-name">${levelName(lp.level)}</span>
+                                </div>
                             </div>
-                            <div class="quest-hero-xp">${lp.xp} XP total</div>
+                            <div style="text-align:right;">
+                                <div class="quest-hero-xp">${lp.xp} XP</div>
+                                <div class="quest-xp-next">→ ${nextName} at ${(lp.level) * 100} XP</div>
+                            </div>
                         </div>
                         <div class="xp-bar large"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
                         <div class="quest-hero-foot">
-                            <span>${lp.into} / ${lp.span} XP to level ${lp.level + 1}</span>
+                            <span>${lp.into} / ${lp.span} XP to <b>${nextName}</b></span>
+                            <span class="quest-xp-breakdown">
+                                <span title="1 XP per solve, 2 per alg learned">Activity: ${actXp}</span>
+                                <span title="XP from completed quests">Quests: ${permanentXp + dailyXpTotal}</span>
+                            </span>
                         </div>
                     </div>
-                    ${section('Daily Quests', 'Resets at midnight', q.daily)}
-                    ${section('Unlock Battles', 'Complete to access 1v1 mode', q.battles)}
+                    ${section('Daily Quests', 'Auto-awarded at completion', q.daily)}
+                    ${section('Milestones', 'Permanent progress rewards', q.battles)}
                     ${section('Border Unlocks', 'Cosmetic profile frames', q.borders)}
                 </div>
             `;
@@ -1075,6 +1134,7 @@
                                     const lp = levelProgress();
                                     return `<div class="profile-xp">
                                         <span class="lvl-pill">LVL ${lp.level}</span>
+                                        <span class="lvl-name-pill">${levelName(lp.level)}</span>
                                         <div class="xp-bar"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
                                         <span class="xp-text">${lp.into} / ${lp.span} XP</span>
                                     </div>`;
@@ -1096,7 +1156,7 @@
 
                     <div class="train-panel stats-pr">
                         <div class="panel-title">
-                            <span>Personal Records</span>
+                            <span>Personal Bests <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;margin-left:4px;">in-app</span></span>
                             <select id="stats-filter-cube" class="stats-filter-select">
                                 <option value="all" ${statsFilter === 'all' ? 'selected' : ''}>All Puzzles</option>
                                 ${PUZZLES_FOR_STATS.map(pid =>
@@ -1104,12 +1164,16 @@
                                 ).join('')}
                             </select>
                         </div>
-                        <div class="pr-grid">
-                            <div class="pr-cell"><div class="lbl">Single</div><div class="val">${fmtTime(headline.best === Infinity ? null : headline.best)}</div></div>
-                            <div class="pr-cell"><div class="lbl">Ao5</div><div class="val">${fmtTime(headline.ao5 === Infinity ? null : headline.ao5)}</div></div>
-                            <div class="pr-cell"><div class="lbl">Ao12</div><div class="val">${fmtTime(headline.ao12 === Infinity ? null : headline.ao12)}</div></div>
-                            <div class="pr-cell"><div class="lbl">Ao100</div><div class="val">${fmtTime(headline.ao100 === Infinity ? null : headline.ao100)}</div></div>
-                        </div>
+                        ${(() => {
+                            const noData = headline.best === Infinity && headline.ao5 === Infinity;
+                            if (noData) return `<div style="color:var(--text-muted);font-size:0.88rem;padding:6px 0;">No solves recorded yet for ${statsFilter === 'all' ? 'any puzzle' : PUZZLE_LABEL[statsFilter] || statsFilter}. Head to Timer to get started!</div>`;
+                            return `<div class="pr-grid">
+                                <div class="pr-cell"><div class="lbl">Single</div><div class="val">${fmtTime(headline.best === Infinity ? null : headline.best)}</div></div>
+                                <div class="pr-cell"><div class="lbl">Ao5</div><div class="val">${fmtTime(headline.ao5 === Infinity ? null : headline.ao5)}</div></div>
+                                <div class="pr-cell"><div class="lbl">Ao12</div><div class="val">${fmtTime(headline.ao12 === Infinity ? null : headline.ao12)}</div></div>
+                                <div class="pr-cell"><div class="lbl">Ao100</div><div class="val">${fmtTime(headline.ao100 === Infinity ? null : headline.ao100)}</div></div>
+                            </div>`;
+                        })()}
                     </div>
 
                     ${(profile.wca_verified && profile.wca_records && Object.keys(profile.wca_records).length) ? (() => {

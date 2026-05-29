@@ -3054,8 +3054,15 @@
         .session-rail-add { color: var(--text-muted); font-size: 1.4rem; line-height: 1; }
         .session-rail-settings { margin-top: auto; }
 
-        /* Time List extends to match right rail bottom */
-        .timer-side { align-self: stretch; }
+        /* Right sidebar stays in view while main content scrolls */
+        .timer-side {
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            scrollbar-width: thin;
+            overscroll-behavior: contain;
+        }
         .time-list-panel {
             flex: 1;
             display: flex;
@@ -3816,22 +3823,62 @@
             color: var(--text-muted);
         }
         .quest-hero-level {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-top: 4px;
+        }
+        .quest-lvl-num {
             font-family: 'Inter', sans-serif;
             font-weight: 900;
-            font-size: 2.4rem;
+            font-size: 2.2rem;
             color: var(--orange);
             line-height: 1;
-            margin-top: 4px;
             letter-spacing: -1px;
+        }
+        .quest-lvl-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            opacity: 0.7;
         }
         .quest-hero-xp {
             font-family: 'Ubuntu Mono', monospace;
             font-weight: 700;
+            font-size: 1.05rem;
             color: var(--text);
+        }
+        .quest-xp-next {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
         }
         .quest-hero-foot {
             color: var(--text-muted);
             font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .quest-xp-breakdown {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .quest-xp-breakdown span {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 2px 8px;
+        }
+        /* Level name pill on profile card */
+        .lvl-name-pill {
+            font-size: 0.7rem;
+            color: var(--orange);
+            font-weight: 600;
+            opacity: 0.8;
         }
 
         .quest-section .panel-title {
@@ -4039,11 +4086,10 @@
             background: rgba(255,255,255,0.08);
         }
 
-        /* ============ Time List: scroll inside a fixed-height side rail ============ */
-        .timer-side { align-self: stretch; min-height: 0; }
-        .time-list-panel { max-height: 460px; }
+        /* ============ Time List: sticky side rail ============ */
+        .time-list-panel { max-height: none; }
         .time-list-panel #puzzle-solves {
-            max-height: 380px !important;
+            max-height: 38vh !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             flex-wrap: nowrap !important;
