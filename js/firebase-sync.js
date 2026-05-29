@@ -7,7 +7,7 @@ const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_V}/firebase
 const PROFILE_KEYS = [
     'learned', 'mainChoices', 'inspection', 'focusMode',
     'holdDelay', 'precision', 'groupMode', 'trainCube', 'puzzleCube',
-    'profile', 'statsFilter', 'trainGroupMode', 'inputMode'
+    'profile', 'statsFilter', 'trainGroupMode', 'inputMode', 'planner'
 ];
 
 let firebaseConfig = null;

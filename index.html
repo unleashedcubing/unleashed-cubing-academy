@@ -45,6 +45,10 @@
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h2.5c.83 0 1.5.67 1.5 1.5v2c0 2.21-1.79 4-4 4h-.16A6.99 6.99 0 0 1 13 16.92V19h3v2H8v-2h3v-2.08A6.99 6.99 0 0 1 6.16 12.5H6c-2.21 0-4-1.79-4-4v-2C2 5.67 2.67 5 3.5 5H6V3zm0 4H4v1.5c0 1.1.9 2 2 2V7zm12 0v3.5c1.1 0 2-.9 2-2V7h-2z"/></svg>
                     <span>Battles</span>
                 </button>
+                <button class="nav-item" data-mode="plan" title="Planner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                    <span>Planner</span>
+                </button>
                 <button class="nav-item" data-mode="stats" title="Account">
                     <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="5" height="9" rx="1.2"/><rect x="9.5" y="5" width="5" height="16" rx="1.2"/><rect x="16" y="9" width="5" height="12" rx="1.2"/></svg>
                     <span>Account</span>
@@ -412,8 +416,34 @@
                 </div>
             </div>
 
+            <div id="plan-view" style="display:none;"></div>
+
             <div id="quests-view" style="display:none;"></div>
         </main>
+
+        <!-- New Checklist modal -->
+        <div id="plan-new-modal" class="modal-backdrop" style="display:none;">
+            <div class="modal-panel" style="max-width:400px;">
+                <div class="modal-head">
+                    <div class="modal-title">New Checklist</div>
+                    <button class="modal-close" id="plan-new-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-row" style="flex-direction:column;gap:6px;">
+                        <label style="font-size:0.85rem;color:var(--text-muted);">Name</label>
+                        <input type="text" id="plan-new-name" class="pe-input" placeholder="e.g. Pre-Worlds Prep" maxlength="60" autocomplete="off">
+                    </div>
+                    <div class="settings-row" style="flex-direction:column;gap:6px;margin-top:14px;">
+                        <label style="font-size:0.85rem;color:var(--text-muted);">Target date (optional)</label>
+                        <input type="date" id="plan-new-date" class="pe-input">
+                    </div>
+                </div>
+                <div class="modal-foot" style="display:flex;gap:10px;padding:16px 20px 20px;">
+                    <button class="train-quick-btn" id="plan-new-cancel" style="flex:1;">Cancel</button>
+                    <button class="train-cta" id="plan-new-submit" style="flex:2;padding:12px;">Create</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Solve note dialog (Shift+3 on Timer page) -->
         <div id="solve-note-modal" class="modal-backdrop" style="display:none;">

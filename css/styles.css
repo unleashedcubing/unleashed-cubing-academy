@@ -969,6 +969,310 @@
         .legend-row span { flex: 1; color: var(--text-muted); }
         .legend-row b { font-family: 'Ubuntu Mono', monospace; color: var(--text-main); }
 
+        /* ============ WCA Upcoming Competitions ============ */
+        .stats-upcoming { grid-column: 1 / -1; }
+        .upcoming-comp {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .upcoming-comp:last-child { border-bottom: none; padding-bottom: 0; }
+        .upcoming-comp:first-child { padding-top: 0; }
+        .upcoming-comp-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+        .upcoming-comp-meta {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .upcoming-days {
+            background: rgba(255,159,10,0.18);
+            color: var(--orange);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+        }
+        .upcoming-comp-events {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 2px;
+        }
+        .event-pip {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-size: 0.73rem;
+            color: var(--text-muted);
+            font-family: 'Ubuntu Mono', monospace;
+        }
+        /* ============ WCA Official PRs ============ */
+        .stats-wca-prs { grid-column: 1 / -1; }
+        .wca-pr-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        .wca-pr-cell {
+            background: rgba(255,255,255,0.04);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+        .wca-pr-event {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .wca-pr-times { display: flex; gap: 14px; }
+        .wca-pr-time { display: flex; flex-direction: column; gap: 1px; }
+        .wca-pr-time .lbl { font-size: 0.68rem; color: var(--text-muted); }
+        .wca-pr-time .val { font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem; color: var(--text-main); }
+
+        /* ============ Planner ============ */
+        .plan-outer {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 4px 60px;
+        }
+        .plan-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0 6px;
+        }
+        .plan-page-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0;
+        }
+        .plan-new-cta {
+            background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+            color: #1a1a1a;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 12px;
+            font-family: 'Ubuntu', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .plan-new-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(255,159,10,0.3); }
+        .plan-card { position: relative; }
+        .plan-card-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .plan-card-name {
+            font-size: 1rem;
+            font-weight: 700;
+            flex: 1;
+            color: var(--text-main);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .plan-card-name:hover { background: rgba(255,255,255,0.06); }
+        .plan-card-name-input {
+            flex: 1;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,159,10,0.5);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: 'Ubuntu', sans-serif;
+            padding: 3px 8px;
+            outline: none;
+        }
+        .plan-date-badge {
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.07);
+            color: var(--text-muted);
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .plan-date-badge.soon {
+            background: rgba(255,159,10,0.18);
+            color: var(--orange);
+        }
+        .plan-delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            border-radius: 6px;
+            opacity: 0.5;
+            transition: opacity 0.15s, color 0.15s;
+            flex-shrink: 0;
+        }
+        .plan-delete-btn:hover { opacity: 1; color: #ef4444; }
+        .plan-progress-wrap { margin-bottom: 12px; }
+        .plan-progress-bar {
+            background: rgba(255,255,255,0.05);
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+        .plan-progress-fill {
+            background: linear-gradient(90deg, var(--orange), var(--orange-dark));
+            height: 100%;
+            border-radius: 999px;
+            box-shadow: 0 0 10px rgba(255,159,10,0.4);
+            transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .plan-progress-fill.done { background: linear-gradient(90deg, #5fe08c, #3fc870); box-shadow: 0 0 10px rgba(95,224,140,0.4); }
+        .plan-progress-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .plan-tasks {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 10px;
+        }
+        .plan-task {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 6px;
+            border-radius: 8px;
+            transition: background 0.12s;
+        }
+        .plan-task:hover { background: rgba(255,255,255,0.04); }
+        .plan-task:hover .plan-task-del { opacity: 1; }
+        .plan-task-check {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            cursor: pointer;
+            flex-shrink: 0;
+            background: transparent;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .plan-task-check:checked {
+            background: var(--orange);
+            border-color: var(--orange);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5l3.5 3.5L11 1' stroke='%231a1a1a' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 10px;
+        }
+        .plan-task-text {
+            flex: 1;
+            font-size: 0.92rem;
+            color: var(--text-main);
+            line-height: 1.4;
+            cursor: pointer;
+            padding: 1px 2px;
+            border-radius: 3px;
+            word-break: break-word;
+        }
+        .plan-task-text.is-done {
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+        .plan-task-text-input {
+            flex: 1;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,159,10,0.5);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 0.92rem;
+            font-family: 'Ubuntu', sans-serif;
+            padding: 3px 8px;
+            outline: none;
+        }
+        .plan-task-del {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 2px 5px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.12s, color 0.12s;
+            flex-shrink: 0;
+        }
+        .plan-task-del:hover { color: #ef4444; }
+        .plan-add-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 6px 0;
+        }
+        .plan-add-input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-family: 'Ubuntu', sans-serif;
+            padding: 8px 12px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .plan-add-input:focus { border-color: var(--orange); }
+        .plan-add-input::placeholder { color: var(--text-muted); }
+        .plan-add-btn {
+            background: rgba(255,159,10,0.18);
+            border: none;
+            color: var(--orange);
+            font-size: 1.2rem;
+            font-weight: 700;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .plan-add-btn:hover { background: rgba(255,159,10,0.3); }
+        .plan-empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+        .plan-empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
         .stats-progress { grid-column: 1 / -1; }
         .alg-progress-total {
             font-size: 0.78rem;

@@ -634,13 +634,14 @@
         const timerView   = document.getElementById('timer-view');
         const battlesView = document.getElementById('battles-view');
         const statsView   = document.getElementById('stats-view');
+        const planView    = document.getElementById('plan-view');
         const questsView  = document.getElementById('quests-view');
         document.querySelectorAll('.nav-item').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 const mode = tab.dataset.mode;
-                const views = { learn: learnView, train: trainView, timer: timerView, battles: battlesView, stats: statsView, quests: questsView };
+                const views = { learn: learnView, train: trainView, timer: timerView, battles: battlesView, plan: planView, stats: statsView, quests: questsView };
                 Object.entries(views).forEach(([k, v]) => {
                     const showing = (k === mode);
                     if (showing) {
@@ -659,6 +660,7 @@
                 if (mode === 'stats') renderStats();
                 if (mode === 'quests') renderQuests();
                 if (mode === 'battles') showBattlesLobby();
+                if (mode === 'plan') renderPlanner();
                 // Mobile FAB: only visible on timer page; close side sheet if leaving timer
                 const fab = document.getElementById('mobile-side-fab');
                 if (fab) fab.style.display = (mode === 'timer') ? '' : 'none';
@@ -1110,6 +1112,39 @@
                         </div>
                     </div>
 
+                    ${(profile.wca_verified && profile.wca_records && Object.keys(profile.wca_records).length) ? (() => {
+                        const WCA_EVENT_LABELS = {
+                            '333':'3x3', '222':'2x2', '444':'4x4', '555':'5x5', '666':'6x6', '777':'7x7',
+                            '333oh':'3x3 OH', '333bf':'3BLD', '333fm':'FMC', '444bf':'4BLD', '555bf':'5BLD',
+                            '333mbf':'Multi BLD', 'pyram':'Pyraminx', 'skewb':'Skewb', 'minx':'Megaminx',
+                            'sq1':'Square-1', 'clock':'Clock'
+                        };
+                        const cells = Object.entries(profile.wca_records)
+                            .filter(([, r]) => r.single != null || r.average != null)
+                            .sort(([a], [b]) => {
+                                const order = ['333','222','444','555','666','777','333oh','pyram','skewb','minx','sq1','clock','333bf','444bf','555bf','333fm','333mbf'];
+                                return (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99);
+                            })
+                            .map(([ev, r]) => `
+                                <div class="wca-pr-cell">
+                                    <div class="wca-pr-event">${WCA_EVENT_LABELS[ev] || ev}</div>
+                                    <div class="wca-pr-times">
+                                        ${r.single != null ? `<div class="wca-pr-time"><span class="lbl">Single</span><span class="val">${fmtTime(r.single)}</span></div>` : ''}
+                                        ${r.average != null ? `<div class="wca-pr-time"><span class="lbl">Average</span><span class="val">${fmtTime(r.average)}</span></div>` : ''}
+                                    </div>
+                                </div>`).join('');
+                        return `<div class="train-panel stats-wca-prs stats-fullwidth">
+                            <div class="panel-title">WCA Official PRs <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;margin-left:6px;">via WCA</span></div>
+                            <div class="wca-pr-grid">${cells}</div>
+                        </div>`;
+                    })() : ''}
+
+                    ${profile.wca_id ? `
+                    <div class="train-panel stats-upcoming stats-fullwidth">
+                        <div class="panel-title">Upcoming Competitions</div>
+                        <div id="wca-upcoming-body"><span style="color:var(--text-muted);font-size:0.88rem;">Loading…</span></div>
+                    </div>` : ''}
+
                     <div class="train-panel stats-dist stats-fullwidth">
                         <div class="panel-title">Practice Distribution</div>
                         <div class="dist-dual">
@@ -1166,7 +1201,236 @@
             // Edit profile button
             const editBtn = document.getElementById('open-profile-edit');
             if (editBtn) editBtn.addEventListener('click', openProfileEdit);
+            // Async: load upcoming competitions if wca_id is set
+            if (profile.wca_id) loadUpcomingComps(profile.wca_id);
         }
+
+        async function loadUpcomingComps(wcaId) {
+            const el = document.getElementById('wca-upcoming-body');
+            if (!el) return;
+            const cacheKey = 'wca_upcomping_' + wcaId;
+            let comps;
+            try {
+                const cached = sessionStorage.getItem(cacheKey);
+                if (cached) {
+                    comps = JSON.parse(cached);
+                } else {
+                    const resp = await fetch(`https://www.worldcubeassociation.org/api/v0/competitions?upcoming_for=${encodeURIComponent(wcaId)}&per_page=8&sort=start_date`);
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    comps = await resp.json();
+                    sessionStorage.setItem(cacheKey, JSON.stringify(comps));
+                }
+            } catch (e) {
+                if (el) el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">Could not load competitions — check your connection.</span>';
+                return;
+            }
+            if (!el) return;
+            if (!Array.isArray(comps) || !comps.length) {
+                el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No upcoming registered competitions found for your WCA ID.</span>';
+                return;
+            }
+            function fmtCompDate(start, end) {
+                const s = new Date(start + 'T00:00:00');
+                const e = new Date(end + 'T00:00:00');
+                const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+                if (start === end) return s.toLocaleDateString(undefined, opts);
+                if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth())
+                    return s.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '–' + e.getDate() + ', ' + e.getFullYear();
+                return s.toLocaleDateString(undefined, opts) + ' – ' + e.toLocaleDateString(undefined, opts);
+            }
+            const now = new Date();
+            el.innerHTML = comps.map(c => {
+                const startDate = new Date(c.start_date + 'T00:00:00');
+                const diffDays = Math.round((startDate - now) / 86400000);
+                const badge = diffDays > 0 ? `<span class="upcoming-days">${diffDays === 1 ? 'tomorrow' : 'in ' + diffDays + ' days'}</span>`
+                    : diffDays === 0 ? `<span class="upcoming-days">today</span>` : '';
+                const eventPips = (c.event_ids || []).map(e => `<span class="event-pip">${e}</span>`).join('');
+                return `<div class="upcoming-comp">
+                    <div class="upcoming-comp-name"><a href="${escHTML(c.url || '#')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${escHTML(c.name)}</a></div>
+                    <div class="upcoming-comp-meta">
+                        ${escHTML(fmtCompDate(c.start_date, c.end_date))} &middot; ${escHTML(c.city || '')}${c.country_iso2 ? ', ' + escHTML(c.country_iso2) : ''}
+                        ${badge}
+                    </div>
+                    ${eventPips ? `<div class="upcoming-comp-events">${eventPips}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // ---- Training Planner ----
+        let plannerData = LS.get('planner', { plans: [] });
+        function savePlanner() { LS.set('planner', plannerData); }
+        function genPlanId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+        function renderPlanner() {
+            const plans = plannerData.plans || [];
+            const now = new Date();
+            function dateBadge(dateStr) {
+                if (!dateStr) return '';
+                const d = new Date(dateStr + 'T00:00:00');
+                const diff = Math.round((d - now) / 86400000);
+                const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                const cls = diff >= 0 && diff <= 7 ? 'soon' : '';
+                const countdown = diff > 0 ? ` · ${diff}d` : diff === 0 ? ' · today' : diff < 0 ? ' · done' : '';
+                return `<span class="plan-date-badge ${cls}" data-date="${dateStr}">${label}${countdown}</span>`;
+            }
+            function taskHTML(task, planId) {
+                return `<div class="plan-task" data-task-id="${task.id}" data-plan-id="${planId}">
+                    <input type="checkbox" class="plan-task-check" data-action="toggle-task" data-task-id="${task.id}" data-plan-id="${planId}" ${task.done ? 'checked' : ''}>
+                    <span class="plan-task-text ${task.done ? 'is-done' : ''}" data-action="edit-task-text" data-task-id="${task.id}" data-plan-id="${planId}">${escHTML(task.text)}</span>
+                    <button class="plan-task-del" data-action="delete-task" data-task-id="${task.id}" data-plan-id="${planId}" title="Remove task">✕</button>
+                </div>`;
+            }
+            function planHTML(plan) {
+                const done = plan.tasks.filter(t => t.done).length;
+                const total = plan.tasks.length;
+                const pct = total ? done / total * 100 : 0;
+                const allDone = total > 0 && done === total;
+                return `<div class="train-panel plan-card" data-plan-id="${plan.id}">
+                    <div class="plan-card-head">
+                        <span class="plan-card-name" data-action="edit-plan-name" data-plan-id="${plan.id}" title="Click to rename">${escHTML(plan.name)}</span>
+                        ${dateBadge(plan.date)}
+                        <button class="plan-delete-btn" data-action="delete-plan" data-plan-id="${plan.id}" title="Delete checklist">🗑</button>
+                    </div>
+                    <div class="plan-progress-wrap">
+                        <div class="plan-progress-bar"><div class="plan-progress-fill ${allDone ? 'done' : ''}" style="width:${pct.toFixed(1)}%"></div></div>
+                        <div class="plan-progress-label">${done} / ${total} ${allDone ? '✓ All done!' : 'tasks done'}</div>
+                    </div>
+                    <div class="plan-tasks">${plan.tasks.map(t => taskHTML(t, plan.id)).join('')}</div>
+                    <div class="plan-add-row">
+                        <input type="text" class="plan-add-input" placeholder="Add a task…" data-plan-id="${plan.id}" maxlength="200" autocomplete="off">
+                        <button class="plan-add-btn" data-action="add-task" data-plan-id="${plan.id}" title="Add task">+</button>
+                    </div>
+                </div>`;
+            }
+            planView.innerHTML = `<div class="plan-outer">
+                <div class="plan-topbar">
+                    <h2 class="plan-page-title">Planner</h2>
+                    <button class="plan-new-cta" id="plan-open-new">+ New Checklist</button>
+                </div>
+                ${plans.length ? plans.map(planHTML).join('') : `
+                <div class="plan-empty-state">
+                    <span class="plan-empty-icon">📋</span>
+                    No checklists yet.<br>
+                    <span style="font-size:0.85rem;">Create one to plan your comp prep, practice goals or weekly training.</span>
+                </div>`}
+            </div>`;
+
+            document.getElementById('plan-open-new')?.addEventListener('click', openNewPlanModal);
+        }
+
+        function plannerClickHandler(e) {
+            const action = e.target.dataset.action || e.target.closest('[data-action]')?.dataset.action;
+            const el = action ? (e.target.dataset.action ? e.target : e.target.closest('[data-action]')) : null;
+            if (!el) return;
+            const planId = el.dataset.planId;
+            const taskId = el.dataset.taskId;
+            const plan = plannerData.plans.find(p => p.id === planId);
+
+            if (action === 'toggle-task') {
+                const task = plan?.tasks.find(t => t.id === taskId);
+                if (task) { task.done = el.checked; savePlanner(); renderPlanner(); }
+            } else if (action === 'delete-task') {
+                if (plan) { plan.tasks = plan.tasks.filter(t => t.id !== taskId); savePlanner(); renderPlanner(); }
+            } else if (action === 'delete-plan') {
+                if (confirm(`Delete "${plan?.name}"? This cannot be undone.`)) {
+                    plannerData.plans = plannerData.plans.filter(p => p.id !== planId);
+                    savePlanner(); renderPlanner();
+                }
+            } else if (action === 'add-task') {
+                const input = planView.querySelector(`.plan-add-input[data-plan-id="${planId}"]`);
+                addTaskFromInput(input, plan);
+            } else if (action === 'edit-plan-name') {
+                startInlineRename(el, planId);
+            } else if (action === 'edit-task-text') {
+                startInlineTaskEdit(el, planId, taskId);
+            }
+        }
+        function plannerKeyHandler(e) {
+            if (e.key === 'Enter' && e.target.classList.contains('plan-add-input')) {
+                const planId = e.target.dataset.planId;
+                const plan = plannerData.plans.find(p => p.id === planId);
+                addTaskFromInput(e.target, plan);
+            }
+        }
+        function addTaskFromInput(input, plan) {
+            if (!input || !plan) return;
+            const text = input.value.trim();
+            if (!text) return;
+            plan.tasks.push({ id: genPlanId(), text, done: false });
+            savePlanner();
+            renderPlanner();
+            // Re-focus the add input for the same plan
+            const newInput = planView.querySelector(`.plan-add-input[data-plan-id="${plan.id}"]`);
+            if (newInput) newInput.focus();
+        }
+        function startInlineRename(nameEl, pid) {
+            const plan = plannerData.plans.find(p => p.id === pid);
+            if (!plan) return;
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'plan-card-name-input';
+            inp.value = plan.name;
+            inp.maxLength = 60;
+            nameEl.replaceWith(inp);
+            inp.focus(); inp.select();
+            function commit() {
+                const v = inp.value.trim();
+                if (v) plan.name = v;
+                savePlanner(); renderPlanner();
+            }
+            inp.addEventListener('blur', commit);
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') renderPlanner(); });
+        }
+        function startInlineTaskEdit(textEl, pid, tid) {
+            const plan = plannerData.plans.find(p => p.id === pid);
+            const task = plan?.tasks.find(t => t.id === tid);
+            if (!task) return;
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'plan-task-text-input';
+            inp.value = task.text;
+            inp.maxLength = 200;
+            textEl.replaceWith(inp);
+            inp.focus(); inp.select();
+            function commit() {
+                const v = inp.value.trim();
+                if (v) task.text = v;
+                savePlanner(); renderPlanner();
+            }
+            inp.addEventListener('blur', commit);
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') renderPlanner(); });
+        }
+
+        // Planner event delegation (wired once)
+        planView.addEventListener('click', plannerClickHandler);
+        planView.addEventListener('keydown', plannerKeyHandler);
+
+        // New plan modal
+        const planNewModal = document.getElementById('plan-new-modal');
+        function openNewPlanModal() {
+            document.getElementById('plan-new-name').value = '';
+            document.getElementById('plan-new-date').value = '';
+            planNewModal.style.display = 'flex';
+            setTimeout(() => document.getElementById('plan-new-name')?.focus(), 50);
+        }
+        function closeNewPlanModal() { planNewModal.style.display = 'none'; }
+        document.getElementById('plan-new-close')?.addEventListener('click', closeNewPlanModal);
+        document.getElementById('plan-new-cancel')?.addEventListener('click', closeNewPlanModal);
+        planNewModal?.addEventListener('click', e => { if (e.target === planNewModal) closeNewPlanModal(); });
+        document.getElementById('plan-new-submit')?.addEventListener('click', () => {
+            const name = (document.getElementById('plan-new-name').value || '').trim();
+            if (!name) { document.getElementById('plan-new-name').focus(); return; }
+            const date = document.getElementById('plan-new-date').value || null;
+            plannerData.plans.unshift({ id: genPlanId(), name, date, tasks: [] });
+            savePlanner();
+            closeNewPlanModal();
+            renderPlanner();
+            // Focus the first add-task input after creating
+            setTimeout(() => planView.querySelector('.plan-add-input')?.focus(), 80);
+        });
+        document.getElementById('plan-new-name')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('plan-new-submit')?.click();
+        });
 
         // ---- Shared stopwatch ----
         let timerPrecision = LS.get('precision', 2);   // decimal places (2 or 3)
