@@ -45,9 +45,9 @@
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h2.5c.83 0 1.5.67 1.5 1.5v2c0 2.21-1.79 4-4 4h-.16A6.99 6.99 0 0 1 13 16.92V19h3v2H8v-2h3v-2.08A6.99 6.99 0 0 1 6.16 12.5H6c-2.21 0-4-1.79-4-4v-2C2 5.67 2.67 5 3.5 5H6V3zm0 4H4v1.5c0 1.1.9 2 2 2V7zm12 0v3.5c1.1 0 2-.9 2-2V7h-2z"/></svg>
                     <span>Battles</span>
                 </button>
-                <button class="nav-item" data-mode="plan" title="Planner">
+                <button class="nav-item" data-mode="plan" title="Goals">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-                    <span>Planner</span>
+                    <span>Goals</span>
                 </button>
                 <button class="nav-item" data-mode="stats" title="Account">
                     <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="5" height="9" rx="1.2"/><rect x="9.5" y="5" width="5" height="16" rx="1.2"/><rect x="16" y="9" width="5" height="12" rx="1.2"/></svg>
@@ -420,6 +420,41 @@
 
             <div id="quests-view" style="display:none;"></div>
         </main>
+
+        <!-- New Alg Goal modal -->
+        <div id="alg-goal-modal" class="modal-backdrop" style="display:none;">
+            <div class="modal-panel" style="max-width:460px;">
+                <div class="modal-head">
+                    <div class="modal-title">New Alg Learning Goal</div>
+                    <button class="modal-close" id="alg-goal-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-row" style="flex-direction:column;gap:6px;">
+                        <label style="font-size:0.85rem;color:var(--text-muted);">Alg set</label>
+                        <select id="alg-goal-cat" class="pe-input"></select>
+                    </div>
+                    <div class="settings-row" style="gap:14px;margin-top:14px;align-items:flex-end;">
+                        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                            <label style="font-size:0.85rem;color:var(--text-muted);">Days to learn</label>
+                            <input type="number" id="alg-goal-days" class="pe-input" min="1" max="60" value="7">
+                        </div>
+                        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                            <label style="font-size:0.85rem;color:var(--text-muted);">Start date (optional)</label>
+                            <input type="date" id="alg-goal-start" class="pe-input">
+                        </div>
+                    </div>
+                    <label class="settings-toggle-row" style="margin-top:14px;cursor:pointer;display:flex;align-items:center;gap:10px;">
+                        <input type="checkbox" id="alg-goal-drill" checked style="width:16px;height:16px;accent-color:var(--orange);">
+                        <span style="font-size:0.88rem;">Add a drill/review day at the end</span>
+                    </label>
+                    <div id="alg-goal-preview" style="margin-top:16px;padding:12px;background:rgba(255,159,10,0.08);border-radius:10px;font-size:0.84rem;color:var(--text-muted);line-height:1.6;"></div>
+                </div>
+                <div class="modal-foot" style="display:flex;gap:10px;padding:16px 20px 20px;">
+                    <button class="train-quick-btn" id="alg-goal-cancel" style="flex:1;">Cancel</button>
+                    <button class="train-cta" id="alg-goal-submit" style="flex:2;padding:12px;">Create Goal</button>
+                </div>
+            </div>
+        </div>
 
         <!-- New Checklist modal -->
         <div id="plan-new-modal" class="modal-backdrop" style="display:none;">

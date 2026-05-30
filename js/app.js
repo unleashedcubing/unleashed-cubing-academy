@@ -439,9 +439,12 @@
                         <span class="cat-progress-label">${cat}</span>
                         <span class="cat-progress-counts">${learned} learned · ${learning} learning · ${total - learned - learning} to go</span>
                     </div>
-                    <button type="button" class="train-quick-btn cat-learn-all" id="cat-learn-all" ${allLearned ? 'disabled' : ''}>
-                        ${allLearned ? '✓ All learned' : 'Learn all'}
-                    </button>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <button type="button" class="train-quick-btn" id="cat-make-goal" title="Create a day-by-day learning goal for ${escHTML(cat)}">📅 Set Goal</button>
+                        <button type="button" class="train-quick-btn cat-learn-all" id="cat-learn-all" ${allLearned ? 'disabled' : ''}>
+                            ${allLearned ? '✓ All learned' : 'Learn all'}
+                        </button>
+                    </div>
                 </div>
                 <div class="cat-block-bar">
                     ${allCases.map(it => `<span class="cat-block state-${stateOf(it.name)}" title="${it.name} (${stateOf(it.name)})"></span>`).join('')}
@@ -461,10 +464,11 @@
                     }
                     saveLearned();
                     saveLearning();
-                    // Refresh cards + bar
                     renderCards();
                 });
             }
+            // Wire Set Goal button
+            document.getElementById('cat-make-goal')?.addEventListener('click', () => openAlgGoalModal(cat));
         }
 
         function attachInteractions(startIndex, endIndex) {
@@ -1321,13 +1325,46 @@
         }
 
         // ---- Training Planner ----
-        let plannerData = LS.get('planner', { plans: [] });
+        let plannerData = LS.get('planner', { plans: [], algGoals: [] });
+        if (!plannerData.algGoals) plannerData.algGoals = [];
         function savePlanner() { LS.set('planner', plannerData); }
         function genPlanId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+        // ---- Alg Goal helpers ----
+        function buildAlgGoalSplits(category, totalDays, hasDrillDay) {
+            const algs = db.filter(it => it.category === category);
+            const learnDays = (hasDrillDay && totalDays > 1) ? totalDays - 1 : totalDays;
+            if (!algs.length || !learnDays) return [];
+            const base = Math.floor(algs.length / learnDays);
+            const extra = algs.length % learnDays;
+            const splits = [];
+            let idx = 0;
+            for (let d = 0; d < learnDays; d++) {
+                const count = d < extra ? base + 1 : base;
+                splits.push({ dayNum: d + 1, isDrill: false, algs: algs.slice(idx, idx + count).map(a => a.name), checked: [] });
+                idx += count;
+            }
+            if (hasDrillDay && totalDays > 1) {
+                splits.push({ dayNum: totalDays, isDrill: true, algs: algs.map(a => a.name), checked: [] });
+            }
+            return splits;
+        }
+        function algGoalCurrentDay(goal) {
+            if (!goal.startDate) return null;
+            const start = new Date(goal.startDate + 'T00:00:00');
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const diff = Math.round((today - start) / 86400000) + 1;
+            return (diff >= 1 && diff <= goal.totalDays) ? diff : null;
+        }
+        // Track which day rows are expanded: 'goalId-dayNum'
+        const expandedDayKeys = new Set();
+
+        // ---- Goals page render ----
         function renderPlanner() {
             const plans = plannerData.plans || [];
+            const algGoals = plannerData.algGoals || [];
             const now = new Date();
+
             function dateBadge(dateStr) {
                 if (!dateStr) return '';
                 const d = new Date(dateStr + 'T00:00:00');
@@ -1335,8 +1372,72 @@
                 const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                 const cls = diff >= 0 && diff <= 7 ? 'soon' : '';
                 const countdown = diff > 0 ? ` · ${diff}d` : diff === 0 ? ' · today' : diff < 0 ? ' · done' : '';
-                return `<span class="plan-date-badge ${cls}" data-date="${dateStr}">${label}${countdown}</span>`;
+                return `<span class="plan-date-badge ${cls}">${label}${countdown}</span>`;
             }
+
+            // ---- Alg goal card ----
+            function algGoalHTML(goal) {
+                const todayDay = algGoalCurrentDay(goal);
+                const totalChecked = goal.splits.reduce((n, s) => n + s.checked.length, 0);
+                const totalAlgs = goal.splits.filter(s => !s.isDrill).reduce((n, s) => n + s.algs.length, 0);
+                const pct = totalAlgs ? totalChecked / totalAlgs * 100 : 0;
+                const started = !!goal.startDate && todayDay !== null;
+
+                const dayStatusLabel = goal.startDate
+                    ? (todayDay ? `Day ${todayDay} of ${goal.totalDays}` : (algGoalCurrentDay({...goal}) === null ? (new Date(goal.startDate + 'T00:00:00') > now ? 'Starts ' + new Date(goal.startDate + 'T00:00:00').toLocaleDateString(undefined, {month:'short',day:'numeric'}) : 'Completed') : ''))
+                    : `${goal.totalDays}-day plan`;
+
+                const daysHTML = goal.splits.map(split => {
+                    const key = goal.id + '-' + split.dayNum;
+                    const isToday = todayDay === split.dayNum;
+                    const isPast = todayDay !== null && split.dayNum < todayDay;
+                    const expanded = expandedDayKeys.has(key) || isToday;
+                    const checkedCount = split.checked.length;
+                    const dayDone = split.isDrill ? checkedCount > 0 : checkedCount === split.algs.length;
+
+                    const statusDot = dayDone ? '✓' : isPast ? '○' : isToday ? '▶' : '·';
+                    const statusCls = dayDone ? 'day-done' : isToday ? 'day-today' : isPast ? 'day-past' : '';
+
+                    const algsHTML = split.isDrill
+                        ? `<div class="alg-day-drill-note">Review all ${split.algs.length} ${goal.category} algs — focus on weak spots. Use the Trainer with "Only Learning" filter.</div>`
+                        : split.algs.map(algName => {
+                            const checked = split.checked.includes(algName);
+                            return `<label class="alg-check-item ${checked ? 'is-checked' : ''}">
+                                <input type="checkbox" class="plan-task-check" data-action="toggle-alg" data-goal-id="${goal.id}" data-day="${split.dayNum}" data-alg="${escHTML(algName)}" ${checked ? 'checked' : ''}>
+                                <span>${escHTML(algName)}</span>
+                            </label>`;
+                        }).join('');
+
+                    return `<div class="alg-day-row ${statusCls}" data-key="${key}">
+                        <div class="alg-day-header" data-action="toggle-day" data-goal-id="${goal.id}" data-day="${split.dayNum}">
+                            <span class="alg-day-dot">${statusDot}</span>
+                            <span class="alg-day-label">
+                                ${split.isDrill ? 'Drill Day' : `Day ${split.dayNum}`}
+                                ${isToday ? '<span class="today-pill">Today</span>' : ''}
+                            </span>
+                            <span class="alg-day-count">${split.isDrill ? (checkedCount ? '✓' : '') : `${checkedCount}/${split.algs.length}`}</span>
+                            <span class="alg-day-chevron">${expanded ? '▾' : '▸'}</span>
+                        </div>
+                        ${expanded ? `<div class="alg-day-body"><div class="alg-day-algs">${algsHTML}</div></div>` : ''}
+                    </div>`;
+                }).join('');
+
+                return `<div class="train-panel plan-card alg-goal-card" data-goal-id="${goal.id}">
+                    <div class="plan-card-head">
+                        <span class="alg-goal-cat-badge">${escHTML(goal.category)}</span>
+                        <span class="plan-card-name" style="cursor:default;">${escHTML(goal.name)}</span>
+                        ${dateBadge(goal.startDate)}
+                        <button class="plan-delete-btn" data-action="delete-goal" data-goal-id="${goal.id}" title="Delete goal">🗑</button>
+                    </div>
+                    <div class="plan-progress-wrap">
+                        <div class="plan-progress-bar"><div class="plan-progress-fill ${pct >= 100 ? 'done' : ''}" style="width:${pct.toFixed(1)}%"></div></div>
+                        <div class="plan-progress-label">${dayStatusLabel} · ${totalChecked}/${totalAlgs} algs drilled</div>
+                    </div>
+                    <div class="alg-goal-days">${daysHTML}</div>
+                </div>`;
+            }
+
+            // ---- Checklist card ----
             function taskHTML(task, planId) {
                 return `<div class="plan-task" data-task-id="${task.id}" data-plan-id="${planId}">
                     <input type="checkbox" class="plan-task-check" data-action="toggle-task" data-task-id="${task.id}" data-plan-id="${planId}" ${task.done ? 'checked' : ''}>
@@ -1366,20 +1467,27 @@
                     </div>
                 </div>`;
             }
+
+            const hasAnything = algGoals.length || plans.length;
             planView.innerHTML = `<div class="plan-outer">
                 <div class="plan-topbar">
-                    <h2 class="plan-page-title">Planner</h2>
-                    <button class="plan-new-cta" id="plan-open-new">+ New Checklist</button>
+                    <h2 class="plan-page-title">Goals</h2>
+                    <div style="display:flex;gap:8px;">
+                        <button class="plan-new-cta" id="plan-open-alg-goal" style="background:rgba(255,159,10,0.15);color:var(--orange);border:1px solid rgba(255,159,10,0.35);">+ Alg Goal</button>
+                        <button class="plan-new-cta" id="plan-open-new">+ Checklist</button>
+                    </div>
                 </div>
-                ${plans.length ? plans.map(planHTML).join('') : `
-                <div class="plan-empty-state">
-                    <span class="plan-empty-icon">📋</span>
-                    No checklists yet.<br>
-                    <span style="font-size:0.85rem;">Create one to plan your comp prep, practice goals or weekly training.</span>
-                </div>`}
+                ${algGoals.length ? `<div class="goals-section-label">Alg Learning Goals</div>${algGoals.map(algGoalHTML).join('')}` : ''}
+                ${plans.length ? `<div class="goals-section-label">Checklists</div>${plans.map(planHTML).join('')}` : ''}
+                ${!hasAnything ? `<div class="plan-empty-state">
+                    <span class="plan-empty-icon">🎯</span>
+                    No goals yet.<br>
+                    <span style="font-size:0.85rem;">Create an <b>Alg Goal</b> to split a set into daily practice, or a <b>Checklist</b> for comp prep and custom task lists.</span>
+                </div>` : ''}
             </div>`;
 
             document.getElementById('plan-open-new')?.addEventListener('click', openNewPlanModal);
+            document.getElementById('plan-open-alg-goal')?.addEventListener('click', () => openAlgGoalModal());
         }
 
         function plannerClickHandler(e) {
@@ -1388,7 +1496,9 @@
             if (!el) return;
             const planId = el.dataset.planId;
             const taskId = el.dataset.taskId;
+            const goalId = el.dataset.goalId;
             const plan = plannerData.plans.find(p => p.id === planId);
+            const goal = plannerData.algGoals.find(g => g.id === goalId);
 
             if (action === 'toggle-task') {
                 const task = plan?.tasks.find(t => t.id === taskId);
@@ -1407,6 +1517,45 @@
                 startInlineRename(el, planId);
             } else if (action === 'edit-task-text') {
                 startInlineTaskEdit(el, planId, taskId);
+            } else if (action === 'toggle-day') {
+                const dayNum = parseInt(el.dataset.day, 10);
+                const key = goalId + '-' + dayNum;
+                if (expandedDayKeys.has(key)) expandedDayKeys.delete(key);
+                else expandedDayKeys.add(key);
+                renderPlanner();
+            } else if (action === 'toggle-alg') {
+                if (!goal) return;
+                const dayNum = parseInt(el.dataset.day, 10);
+                const algName = el.dataset.alg;
+                const split = goal.splits.find(s => s.dayNum === dayNum);
+                if (!split) return;
+                if (el.checked) {
+                    if (!split.checked.includes(algName)) split.checked.push(algName);
+                    // Also mark as learning in the alg library
+                    if (!learnedSet.has(algName)) { learningSet.add(algName); saveLearning(); }
+                } else {
+                    split.checked = split.checked.filter(n => n !== algName);
+                }
+                savePlanner();
+                // Update just the progress label without full re-render
+                const card = planView.querySelector(`[data-goal-id="${goalId}"]`);
+                if (card) {
+                    const totalChecked = goal.splits.reduce((n, s) => n + s.checked.length, 0);
+                    const totalAlgs = goal.splits.filter(s => !s.isDrill).reduce((n, s) => n + s.algs.length, 0);
+                    const pct = totalAlgs ? totalChecked / totalAlgs * 100 : 0;
+                    const fill = card.querySelector('.plan-progress-fill');
+                    if (fill) { fill.style.width = pct.toFixed(1) + '%'; fill.classList.toggle('done', pct >= 100); }
+                    const lbl = card.querySelector('.plan-progress-label');
+                    const todayDay = algGoalCurrentDay(goal);
+                    if (lbl) lbl.textContent = (goal.startDate && todayDay ? `Day ${todayDay} of ${goal.totalDays}` : `${goal.totalDays}-day plan`) + ` · ${totalChecked}/${totalAlgs} algs drilled`;
+                    const countEl = card.querySelector(`.alg-day-row[data-key="${goalId}-${dayNum}"] .alg-day-count`);
+                    if (countEl && !goal.splits.find(s => s.dayNum === dayNum)?.isDrill) countEl.textContent = `${split.checked.length}/${split.algs.length}`;
+                }
+            } else if (action === 'delete-goal') {
+                if (confirm(`Delete this goal? This cannot be undone.`)) {
+                    plannerData.algGoals = plannerData.algGoals.filter(g => g.id !== goalId);
+                    savePlanner(); renderPlanner();
+                }
             }
         }
         function plannerKeyHandler(e) {
@@ -1423,7 +1572,6 @@
             plan.tasks.push({ id: genPlanId(), text, done: false });
             savePlanner();
             renderPlanner();
-            // Re-focus the add input for the same plan
             const newInput = planView.querySelector(`.plan-add-input[data-plan-id="${plan.id}"]`);
             if (newInput) newInput.focus();
         }
@@ -1431,17 +1579,10 @@
             const plan = plannerData.plans.find(p => p.id === pid);
             if (!plan) return;
             const inp = document.createElement('input');
-            inp.type = 'text';
-            inp.className = 'plan-card-name-input';
-            inp.value = plan.name;
-            inp.maxLength = 60;
-            nameEl.replaceWith(inp);
-            inp.focus(); inp.select();
-            function commit() {
-                const v = inp.value.trim();
-                if (v) plan.name = v;
-                savePlanner(); renderPlanner();
-            }
+            inp.type = 'text'; inp.className = 'plan-card-name-input';
+            inp.value = plan.name; inp.maxLength = 60;
+            nameEl.replaceWith(inp); inp.focus(); inp.select();
+            function commit() { const v = inp.value.trim(); if (v) plan.name = v; savePlanner(); renderPlanner(); }
             inp.addEventListener('blur', commit);
             inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') renderPlanner(); });
         }
@@ -1450,26 +1591,73 @@
             const task = plan?.tasks.find(t => t.id === tid);
             if (!task) return;
             const inp = document.createElement('input');
-            inp.type = 'text';
-            inp.className = 'plan-task-text-input';
-            inp.value = task.text;
-            inp.maxLength = 200;
-            textEl.replaceWith(inp);
-            inp.focus(); inp.select();
-            function commit() {
-                const v = inp.value.trim();
-                if (v) task.text = v;
-                savePlanner(); renderPlanner();
-            }
+            inp.type = 'text'; inp.className = 'plan-task-text-input';
+            inp.value = task.text; inp.maxLength = 200;
+            textEl.replaceWith(inp); inp.focus(); inp.select();
+            function commit() { const v = inp.value.trim(); if (v) task.text = v; savePlanner(); renderPlanner(); }
             inp.addEventListener('blur', commit);
             inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') renderPlanner(); });
         }
 
-        // Planner event delegation (wired once)
+        // Goals event delegation (wired once)
         planView.addEventListener('click', plannerClickHandler);
         planView.addEventListener('keydown', plannerKeyHandler);
 
-        // New plan modal
+        // ---- Alg Goal modal ----
+        const algGoalModal = document.getElementById('alg-goal-modal');
+        function updateAlgGoalPreview() {
+            const cat = document.getElementById('alg-goal-cat').value;
+            const days = parseInt(document.getElementById('alg-goal-days').value, 10) || 0;
+            const drill = document.getElementById('alg-goal-drill').checked;
+            const prev = document.getElementById('alg-goal-preview');
+            if (!prev) return;
+            if (!cat || days < 1) { prev.textContent = 'Choose a set and number of days.'; return; }
+            const algs = db.filter(it => it.category === cat);
+            const learnDays = drill && days > 1 ? days - 1 : days;
+            const perDay = learnDays ? Math.ceil(algs.length / learnDays) : 0;
+            const minPerDay = learnDays ? Math.floor(algs.length / learnDays) : 0;
+            const drillNote = drill && days > 1 ? ` + 1 drill/review day` : '';
+            prev.innerHTML = `<b>${algs.length} algs</b> split across <b>${learnDays} learning days</b>${drillNote}<br>
+                ${minPerDay === perDay ? `${perDay} algs per day` : `${minPerDay}–${perDay} algs per day`}`;
+        }
+        function openAlgGoalModal(preselect) {
+            const catSel = document.getElementById('alg-goal-cat');
+            catSel.innerHTML = ONBOARD_ALGSETS.map(a =>
+                `<option value="${a.category}" ${preselect === a.category ? 'selected' : ''}>${a.label} (${db.filter(it => it.category === a.category).length})</option>`
+            ).join('');
+            document.getElementById('alg-goal-days').value = '7';
+            document.getElementById('alg-goal-drill').checked = true;
+            document.getElementById('alg-goal-start').value = new Date().toISOString().slice(0, 10);
+            updateAlgGoalPreview();
+            algGoalModal.style.display = 'flex';
+        }
+        function closeAlgGoalModal() { algGoalModal.style.display = 'none'; }
+        document.getElementById('alg-goal-close')?.addEventListener('click', closeAlgGoalModal);
+        document.getElementById('alg-goal-cancel')?.addEventListener('click', closeAlgGoalModal);
+        algGoalModal?.addEventListener('click', e => { if (e.target === algGoalModal) closeAlgGoalModal(); });
+        document.getElementById('alg-goal-cat')?.addEventListener('change', updateAlgGoalPreview);
+        document.getElementById('alg-goal-days')?.addEventListener('input', updateAlgGoalPreview);
+        document.getElementById('alg-goal-drill')?.addEventListener('change', updateAlgGoalPreview);
+        document.getElementById('alg-goal-submit')?.addEventListener('click', () => {
+            const cat = document.getElementById('alg-goal-cat').value;
+            const days = parseInt(document.getElementById('alg-goal-days').value, 10);
+            const drill = document.getElementById('alg-goal-drill').checked;
+            const startDate = document.getElementById('alg-goal-start').value || null;
+            if (!cat || !days || days < 1) return;
+            const splits = buildAlgGoalSplits(cat, days, drill);
+            const setLabel = ONBOARD_ALGSETS.find(a => a.category === cat)?.label || cat;
+            plannerData.algGoals.unshift({
+                id: genPlanId(), category: cat,
+                name: `Learn ${setLabel} in ${days} days`,
+                totalDays: days, startDate, drillDay: drill, splits
+            });
+            savePlanner(); closeAlgGoalModal();
+            // Switch to Goals view if not already there
+            document.querySelector('.nav-item[data-mode="plan"]')?.click();
+            renderPlanner();
+        });
+
+        // ---- Checklist modal ----
         const planNewModal = document.getElementById('plan-new-modal');
         function openNewPlanModal() {
             document.getElementById('plan-new-name').value = '';
@@ -1489,7 +1677,6 @@
             savePlanner();
             closeNewPlanModal();
             renderPlanner();
-            // Focus the first add-task input after creating
             setTimeout(() => planView.querySelector('.plan-add-input')?.focus(), 80);
         });
         document.getElementById('plan-new-name')?.addEventListener('keydown', e => {

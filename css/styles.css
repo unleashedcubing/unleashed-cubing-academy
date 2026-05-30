@@ -1272,6 +1272,134 @@
             margin-bottom: 12px;
             display: block;
         }
+        .goals-section-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            font-weight: 700;
+            padding: 4px 2px 2px;
+        }
+        /* Alg goal card */
+        .alg-goal-card .plan-card-head { flex-wrap: wrap; }
+        .alg-goal-cat-badge {
+            background: rgba(255,159,10,0.18);
+            color: var(--orange);
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+        /* Day rows */
+        .alg-goal-days {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 8px;
+        }
+        .alg-day-row {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid transparent;
+            transition: border-color 0.15s;
+        }
+        .alg-day-row.day-today {
+            border-color: rgba(255,159,10,0.35);
+            background: rgba(255,159,10,0.05);
+        }
+        .alg-day-row.day-done { opacity: 0.65; }
+        .alg-day-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 8px;
+            transition: background 0.12s;
+        }
+        .alg-day-header:hover { background: rgba(255,255,255,0.04); }
+        .alg-day-dot {
+            font-size: 0.75rem;
+            width: 16px;
+            text-align: center;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .day-today .alg-day-dot { color: var(--orange); }
+        .day-done .alg-day-dot { color: #5fe08c; }
+        .alg-day-label {
+            flex: 1;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .today-pill {
+            background: var(--orange);
+            color: #1a1a1a;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+        .alg-day-count {
+            font-family: 'Ubuntu Mono', monospace;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            min-width: 36px;
+            text-align: right;
+        }
+        .alg-day-chevron {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .alg-day-body {
+            padding: 6px 10px 10px 34px;
+        }
+        .alg-day-algs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .alg-check-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text-main);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            transition: background 0.12s, border-color 0.12s;
+            user-select: none;
+        }
+        .alg-check-item:hover { background: rgba(255,255,255,0.08); }
+        .alg-check-item.is-checked {
+            background: rgba(255,159,10,0.12);
+            border-color: rgba(255,159,10,0.35);
+            color: var(--orange);
+        }
+        .alg-check-item input { display: none; }
+        .alg-check-item.is-checked::before {
+            content: '✓';
+            font-size: 0.7rem;
+            color: var(--orange);
+        }
+        .alg-day-drill-note {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            padding: 4px 0;
+        }
 
         .stats-progress { grid-column: 1 / -1; }
         .alg-progress-total {
