@@ -4,6 +4,12 @@
         import { fbSync } from './firebase-sync.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
 
+        let openRouterConfig = { apiKey: '' };
+        try {
+            const mod = await import('../openrouter-config.js');
+            openRouterConfig = mod.openrouterConfig || mod.default || openRouterConfig;
+        } catch (_) {}
+
         // ---- App accent colour theme ----
         const APP_COLORS = [
             { id: 'orange', label: 'Orange', main: '#FF9F0A', dark: '#FF6A00' },
@@ -639,6 +645,8 @@
         const timerView   = document.getElementById('timer-view');
         const battlesView = document.getElementById('battles-view');
         const statsView   = document.getElementById('stats-view');
+        const leaderboardView = document.getElementById('leaderboard-view');
+        const assistantView = document.getElementById('assistant-view');
         const planView    = document.getElementById('plan-view');
         const questsView  = document.getElementById('quests-view');
         document.querySelectorAll('.nav-item').forEach(tab => {
@@ -646,7 +654,17 @@
                 document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 const mode = tab.dataset.mode;
-                const views = { learn: learnView, train: trainView, timer: timerView, battles: battlesView, plan: planView, stats: statsView, quests: questsView };
+                const views = {
+                    learn: learnView,
+                    train: trainView,
+                    timer: timerView,
+                    battles: battlesView,
+                    plan: planView,
+                    stats: statsView,
+                    leaderboard: leaderboardView,
+                    assistant: assistantView,
+                    quests: questsView
+                };
                 Object.entries(views).forEach(([k, v]) => {
                     const showing = (k === mode);
                     if (showing) {
@@ -663,6 +681,8 @@
                 if (mode === 'train' && !trainCaselist.children.length) buildCaselist();
                 if (mode === 'timer' && !puzzleStarted) startPuzzle();
                 if (mode === 'stats') renderStats();
+                if (mode === 'leaderboard') renderLeaderboardPage();
+                if (mode === 'assistant') renderAssistantPage();
                 if (mode === 'quests') renderQuests();
                 if (mode === 'battles') showBattlesLobby();
                 if (mode === 'plan') renderPlanner();
@@ -768,24 +788,36 @@
         function escHTML(s) {
             return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         }
+        async function copyText(text) {
+            const value = String(text == null ? '' : text).trim();
+            if (!value) return false;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(value);
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
 
         let statsFilter = statsFilterDefault();   // 'all' | one of PUZZLES_FOR_STATS
 
         // ============================================================
         //   XP + Level system
         //   XP comes from:
-        //     • Activity base: 1 XP per solve, 2 XP per alg learned
+        //     • Activity: 3 XP per solve, 12 XP per learned alg, 4 XP per alg in-learning
         //     • Quest completion: XP shown on each quest card
         //       - Permanent quests (borders/milestones): computed live from conditions
         //       - Daily quests: awarded once per day, stored in profile.dailyQuestLog
-        //   Level thresholds: L(n) = 100n  (L1=100, L2=200, L3=300…)
+        //   Level thresholds scale upward so later levels take more work.
         // ============================================================
         function computeXp() {
             const q = questDef();
-            // Base activity XP
+            const learningXp = [...learningSet].filter(name => !learnedSet.has(name)).length * 4;
             const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
-                acc + getPuzzleAllSolves(pid).length, 0)
-                + learnedSet.size * 2;
+                acc + getPuzzleAllSolves(pid).length, 0) * 3
+                + learnedSet.size * 12
+                + learningXp;
             // Permanent quest XP (battles unlock + border milestones) — deterministic
             const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
                 const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
@@ -796,16 +828,24 @@
                 .reduce((a, b) => a + b, 0);
             return actXp + permanentXp + dailyXp;
         }
-        // Level n starts at (n-1)*100 XP, unlocks at n*100 XP
-        function xpForLevel(n) { return n * 100; }
+        function xpForLevel(n) {
+            if (n <= 1) return 0;
+            let total = 0;
+            for (let level = 1; level < n; level++) {
+                total += 90 + ((level - 1) * 35);
+            }
+            return total;
+        }
         function levelFromXp(xp) {
-            return Math.max(1, Math.floor(xp / 100) + 1);
+            let level = 1;
+            while (xp >= xpForLevel(level + 1)) level++;
+            return level;
         }
         function levelProgress() {
             const xp = computeXp();
             const lvl = levelFromXp(xp);
-            const base = (lvl - 1) * 100;
-            const next = lvl * 100;
+            const base = xpForLevel(lvl);
+            const next = xpForLevel(lvl + 1);
             const pct = ((xp - base) / (next - base)) * 100;
             return { xp, level: lvl, base, next, pct, into: xp - base, span: next - base };
         }
@@ -900,7 +940,9 @@
 
             // XP breakdown for tooltip/display
             const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
-                acc + getPuzzleAllSolves(pid).length, 0) + learnedSet.size * 2;
+                acc + getPuzzleAllSolves(pid).length, 0) * 3
+                + learnedSet.size * 12
+                + [...learningSet].filter(name => !learnedSet.has(name)).length * 4;
             const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
                 const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
                 return sum + (done ? quest.xp : 0);
@@ -918,6 +960,11 @@
                 </div>`;
 
             questsView.innerHTML = `
+                <div class="app-page-shell">
+                    <div class="page-heading app-page-heading">
+                        <h1 class="page-title">Quests</h1>
+                        <p class="page-sub">Track your XP, unlock rewards, and see what to grind next.</p>
+                    </div>
                 <div class="quests-grid-outer">
                     <div class="train-panel quest-hero">
                         <div class="quest-hero-head">
@@ -930,7 +977,7 @@
                             </div>
                             <div style="text-align:right;">
                                 <div class="quest-hero-xp">${lp.xp} XP</div>
-                                <div class="quest-xp-next">→ ${nextName} at ${(lp.level) * 100} XP</div>
+                                <div class="quest-xp-next">→ ${nextName} at ${lp.next} XP</div>
                             </div>
                         </div>
                         <div class="xp-bar large"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
@@ -945,6 +992,7 @@
                     ${section('Daily Quests', 'Auto-awarded at completion', q.daily)}
                     ${section('Milestones', 'Permanent progress rewards', q.battles)}
                     ${section('Border Unlocks', 'Cosmetic profile frames', q.borders)}
+                </div>
                 </div>
             `;
         }
@@ -1014,6 +1062,179 @@
             return html;
         }
 
+        function appPageHeading(title, sub, actions = '') {
+            return `<div class="page-heading app-page-heading">
+                <div>
+                    <h1 class="page-title">${escHTML(title)}</h1>
+                    <p class="page-sub">${escHTML(sub)}</p>
+                </div>
+                ${actions ? `<div class="app-page-actions">${actions}</div>` : ''}
+            </div>`;
+        }
+        function bindLeaderboardControls() {
+            function refreshLeaderboardFromControls() {
+                leaderboardPrefs.event = document.getElementById('leaderboard-event')?.value || '333';
+                leaderboardPrefs.type = document.getElementById('leaderboard-type')?.value || 'single';
+                leaderboardPrefs.country = (document.getElementById('leaderboard-country')?.value || '').trim();
+                leaderboardPrefs.gender = document.getElementById('leaderboard-gender')?.value || 'all';
+                saveLeaderboardPrefs();
+                loadWcaLeaderboard();
+            }
+            document.getElementById('leaderboard-refresh')?.addEventListener('click', refreshLeaderboardFromControls);
+            document.getElementById('leaderboard-event')?.addEventListener('change', refreshLeaderboardFromControls);
+            document.getElementById('leaderboard-type')?.addEventListener('change', refreshLeaderboardFromControls);
+            document.getElementById('leaderboard-gender')?.addEventListener('change', refreshLeaderboardFromControls);
+            document.getElementById('leaderboard-country')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    refreshLeaderboardFromControls();
+                }
+            });
+        }
+        function assistantKeySource() {
+            return openRouterConfig?.apiKey ? 'config' : (getAssistantApiKey() ? 'browser' : 'missing');
+        }
+        function assistantKeyStatusText() {
+            const source = assistantKeySource();
+            if (source === 'config') return 'OpenRouter key loaded from local openrouter-config.js.';
+            if (source === 'browser') return 'OpenRouter key saved locally in this browser.';
+            return 'No OpenRouter key saved yet. Add one locally to enable the assistant.';
+        }
+        function bindAssistantComposer(renderFn) {
+            renderCubingAssistantCompOptions();
+            renderAssistantHistory();
+            const assistantInput = document.getElementById('assistant-input');
+            const assistantStatus = document.getElementById('assistant-key-status');
+            if (assistantStatus) assistantStatus.textContent = assistantKeyStatusText();
+            document.getElementById('assistant-comp-select')?.addEventListener('change', (e) => {
+                assistantPrefs.competitionId = e.target.value;
+                saveAssistantPrefs();
+            });
+            document.getElementById('assistant-set-key')?.addEventListener('click', () => {
+                const current = getAssistantApiKey() || openRouterConfig?.apiKey || '';
+                const next = window.prompt('Paste your OpenRouter API key. It will be stored locally in this browser unless you use openrouter-config.js.', current || '');
+                if (next == null) return;
+                setAssistantApiKey(next);
+                renderFn();
+            });
+            document.getElementById('assistant-clear-chat')?.addEventListener('click', () => {
+                assistantPrefs.history = [];
+                saveAssistantPrefs();
+                renderAssistantHistory();
+            });
+            document.getElementById('assistant-quick-comp')?.addEventListener('click', () => {
+                if (!assistantInput) return;
+                assistantInput.value = '/competition ';
+                assistantInput.focus();
+                assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+            });
+            async function submitAssistantPrompt() {
+                if (!assistantInput) return;
+                const raw = assistantInput.value.trim();
+                if (!raw) return;
+                assistantPrefs.history.push({ role: 'user', content: raw });
+                assistantPrefs.history = assistantPrefs.history.slice(-10);
+                saveAssistantPrefs();
+                renderAssistantHistory();
+                assistantInput.value = '';
+                const sendBtn = document.getElementById('assistant-send');
+                if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking…'; }
+                try {
+                    const reply = await askCubingAssistant(raw);
+                    assistantPrefs.history.push({ role: 'assistant', content: reply });
+                    assistantPrefs.history = assistantPrefs.history.slice(-10);
+                    saveAssistantPrefs();
+                    renderAssistantHistory();
+                } catch (err) {
+                    assistantPrefs.history.push({ role: 'assistant', content: `Error: ${err.message || err}` });
+                    saveAssistantPrefs();
+                    renderAssistantHistory();
+                } finally {
+                    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Ask Assistant'; }
+                }
+            }
+            document.getElementById('assistant-send')?.addEventListener('click', submitAssistantPrompt);
+            assistantInput?.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    submitAssistantPrompt();
+                }
+            });
+        }
+        function renderLeaderboardPage() {
+            leaderboardView.innerHTML = `
+                <div class="app-page-shell">
+                    ${appPageHeading('WCA Leaderboard', 'Browse current official WCA rankings by event, result type, region, and gender.')}
+                    <div class="train-panel stats-leaderboard stats-fullwidth">
+                        <div class="panel-title">
+                            <span>Official Rankings</span>
+                            <span class="assistant-model-pill">WCA</span>
+                        </div>
+                        <div class="assistant-intro">
+                            Results are loaded from the current WCA rankings pages. If a filter is unsupported in-browser, you can still jump straight to the official page.
+                        </div>
+                        <div class="leaderboard-toolbar">
+                            <select id="leaderboard-event" class="stats-filter-select">
+                                ${MAIN_EVENT_OPTIONS.filter(o => !['333mbf'].includes(o.id)).map(o =>
+                                    `<option value="${o.id}" ${leaderboardPrefs.event === o.id ? 'selected' : ''}>${escHTML(o.label)}</option>`
+                                ).join('')}
+                            </select>
+                            <select id="leaderboard-type" class="stats-filter-select">
+                                <option value="single" ${leaderboardPrefs.type === 'single' ? 'selected' : ''}>Single</option>
+                                <option value="average" ${leaderboardPrefs.type === 'average' ? 'selected' : ''}>Average / Mean</option>
+                            </select>
+                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="Country code or region" value="${escHTML(leaderboardPrefs.country || '')}">
+                            <select id="leaderboard-gender" class="stats-filter-select">
+                                <option value="all" ${leaderboardPrefs.gender === 'all' ? 'selected' : ''}>All</option>
+                                <option value="m" ${leaderboardPrefs.gender === 'm' ? 'selected' : ''}>Male</option>
+                                <option value="f" ${leaderboardPrefs.gender === 'f' ? 'selected' : ''}>Female</option>
+                            </select>
+                            <button class="train-quick-btn" id="leaderboard-refresh">Refresh</button>
+                        </div>
+                        <div id="wca-leaderboard-body"></div>
+                    </div>
+                </div>
+            `;
+            bindLeaderboardControls();
+            loadWcaLeaderboard();
+        }
+        function renderAssistantPage() {
+            assistantView.innerHTML = `
+                <div class="app-page-shell assistant-page-shell">
+                    ${appPageHeading('Cubing Assistant', 'Chat with your coach using your WCA times, recent 150 solves, goals, and competition plans.')}
+                    <div class="train-panel stats-assistant stats-fullwidth">
+                        <div class="panel-title">
+                            <span>Coach Chat</span>
+                            <span class="assistant-model-pill">${ASSISTANT_MODEL}</span>
+                        </div>
+                        <div class="assistant-intro">
+                            Ask for drills, goal planning, or type <code>/competition</code> for help with packing, nerves, warmups, and event prep.
+                        </div>
+                        <div class="assistant-toolbar">
+                            <select id="assistant-comp-select" class="stats-filter-select">
+                                <option value="">No competition focus</option>
+                            </select>
+                            <button class="train-quick-btn" id="assistant-set-key">Set OpenRouter Key</button>
+                            <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
+                        </div>
+                        <div class="assistant-key-status" id="assistant-key-status"></div>
+                        <div class="assistant-secret-note">
+                            This app is frontend-only. For local development, put a key in <code>openrouter-config.js</code> or store it in this browser. Do not ship a private production key in public client code.
+                        </div>
+                        <div class="assistant-history" id="cubing-assistant-history"></div>
+                        <div class="assistant-compose">
+                            <textarea id="assistant-input" class="pe-input assistant-input" rows="5" placeholder="Ask for training advice, goal planning, or type /competition for upcoming comp help."></textarea>
+                            <div class="assistant-actions">
+                                <button class="train-quick-btn" id="assistant-quick-comp">/competition</button>
+                                <button class="train-cta" id="assistant-send">Ask Assistant</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            bindAssistantComposer(renderAssistantPage);
+            if (profile.wca_id) loadUpcomingComps(profile.wca_id);
+        }
         function renderStats() {
             // --- Personal records across all puzzles ---
             const perPuzzle = PUZZLES_FOR_STATS.map(pid => {
@@ -1125,6 +1346,8 @@
                 : '';
 
             statsView.innerHTML = `
+                <div class="app-page-shell">
+                    ${appPageHeading('Profile', 'Your cubing identity, official WCA profile, progress, and practice trends.')}
                 <div class="stats-grid-outer">
                     <div class="train-panel stats-profile">
                         <div class="panel-title">
@@ -1213,33 +1436,6 @@
                         </div>`;
                     })() : ''}
 
-                    <div class="train-panel stats-assistant stats-fullwidth">
-                        <div class="panel-title">
-                            <span>Cubing Assistant</span>
-                            <span class="assistant-model-pill">${ASSISTANT_MODEL}</span>
-                        </div>
-                        <div class="assistant-intro">
-                            Uses your WCA times, most recent 150 solves, algorithm progress, and goals to coach you.
-                            Use <code>/competition</code> for comp-specific help like packing, nerves, warmups, and event prep.
-                        </div>
-                        <div class="assistant-toolbar">
-                            <select id="assistant-comp-select" class="stats-filter-select">
-                                <option value="">No competition focus</option>
-                            </select>
-                            <button class="train-quick-btn" id="assistant-set-key">Set OpenRouter Key</button>
-                            <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
-                        </div>
-                        <div class="assistant-key-status" id="assistant-key-status"></div>
-                        <div class="assistant-history" id="cubing-assistant-history"></div>
-                        <div class="assistant-compose">
-                            <textarea id="assistant-input" class="pe-input assistant-input" rows="4" placeholder="Ask for training advice, goal planning, or type /competition for upcoming comp help."></textarea>
-                            <div class="assistant-actions">
-                                <button class="train-quick-btn" id="assistant-quick-comp">/competition</button>
-                                <button class="train-cta" id="assistant-send">Ask Assistant</button>
-                            </div>
-                        </div>
-                    </div>
-
                     ${profile.wca_id ? `
                     <div class="train-panel stats-upcoming stats-fullwidth">
                         <div class="panel-title">Upcoming Competitions</div>
@@ -1287,6 +1483,7 @@
                     </div>
 
                 </div>
+                </div>
             `;
             // Re-attach the auth widget into the (re-rendered) profile area
             renderAuthWidget();
@@ -1302,68 +1499,6 @@
             // Edit profile button
             const editBtn = document.getElementById('open-profile-edit');
             if (editBtn) editBtn.addEventListener('click', openProfileEdit);
-            renderCubingAssistantCompOptions();
-            renderAssistantHistory();
-            const assistantInput = document.getElementById('assistant-input');
-            const assistantStatus = document.getElementById('assistant-key-status');
-            const keyPresent = !!getAssistantApiKey();
-            if (assistantStatus) assistantStatus.textContent = keyPresent
-                ? 'OpenRouter key saved locally in this browser.'
-                : 'No OpenRouter key saved yet. Set one locally to enable the assistant.';
-            document.getElementById('assistant-comp-select')?.addEventListener('change', (e) => {
-                assistantPrefs.competitionId = e.target.value;
-                saveAssistantPrefs();
-            });
-            document.getElementById('assistant-set-key')?.addEventListener('click', () => {
-                const current = getAssistantApiKey();
-                const next = window.prompt('Paste your OpenRouter API key. It will be stored locally in this browser only.', current || '');
-                if (next == null) return;
-                setAssistantApiKey(next);
-                renderStats();
-            });
-            document.getElementById('assistant-clear-chat')?.addEventListener('click', () => {
-                assistantPrefs.history = [];
-                saveAssistantPrefs();
-                renderAssistantHistory();
-            });
-            document.getElementById('assistant-quick-comp')?.addEventListener('click', () => {
-                if (!assistantInput) return;
-                assistantInput.value = '/competition ';
-                assistantInput.focus();
-                assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
-            });
-            async function submitAssistantPrompt() {
-                if (!assistantInput) return;
-                const raw = assistantInput.value.trim();
-                if (!raw) return;
-                assistantPrefs.history.push({ role: 'user', content: raw });
-                assistantPrefs.history = assistantPrefs.history.slice(-10);
-                saveAssistantPrefs();
-                renderAssistantHistory();
-                assistantInput.value = '';
-                const sendBtn = document.getElementById('assistant-send');
-                if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking…'; }
-                try {
-                    const reply = await askCubingAssistant(raw);
-                    assistantPrefs.history.push({ role: 'assistant', content: reply });
-                    assistantPrefs.history = assistantPrefs.history.slice(-10);
-                    saveAssistantPrefs();
-                    renderAssistantHistory();
-                } catch (err) {
-                    assistantPrefs.history.push({ role: 'assistant', content: `Error: ${err.message || err}` });
-                    saveAssistantPrefs();
-                    renderAssistantHistory();
-                } finally {
-                    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Ask Assistant'; }
-                }
-            }
-            document.getElementById('assistant-send')?.addEventListener('click', submitAssistantPrompt);
-            assistantInput?.addEventListener('keydown', (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    submitAssistantPrompt();
-                }
-            });
             // Async: load upcoming competitions if wca_id is set
             if (profile.wca_id) loadUpcomingComps(profile.wca_id);
         }
@@ -1425,7 +1560,10 @@
         let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [] });
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
+        let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '', gender: 'all' });
+        function saveLeaderboardPrefs() { LS.set('leaderboardPrefs', leaderboardPrefs); }
         function getAssistantApiKey() {
+            if (openRouterConfig?.apiKey) return String(openRouterConfig.apiKey).trim();
             try { return localStorage.getItem('uc_openrouter_api_key') || ''; } catch (_) { return ''; }
         }
         function setAssistantApiKey(v) {
@@ -1596,6 +1734,64 @@
                 return `<option value="${escHTML(id)}" ${prior === id ? 'selected' : ''}>${escHTML(c.name)}${events ? ` · ${escHTML(events)}` : ''}</option>`;
             }).join('');
         }
+        function leaderboardUrl() {
+            const type = leaderboardPrefs.type === 'average' ? 'average' : 'single';
+            const params = new URLSearchParams();
+            if (leaderboardPrefs.country) params.set('region', leaderboardPrefs.country);
+            if (leaderboardPrefs.gender && leaderboardPrefs.gender !== 'all') params.set('gender', leaderboardPrefs.gender);
+            const qs = params.toString();
+            return `https://www.worldcubeassociation.org/results/rankings/${encodeURIComponent(leaderboardPrefs.event)}/${type}${qs ? '?' + qs : ''}`;
+        }
+        async function loadWcaLeaderboard() {
+            const body = document.getElementById('wca-leaderboard-body');
+            if (!body) return;
+            body.innerHTML = `<div class="assistant-empty">Loading official WCA rankings…</div>`;
+            const url = leaderboardUrl();
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const html = await resp.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const rows = [...doc.querySelectorAll('table tbody tr')].slice(0, 10);
+                if (!rows.length) throw new Error('No ranking rows found.');
+                const parsed = rows.map((tr) => {
+                    const tds = [...tr.querySelectorAll('td')].map(td => td.textContent.trim().replace(/\s+/g, ' '));
+                    const link = tr.querySelector('a[href*="/persons/"]');
+                    return {
+                        rank: tds[0] || '',
+                        result: tds[1] || '',
+                        person: link ? link.textContent.trim() : (tds[2] || ''),
+                        country: tds[3] || '',
+                        competition: tds[4] || ''
+                    };
+                }).filter(r => r.rank && r.person);
+                if (!parsed.length) throw new Error('Could not parse rankings.');
+                body.innerHTML = `
+                    <div class="leaderboard-meta">
+                        <a href="${escHTML(url)}" target="_blank" rel="noopener">Open official WCA rankings</a>
+                    </div>
+                    <div class="leaderboard-table">
+                        <div class="leaderboard-row leaderboard-head">
+                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>Competition</span>
+                        </div>
+                        ${parsed.map(row => `
+                            <div class="leaderboard-row">
+                                <span>${escHTML(row.rank)}</span>
+                                <span>${escHTML(row.result)}</span>
+                                <span>${escHTML(row.person)}</span>
+                                <span>${escHTML(row.country)}</span>
+                                <span>${escHTML(row.competition)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = `
+                    <div class="assistant-empty">Could not load the official WCA leaderboard in-browser right now.</div>
+                    <div class="leaderboard-meta"><a href="${escHTML(url)}" target="_blank" rel="noopener">Open the rankings page directly</a></div>
+                `;
+            }
+        }
 
         // ---- Training Planner ----
         let plannerData = LS.get('planner', { plans: [], algGoals: [] });
@@ -1742,14 +1938,12 @@
             }
 
             const hasAnything = algGoals.length || plans.length;
-            planView.innerHTML = `<div class="plan-outer">
-                <div class="plan-topbar">
-                    <h2 class="plan-page-title">Goals</h2>
-                    <div style="display:flex;gap:8px;">
-                        <button class="plan-new-cta" id="plan-open-alg-goal" style="background:rgba(255,159,10,0.15);color:var(--orange);border:1px solid rgba(255,159,10,0.35);">+ Alg Goal</button>
-                        <button class="plan-new-cta" id="plan-open-new">+ Checklist</button>
-                    </div>
-                </div>
+            planView.innerHTML = `<div class="app-page-shell">
+                ${appPageHeading('Goals', 'Build daily alg plans, comp checklists, and longer training roadmaps.', `
+                    <button class="plan-new-cta" id="plan-open-alg-goal" style="background:rgba(255,159,10,0.15);color:var(--orange);border:1px solid rgba(255,159,10,0.35);">+ Alg Goal</button>
+                    <button class="plan-new-cta" id="plan-open-new">+ Checklist</button>
+                `)}
+                <div class="plan-outer">
                 ${algGoals.length ? `<div class="goals-section-label">Alg Learning Goals</div>${algGoals.map(algGoalHTML).join('')}` : ''}
                 ${plans.length ? `<div class="goals-section-label">Checklists</div>${plans.map(planHTML).join('')}` : ''}
                 ${!hasAnything ? `<div class="plan-empty-state">
@@ -1757,6 +1951,7 @@
                     No goals yet.<br>
                     <span style="font-size:0.85rem;">Create an <b>Alg Goal</b> to split a set into daily practice, or a <b>Checklist</b> for comp prep and custom task lists.</span>
                 </div>` : ''}
+                </div>
             </div>`;
 
             document.getElementById('plan-open-new')?.addEventListener('click', openNewPlanModal);
@@ -2491,11 +2686,14 @@
                 const a5 = aoN(upto, 5), a12 = aoN(upto, 12);
                 const cls = s.penalty === 'dnf' ? 'dnf' : (isBest ? 'best' : '');
                 const noteHTML = s.note ? `<span class="solve-note" title="${esc(s.note)}">${esc(s.note)}</span>` : '';
+                const singleCopy = solveLabel(s);
+                const ao5Copy = a5 == null ? '' : (a5 === Infinity ? 'DNF' : fmt(a5));
+                const ao12Copy = a12 == null ? '' : (a12 === Infinity ? 'DNF' : fmt(a12));
                 return `<div class="solve-row ${cls}" data-idx="${i}">
                     <span class="solve-idx">${i + 1}.</span>
-                    <span class="solve-time">${solveLabel(s)}${noteHTML}</span>
-                    <span class="solve-ao">${a5 == null ? '—' : (a5 === Infinity ? 'DNF' : fmt(a5))}</span>
-                    <span class="solve-ao">${a12 == null ? '—' : (a12 === Infinity ? 'DNF' : fmt(a12))}</span>
+                    <span class="solve-time" data-copy-kind="single" data-copy-text="${esc(singleCopy)}" title="Click to copy single">${solveLabel(s)}${noteHTML}</span>
+                    <span class="solve-ao" data-copy-kind="ao5" data-copy-text="${esc(ao5Copy)}" title="Click to copy ao5">${a5 == null ? '—' : (a5 === Infinity ? 'DNF' : fmt(a5))}</span>
+                    <span class="solve-ao" data-copy-kind="ao12" data-copy-text="${esc(ao12Copy)}" title="Click to copy ao12">${a12 == null ? '—' : (a12 === Infinity ? 'DNF' : fmt(a12))}</span>
                 </div>`;
             }).filter(Boolean).reverse().join('');
             puzzleSolvesEl.innerHTML = `
@@ -3084,9 +3282,23 @@
         // ---- Solve popup — scramble detail, penalties, delete ----
         const solvePopup = document.getElementById('solve-popup');
         let popupIdx = -1;
-        puzzleSolvesEl.addEventListener('click', (e) => {
+        puzzleSolvesEl.addEventListener('click', async (e) => {
             const chip = e.target.closest('.solve-row');
             if (!chip || chip.classList.contains('solve-row-head')) return;
+            const copyTarget = e.target.closest('[data-copy-kind]');
+            if (copyTarget) {
+                const text = copyTarget.dataset.copyText || '';
+                if (!text) return;
+                const ok = await copyText(text);
+                const prevTitle = copyTarget.getAttribute('title') || '';
+                copyTarget.setAttribute('title', ok ? 'Copied!' : prevTitle);
+                copyTarget.classList.add('copied');
+                setTimeout(() => {
+                    copyTarget.classList.remove('copied');
+                    if (prevTitle) copyTarget.setAttribute('title', prevTitle);
+                }, 900);
+                return;
+            }
             popupIdx = parseInt(chip.dataset.idx, 10);
             const s = curSolves()[popupIdx];
             document.getElementById('solve-popup-time').textContent =

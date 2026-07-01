@@ -1085,6 +1085,16 @@
             color: var(--text-muted);
             margin-bottom: 12px;
         }
+        .assistant-secret-note {
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
         .assistant-history {
             display: flex;
             flex-direction: column;
@@ -1139,6 +1149,61 @@
             justify-content: space-between;
             gap: 10px;
             flex-wrap: wrap;
+        }
+        .stats-leaderboard { grid-column: 1 / -1; }
+        .leaderboard-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .leaderboard-country {
+            min-width: 160px;
+            max-width: 220px;
+        }
+        .leaderboard-meta {
+            margin-bottom: 10px;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+        .leaderboard-meta a {
+            color: var(--orange);
+            text-decoration: none;
+        }
+        .leaderboard-table {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .leaderboard-row {
+            display: grid;
+            grid-template-columns: 50px 110px minmax(120px, 1fr) 110px minmax(140px, 1fr);
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            font-size: 0.9rem;
+        }
+        .leaderboard-head {
+            background: rgba(255,159,10,0.08);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .solve-time[data-copy-kind],
+        .solve-ao[data-copy-kind] {
+            cursor: pointer;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+        .solve-time[data-copy-kind]:hover,
+        .solve-ao[data-copy-kind]:hover,
+        .solve-time.copied,
+        .solve-ao.copied {
+            color: var(--orange);
+            transform: translateY(-1px);
         }
 
         /* ============ Planner ============ */
@@ -4294,6 +4359,26 @@
             font-size: 0.95rem;
             margin: 4px 0 0;
         }
+        .app-page-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 4px 4px 56px;
+        }
+        .app-page-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .app-page-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .assistant-page-shell {
+            max-width: 980px;
+        }
 
         /* ============ Tri-state alg button (unknown / learning / learned) ============ */
         .learned-btn.state-learning {
@@ -5250,3 +5335,31 @@
             font-family: 'Ubuntu', sans-serif;
         }
         .app-color-swatch.on .app-color-label { color: var(--text-main); }
+
+        @media (max-width: 960px) {
+            .app-page-shell {
+                padding-bottom: 42px;
+            }
+            .app-page-heading {
+                align-items: flex-start;
+            }
+            .leaderboard-row {
+                grid-template-columns: 42px 90px minmax(120px, 1fr);
+                align-items: flex-start;
+            }
+            .leaderboard-row span:nth-child(4),
+            .leaderboard-row span:nth-child(5),
+            .leaderboard-head span:nth-child(4),
+            .leaderboard-head span:nth-child(5) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .assistant-actions {
+                justify-content: stretch;
+            }
+            .assistant-actions > * {
+                flex: 1 1 100%;
+            }
+        }
