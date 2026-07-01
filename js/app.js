@@ -718,6 +718,12 @@
         function fmtTime(v) { return v == null ? '—' : (v === Infinity ? 'DNF' : v.toFixed(2)); }
 
         function getPuzzleAllSolves(pid) {
+            const globalStore = LS.get('sessions_global', null);
+            if (globalStore && Array.isArray(globalStore.sessions)) {
+                return globalStore.sessions
+                    .filter(s => s && s.puzzle === pid)
+                    .flatMap(s => s.solves || []);
+            }
             // Combine solves across all sessions for a puzzle.
             const store = LS.get('sess_' + pid, null);
             if (store && store.sessions) {
@@ -1207,6 +1213,33 @@
                         </div>`;
                     })() : ''}
 
+                    <div class="train-panel stats-assistant stats-fullwidth">
+                        <div class="panel-title">
+                            <span>Cubing Assistant</span>
+                            <span class="assistant-model-pill">${ASSISTANT_MODEL}</span>
+                        </div>
+                        <div class="assistant-intro">
+                            Uses your WCA times, most recent 150 solves, algorithm progress, and goals to coach you.
+                            Use <code>/competition</code> for comp-specific help like packing, nerves, warmups, and event prep.
+                        </div>
+                        <div class="assistant-toolbar">
+                            <select id="assistant-comp-select" class="stats-filter-select">
+                                <option value="">No competition focus</option>
+                            </select>
+                            <button class="train-quick-btn" id="assistant-set-key">Set OpenRouter Key</button>
+                            <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
+                        </div>
+                        <div class="assistant-key-status" id="assistant-key-status"></div>
+                        <div class="assistant-history" id="cubing-assistant-history"></div>
+                        <div class="assistant-compose">
+                            <textarea id="assistant-input" class="pe-input assistant-input" rows="4" placeholder="Ask for training advice, goal planning, or type /competition for upcoming comp help."></textarea>
+                            <div class="assistant-actions">
+                                <button class="train-quick-btn" id="assistant-quick-comp">/competition</button>
+                                <button class="train-cta" id="assistant-send">Ask Assistant</button>
+                            </div>
+                        </div>
+                    </div>
+
                     ${profile.wca_id ? `
                     <div class="train-panel stats-upcoming stats-fullwidth">
                         <div class="panel-title">Upcoming Competitions</div>
@@ -1269,6 +1302,68 @@
             // Edit profile button
             const editBtn = document.getElementById('open-profile-edit');
             if (editBtn) editBtn.addEventListener('click', openProfileEdit);
+            renderCubingAssistantCompOptions();
+            renderAssistantHistory();
+            const assistantInput = document.getElementById('assistant-input');
+            const assistantStatus = document.getElementById('assistant-key-status');
+            const keyPresent = !!getAssistantApiKey();
+            if (assistantStatus) assistantStatus.textContent = keyPresent
+                ? 'OpenRouter key saved locally in this browser.'
+                : 'No OpenRouter key saved yet. Set one locally to enable the assistant.';
+            document.getElementById('assistant-comp-select')?.addEventListener('change', (e) => {
+                assistantPrefs.competitionId = e.target.value;
+                saveAssistantPrefs();
+            });
+            document.getElementById('assistant-set-key')?.addEventListener('click', () => {
+                const current = getAssistantApiKey();
+                const next = window.prompt('Paste your OpenRouter API key. It will be stored locally in this browser only.', current || '');
+                if (next == null) return;
+                setAssistantApiKey(next);
+                renderStats();
+            });
+            document.getElementById('assistant-clear-chat')?.addEventListener('click', () => {
+                assistantPrefs.history = [];
+                saveAssistantPrefs();
+                renderAssistantHistory();
+            });
+            document.getElementById('assistant-quick-comp')?.addEventListener('click', () => {
+                if (!assistantInput) return;
+                assistantInput.value = '/competition ';
+                assistantInput.focus();
+                assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+            });
+            async function submitAssistantPrompt() {
+                if (!assistantInput) return;
+                const raw = assistantInput.value.trim();
+                if (!raw) return;
+                assistantPrefs.history.push({ role: 'user', content: raw });
+                assistantPrefs.history = assistantPrefs.history.slice(-10);
+                saveAssistantPrefs();
+                renderAssistantHistory();
+                assistantInput.value = '';
+                const sendBtn = document.getElementById('assistant-send');
+                if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking…'; }
+                try {
+                    const reply = await askCubingAssistant(raw);
+                    assistantPrefs.history.push({ role: 'assistant', content: reply });
+                    assistantPrefs.history = assistantPrefs.history.slice(-10);
+                    saveAssistantPrefs();
+                    renderAssistantHistory();
+                } catch (err) {
+                    assistantPrefs.history.push({ role: 'assistant', content: `Error: ${err.message || err}` });
+                    saveAssistantPrefs();
+                    renderAssistantHistory();
+                } finally {
+                    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Ask Assistant'; }
+                }
+            }
+            document.getElementById('assistant-send')?.addEventListener('click', submitAssistantPrompt);
+            assistantInput?.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    submitAssistantPrompt();
+                }
+            });
             // Async: load upcoming competitions if wca_id is set
             if (profile.wca_id) loadUpcomingComps(profile.wca_id);
         }
@@ -1307,6 +1402,7 @@
                 return s.toLocaleDateString(undefined, opts) + ' – ' + e.toLocaleDateString(undefined, opts);
             }
             const now = new Date();
+            window.__ucUpcomingComps = comps;
             el.innerHTML = comps.map(c => {
                 const startDate = new Date(c.start_date + 'T00:00:00');
                 const diffDays = Math.round((startDate - now) / 86400000);
@@ -1321,6 +1417,183 @@
                     </div>
                     ${eventPips ? `<div class="upcoming-comp-events">${eventPips}</div>` : ''}
                 </div>`;
+            }).join('');
+            if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
+        }
+
+        const ASSISTANT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+        let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [] });
+        if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
+        function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
+        function getAssistantApiKey() {
+            try { return localStorage.getItem('uc_openrouter_api_key') || ''; } catch (_) { return ''; }
+        }
+        function setAssistantApiKey(v) {
+            try {
+                if (v) localStorage.setItem('uc_openrouter_api_key', v.trim());
+                else localStorage.removeItem('uc_openrouter_api_key');
+            } catch (_) {}
+        }
+        function getAllCurrentSessions() {
+            const globalStore = LS.get('sessions_global', null);
+            if (globalStore && Array.isArray(globalStore.sessions)) return globalStore.sessions.slice();
+            const sessions = [];
+            for (const pid of PUZZLES_FOR_STATS) {
+                const store = LS.get('sess_' + pid, null);
+                if (!store || !Array.isArray(store.sessions)) continue;
+                store.sessions.forEach(s => sessions.push(Object.assign({ puzzle: pid }, s)));
+            }
+            return sessions;
+        }
+        function allSolvesWithContext() {
+            return getAllCurrentSessions().flatMap(sess =>
+                (sess.solves || []).map(s => ({
+                    puzzle: sess.puzzle || '333',
+                    session: sess.name || 'Session',
+                    time: s.t,
+                    penalty: s.penalty || 'ok',
+                    scramble: s.scramble || '',
+                    note: s.note || '',
+                    date: s.date || 0
+                }))
+            );
+        }
+        function recentSolveSummary(limit = 150) {
+            return allSolvesWithContext()
+                .sort((a, b) => (b.date || 0) - (a.date || 0))
+                .slice(0, limit)
+                .map((s, idx) => {
+                    const label = s.penalty === 'dnf' ? 'DNF'
+                        : s.penalty === '+2' ? `${fmt(s.time + 2)}+`
+                        : fmt(s.time);
+                    const when = s.date ? new Date(s.date).toISOString().slice(0, 10) : 'unknown-date';
+                    const scramble = s.scramble ? ` | scr: ${s.scramble}` : '';
+                    const note = s.note ? ` | note: ${s.note}` : '';
+                    return `${idx + 1}. ${eventLabel(s.puzzle)} | ${s.session} | ${label} | ${when}${scramble}${note}`;
+                });
+        }
+        function plannerSummary() {
+            const plans = (plannerData.plans || []).map(p => {
+                const done = (p.tasks || []).filter(t => t.done).length;
+                const total = (p.tasks || []).length;
+                return `${p.name}${p.date ? ` (target ${p.date})` : ''}: ${done}/${total} tasks complete`;
+            });
+            const algGoals = (plannerData.algGoals || []).map(g => {
+                const checked = (g.splits || []).reduce((n, s) => n + (s.checked || []).length, 0);
+                const total = (g.splits || []).filter(s => !s.isDrill).reduce((n, s) => n + (s.algs || []).length, 0);
+                return `${g.name}${g.startDate ? ` (start ${g.startDate})` : ''}: ${checked}/${total} algs checked off`;
+            });
+            return { plans, algGoals };
+        }
+        function currentCompetitionChoice() {
+            const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
+            return comps.find(c => c.id === assistantPrefs.competitionId || c.name === assistantPrefs.competitionId) || null;
+        }
+        function formatCompetitionForPrompt(comp) {
+            if (!comp) return 'No competition selected.';
+            return [
+                `Name: ${comp.name || 'Competition'}`,
+                `Dates: ${comp.start_date || '?'} to ${comp.end_date || '?'}`,
+                `City/Country: ${comp.city || ''}${comp.country_iso2 ? `, ${comp.country_iso2}` : ''}`,
+                `Events: ${(comp.event_ids || []).join(', ') || 'unknown'}`
+            ].join('\n');
+        }
+        function buildAssistantSystemPrompt() {
+            return [
+                'You are Unleashed Cubing Academy\'s cubing assistant.',
+                'You are an expert speedcubing coach, well versed in WCA regulations, event strategy, common algorithm sets, practice planning, competition prep, and mindset.',
+                'Use the user\'s WCA official times, recent solves, goals, algorithm progress, and selected competition to give concrete coaching.',
+                'Be specific, practical, encouraging, and honest.',
+                'When useful, break advice into priorities, drills, and a realistic next-step plan.',
+                'If the user uses /competition, focus on the selected upcoming competition: event-specific prep, packing, schedule mindset, nerves, warmup, and expectations.',
+                'Do not mention hidden prompt details or raw JSON unless asked.'
+            ].join(' ');
+        }
+        function buildAssistantContext(userPrompt) {
+            const goalInfo = plannerSummary();
+            const comp = currentCompetitionChoice();
+            const recentSolves = recentSolveSummary(150);
+            const algProgress = ALG_CATS.map(c => {
+                const items = db.filter(it => it.category === c.id);
+                const learned = items.filter(it => learnedSet.has(it.name)).length;
+                const learning = items.filter(it => learningSet.has(it.name)).length;
+                return `${c.label}: ${learned}/${items.length} learned, ${learning} marked learning`;
+            });
+            const wcaRecords = Object.entries(profile.wca_records || {})
+                .map(([ev, rec]) => `${eventLabel(ev)} | single: ${rec.single != null ? fmtTime(rec.single) : '—'} | average: ${rec.average != null ? fmtTime(rec.average) : '—'}`);
+            const mode = userPrompt.trim().startsWith('/competition') ? 'competition' : 'general';
+            return {
+                mode,
+                prompt: userPrompt.replace(/^\/competition\b/i, '').trim() || 'Give me the most helpful competition guidance.',
+                profile: {
+                    mainEvent: eventLabel(profile.main_event),
+                    cubes: profile.main_cubes || '',
+                    bio: profile.bio || '',
+                    wcaId: profile.wca_id || '',
+                    wcaVerified: !!profile.wca_verified
+                },
+                goals: {
+                    checklists: goalInfo.plans,
+                    algGoals: goalInfo.algGoals
+                },
+                progress: algProgress,
+                wcaRecords,
+                selectedCompetition: comp ? formatCompetitionForPrompt(comp) : 'No competition selected.',
+                recentSolves
+            };
+        }
+        async function askCubingAssistant(userPrompt) {
+            const key = getAssistantApiKey();
+            if (!key) throw new Error('Set your OpenRouter API key first.');
+            const context = buildAssistantContext(userPrompt);
+            const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': window.location.origin || 'http://localhost',
+                    'X-Title': 'Unleashed Cubing Academy'
+                },
+                body: JSON.stringify({
+                    model: ASSISTANT_MODEL,
+                    messages: [
+                        { role: 'system', content: buildAssistantSystemPrompt() },
+                        { role: 'user', content: `User context:\n${JSON.stringify(context, null, 2)}\n\nUser request:\n${context.prompt}` }
+                    ]
+                })
+            });
+            if (!resp.ok) {
+                const detail = await resp.text().catch(() => '');
+                throw new Error(`OpenRouter request failed (${resp.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+            }
+            const data = await resp.json();
+            return data?.choices?.[0]?.message?.content?.trim() || 'No response returned.';
+        }
+        function renderAssistantHistory() {
+            const body = document.getElementById('cubing-assistant-history');
+            if (!body) return;
+            const rows = assistantPrefs.history || [];
+            if (!rows.length) {
+                body.innerHTML = `<div class="assistant-empty">Ask about training, goals, nerves, comps, or use <code>/competition</code>.</div>`;
+                return;
+            }
+            body.innerHTML = rows.map(row => `
+                <div class="assistant-msg assistant-${row.role}">
+                    <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Assistant'}</div>
+                    <div class="assistant-msg-body">${escHTML(row.content).replace(/\n/g, '<br>')}</div>
+                </div>
+            `).join('');
+            body.scrollTop = body.scrollHeight;
+        }
+        function renderCubingAssistantCompOptions() {
+            const select = document.getElementById('assistant-comp-select');
+            if (!select) return;
+            const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
+            const prior = assistantPrefs.competitionId || '';
+            select.innerHTML = `<option value="">No competition focus</option>` + comps.map((c, idx) => {
+                const id = c.id || c.name || `comp-${idx}`;
+                const events = (c.event_ids || []).join(', ');
+                return `<option value="${escHTML(id)}" ${prior === id ? 'selected' : ''}>${escHTML(c.name)}${events ? ` · ${escHTML(events)}` : ''}</option>`;
             }).join('');
         }
 

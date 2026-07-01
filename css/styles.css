@@ -1045,6 +1045,102 @@
         .wca-pr-time .lbl { font-size: 0.68rem; color: var(--text-muted); }
         .wca-pr-time .val { font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem; color: var(--text-main); }
 
+        /* ============ Cubing Assistant ============ */
+        .stats-assistant { grid-column: 1 / -1; }
+        .assistant-model-pill {
+            font-size: 0.72rem;
+            color: var(--orange);
+            background: rgba(255,159,10,0.1);
+            border: 1px solid rgba(255,159,10,0.2);
+            padding: 3px 8px;
+            border-radius: 999px;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .assistant-intro {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+        .assistant-intro code {
+            background: rgba(255,255,255,0.06);
+            border-radius: 6px;
+            padding: 2px 6px;
+            color: var(--text-main);
+            font-family: 'Ubuntu Mono', monospace;
+        }
+        .assistant-toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .assistant-toolbar select {
+            min-width: 240px;
+            flex: 1;
+        }
+        .assistant-key-status {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .assistant-history {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding-right: 4px;
+            margin-bottom: 12px;
+        }
+        .assistant-empty {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            padding: 18px 0;
+        }
+        .assistant-msg {
+            border-radius: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .assistant-user {
+            background: rgba(255,159,10,0.08);
+            border-color: rgba(255,159,10,0.16);
+        }
+        .assistant-assistant {
+            background: rgba(255,255,255,0.04);
+        }
+        .assistant-msg-role {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .assistant-msg-body {
+            line-height: 1.65;
+            color: var(--text-main);
+            white-space: normal;
+        }
+        .assistant-compose {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .assistant-input {
+            min-height: 100px;
+            resize: vertical;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .assistant-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
         /* ============ Planner ============ */
         .plan-outer {
             display: flex;
