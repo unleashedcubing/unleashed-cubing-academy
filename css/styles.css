@@ -622,6 +622,11 @@
             color: var(--text-muted);
             margin-bottom: 14px;
         }
+        .panel-title-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -2190,6 +2195,7 @@
             gap: 18px;
             margin: 18px 0;
         }
+        .battles-room .train-panel { position: relative; overflow: hidden; }
         @media (max-width: 720px) {
             .battles-actions { grid-template-columns: 1fr; }
         }
@@ -2201,10 +2207,36 @@
             display: flex; justify-content: space-between; align-items: flex-start;
             flex-wrap: wrap; gap: 14px;
         }
+        .battle-mode-line {
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+        }
         .battles-room-code { font-family: 'Ubuntu Mono', monospace; }
         .battles-room-code b { color: var(--orange); letter-spacing: 3px; font-size: 1.2rem; }
         .battles-room-event { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
         .battles-room-controls { display: flex; gap: 8px; }
+        .battle-countdown-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 5, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 22px;
+            z-index: 4;
+            pointer-events: none;
+        }
+        .battle-countdown-number {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 900;
+            letter-spacing: -2px;
+            color: var(--orange);
+            text-shadow: 0 12px 30px rgba(255, 159, 10, 0.3);
+        }
         .battles-players {
             display: flex;
             flex-direction: column;
@@ -2233,6 +2265,11 @@
         .battles-controls .train-cta.on { background: rgba(95,224,140,0.18); color: #5fe08c; border: 1px solid rgba(95,224,140,0.45); }
         .battles-controls .uc-bigtimer { font-size: 4.5rem; margin: 4px 0; }
         .battles-result { text-align: center; margin-top: 14px; }
+        .battle-ended-by {
+            margin-top: 10px;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
         .result-line {
             display: inline-block;
             padding: 14px 28px;
@@ -3415,6 +3452,47 @@
             width: 100%;
             align-items: stretch;
         }
+        body.session-layout-top .timer-layout {
+            grid-template-columns: minmax(0, 1fr) 320px;
+            grid-template-areas:
+                "rail rail"
+                "main side";
+        }
+        body.session-layout-top .timer-main-col { grid-area: main; }
+        body.session-layout-top .timer-side { grid-area: side; }
+        body.session-layout-top .session-rail {
+            grid-area: rail;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            padding: 0;
+            margin-bottom: 6px;
+        }
+        body.session-layout-top .session-rail-add {
+            width: 42px;
+            height: 42px;
+            flex-shrink: 0;
+        }
+        body.session-layout-top .session-rail-list {
+            flex-direction: row;
+            overflow-x: auto;
+            scrollbar-width: none;
+            gap: 10px;
+        }
+        body.session-layout-top .session-rail-list::-webkit-scrollbar { display: none; }
+        body.session-layout-top .session-card {
+            width: auto;
+            min-width: 110px;
+            min-height: 50px;
+            flex-direction: row;
+            justify-content: flex-start;
+            padding: 10px 14px;
+            gap: 10px;
+        }
+        body.session-layout-top .session-card-name {
+            writing-mode: initial;
+            max-height: none;
+        }
         .session-card {
             position: relative;
             width: 100%;
@@ -3553,6 +3631,14 @@
         /* ============ Flip session-name rotation (read top→bottom, tilting head right) ============ */
         .session-card-name {
             transform: none;
+        }
+
+        .ao5-share-text {
+            min-height: 220px;
+            resize: vertical;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: 'Ubuntu Mono', monospace;
         }
 
         /* ============ Move widget gear icon to the LEFT side ============ */

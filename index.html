@@ -298,9 +298,12 @@
                         <div class="train-panel time-list-panel">
                             <div class="panel-title">
                                 <span><span class="panel-title-icon">⏱</span> Time List</span>
-                                <button type="button" class="time-list-search-btn" id="time-list-search-btn" title="Search times">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-                                </button>
+                                <div class="panel-title-actions">
+                                    <button type="button" class="train-quick-btn icon-only" id="ao5-share-open" title="Copy or paste Ao5">Ao5</button>
+                                    <button type="button" class="time-list-search-btn" id="time-list-search-btn" title="Search times">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="time-list-search" id="time-list-search" style="display:none;">
                                 <input type="text" id="time-list-search-input" placeholder="Search notes, or: sub 10, sub-pb, dnf, pb">
@@ -338,7 +341,7 @@
                     </div>
                     <div class="train-panel battles-hero">
                         <div class="battles-hero-title">⚔ 1v1 Battles</div>
-                        <div class="battles-hero-sub">Race another cuber in real time — same scramble, fastest finish wins.</div>
+                        <div class="battles-hero-sub">Race another cuber in real time with Ao5, sets, or infinite battles.</div>
                     </div>
                     <div class="train-panel battles-signin-prompt" id="battles-signin-prompt" style="display:none;">
                         <div style="text-align:center; padding: 12px 0;">
@@ -363,8 +366,22 @@
                                     <option value="3">1v1v1</option>
                                 </select>
                             </div>
+                            <div class="settings-row battle-create-advanced" style="margin-bottom:10px;">
+                                <label class="pe-hint">Mode:</label>
+                                <select id="battle-create-mode">
+                                    <option value="ao5" selected>Ao5</option>
+                                    <option value="sets">Sets</option>
+                                    <option value="infinite">Infinite</option>
+                                </select>
+                                <label class="pe-hint" id="battle-target-label" style="margin-left:8px;">Target:</label>
+                                <select id="battle-create-target">
+                                    <option value="3" selected>Best of 5 sets</option>
+                                    <option value="5">First to 5 sets</option>
+                                    <option value="7">First to 7 sets</option>
+                                </select>
+                            </div>
                             <button class="train-cta" id="battle-create-btn">Create Battle</button>
-                            <div class="pe-hint" style="margin-top:10px;">You'll get a 6-char code and a shareable invite link.</div>
+                            <div class="pe-hint" style="margin-top:10px;">Battles pre-generate scrambles before the race so the next round is ready instantly.</div>
                         </div>
                         <div class="train-panel battles-card">
                             <div class="panel-title">Join a Battle</div>
@@ -376,21 +393,27 @@
                         <div class="panel-title">How it works</div>
                         <ol class="battles-howto">
                             <li>Both players sign in with Google.</li>
-                            <li>Click <b>Ready</b> when you're prepared. When everyone is ready the scramble unlocks.</li>
-                            <li>Use the Timer (Space) or your smart cube. The first to submit a valid (non-DNF) time wins.</li>
+                            <li>Click <b>Ready</b> when you're prepared. When everyone is ready a 3, 2, 1, BATTLE! countdown begins.</li>
+                            <li>Battle mode enforces a 0.50s hold before the timer arms.</li>
+                            <li>Use the Timer (Space) or your smart cube. Ao5 drops best and worst, Sets awards rounds, and Infinite keeps going until someone ends it.</li>
                         </ol>
                     </div>
                 </div>
 
                 <div class="battles-room" id="battles-room" style="display:none;">
                     <div class="train-panel">
+                        <div class="battle-countdown-overlay" id="battle-countdown-overlay" style="display:none;">
+                            <div class="battle-countdown-number" id="battle-countdown-number">3</div>
+                        </div>
                         <div class="battles-room-head">
                             <div>
                                 <div class="battles-room-code">Code: <b id="battle-code"></b></div>
                                 <div class="battles-room-event"><span id="battle-event"></span> · <span id="battle-state">waiting</span></div>
+                                <div class="battle-mode-line" id="battle-mode-line"></div>
                             </div>
                             <div class="battles-room-controls">
                                 <button class="train-quick-btn" id="battle-copy-link">📋 Copy invite</button>
+                                <button class="train-quick-btn" id="battle-end-btn" style="display:none;">End battle</button>
                                 <button class="train-quick-btn" id="battle-leave">Leave</button>
                             </div>
                         </div>
@@ -509,6 +532,24 @@
             </div>
         </div>
 
+        <div id="ao5-share-modal" class="modal-backdrop" style="display:none;">
+            <div class="modal-panel">
+                <div class="modal-head">
+                    <div class="modal-title">Ao5 Share / Paste</div>
+                    <button class="modal-close" id="ao5-share-close" title="Close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="pe-hint" style="margin-bottom:10px;">Copy your latest Ao5 with times and scrambles, or paste a csTimer-style block to import it into the current session.</div>
+                    <textarea id="ao5-share-text" class="pe-input ao5-share-text" rows="10" placeholder="1. 8.23 - R U R' ..."></textarea>
+                </div>
+                <div class="solve-note-actions">
+                    <button class="train-quick-btn" id="ao5-fill-latest">Load latest Ao5</button>
+                    <button class="train-quick-btn" id="ao5-copy-btn">Copy</button>
+                    <button class="train-cta" id="ao5-import-btn">Import into session</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Global algorithm Spotlight search (open with ? on Timer page) -->
         <div id="alg-spotlight" class="modal-backdrop" style="display:none;">
             <div class="modal-panel spotlight-panel">
@@ -593,6 +634,7 @@
                         <button class="train-quick-btn" id="ps-focus">Focus: Off</button>
                         <button class="train-quick-btn" id="ps-hold">Hold: 0.0s</button>
                         <button class="train-quick-btn" id="ps-precision">Decimals: 2</button>
+                        <button class="train-quick-btn" id="ps-session-layout">Sessions: Side</button>
                         <button class="train-quick-btn" id="puzzle-cube-toggle">Hide cube</button>
                     </div>
                 </div>
@@ -608,6 +650,7 @@
                     <div class="settings-section-title">Smart cube (Bluetooth)</div>
                     <div class="settings-row">
                         <button class="train-quick-btn" id="smart-cube-connect">🔵 Connect Smart Cube</button>
+                        <button class="train-quick-btn" id="smart-cube-reset">Reset cube view</button>
                         <span class="smart-cube-status" id="smart-cube-status">Not connected</span>
                     </div>
                     <div class="pe-hint" style="margin-top:6px;">

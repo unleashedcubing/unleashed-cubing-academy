@@ -2067,6 +2067,12 @@
         let inspectionEnabled = LS.get('inspection', false);
         let focusMode = LS.get('focusMode', false);
         let holdDelayMs = LS.get('holdDelay', 0);   // 0 | 300 | 550
+        let sessionRailLayout = LS.get('sessionRailLayout', 'side');
+
+        function applySessionRailLayout() {
+            document.body.classList.toggle('session-layout-top', sessionRailLayout === 'top');
+        }
+        applySessionRailLayout();
 
         function esc(s) {
             return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2441,17 +2447,22 @@
             if (puzzleSelect.value !== ev) return; // puzzle changed while awaiting
             currentScramble = scr;
             puzzleScrambleEl.textContent = scr;
+            resetPuzzleCubeView(scr);
+            applyPuzzleCube();
+            // Set up the solved-state simulator for smart-cube auto-stop
+            initSolvedSim(scr);
+        }
+
+        function resetPuzzleCubeView(scrambleText = currentScramble) {
+            const ev = puzzleSelect.value;
             if (PUZZLE_HAS_CUBE[ev]) {
                 puzzleCubeWrap.dataset.supported = '1';
                 puzzleCube.setAttribute('puzzle', PUZZLE_DISPLAY[ev]);
-                puzzleCube.setAttribute('experimental-setup-alg', scr);
+                puzzleCube.setAttribute('experimental-setup-alg', scrambleText || '');
                 puzzleCube.alg = '';
             } else {
                 puzzleCubeWrap.dataset.supported = '0';
             }
-            applyPuzzleCube();
-            // Set up the solved-state simulator for smart-cube auto-stop
-            initSolvedSim(scr);
         }
 
         // ---- Sessions ----
@@ -2718,6 +2729,7 @@
         const focusBtn = document.getElementById('ps-focus');
         const holdBtn = document.getElementById('ps-hold');
         const precisionBtn = document.getElementById('ps-precision');
+        const sessionLayoutBtn = document.getElementById('ps-session-layout');
         const puzzleHint = document.getElementById('puzzle-hint');
         function applySettingsUI() {
             inspectionBtn.textContent = 'Inspection: ' + (inspectionEnabled ? 'On' : 'Off');
@@ -2727,6 +2739,8 @@
             holdBtn.textContent = 'Hold: ' + (holdDelayMs / 1000).toFixed(2) + 's';
             holdBtn.classList.toggle('on', holdDelayMs > 0);
             precisionBtn.textContent = 'Decimals: ' + timerPrecision;
+            sessionLayoutBtn.textContent = 'Sessions: ' + (sessionRailLayout === 'top' ? 'Top' : 'Side');
+            sessionLayoutBtn.classList.toggle('on', sessionRailLayout === 'top');
             puzzleHint.innerHTML = inspectionEnabled
                 ? 'Press <b>Space</b> to start 15s inspection, then hold &amp; release to solve'
                 : 'Hold <b>Space</b> (or tap below), release to start — press again to stop';
@@ -2751,6 +2765,12 @@
             LS.set('precision', timerPrecision);
             applySettingsUI();
             if (puzzleStore) refreshPuzzle();
+        });
+        sessionLayoutBtn.addEventListener('click', () => {
+            sessionRailLayout = sessionRailLayout === 'side' ? 'top' : 'side';
+            LS.set('sessionRailLayout', sessionRailLayout);
+            applySessionRailLayout();
+            applySettingsUI();
         });
         applySettingsUI();
 
@@ -2941,6 +2961,7 @@
             focusMode         = LS.get('focusMode', false);
             holdDelayMs       = LS.get('holdDelay', 0);
             timerPrecision    = LS.get('precision', 2);
+            sessionRailLayout = LS.get('sessionRailLayout', 'side');
             groupMode         = LS.get('groupMode', 'name');
             showTrainCube     = LS.get('trainCube', true);
             showPuzzleCube    = LS.get('puzzleCube', true);
@@ -2952,6 +2973,7 @@
             if (statsView.style.display !== 'none') renderStats();
             applyTrainCube();
             applyPuzzleCube();
+            applySessionRailLayout();
             applySettingsUI();
             document.querySelectorAll('.group-toggle-btn').forEach(b =>
                 b.classList.toggle('active', b.dataset.group === groupMode));
@@ -3132,7 +3154,7 @@
             return t;
         };
 
-        // Typing mode: parse "12.34" or "1:02.34" (or "DNF")
+        // Typing mode: parse "12.34", "1:02.34", "189" => 1.89, "12345" => 1:23.45, or "DNF".
         function parseTypedTime(s) {
             s = s.trim();
             if (!s) return null;
@@ -3143,6 +3165,14 @@
                 const sec = parseFloat(colon[2]);
                 if (isNaN(m) || isNaN(sec)) return null;
                 return { t: m * 60 + sec, penalty: 'ok' };
+            }
+            if (/^\d+$/.test(s)) {
+                const digits = s.padStart(3, '0');
+                const centis = parseInt(digits.slice(-2), 10);
+                const secChunk = digits.slice(0, -2);
+                const secs = parseInt(secChunk.slice(-2) || '0', 10);
+                const mins = parseInt(secChunk.slice(0, -2) || '0', 10);
+                return { t: mins * 60 + secs + centis / 100, penalty: 'ok' };
             }
             const plain = parseFloat(s);
             if (isNaN(plain) || plain < 0) return null;
@@ -3173,6 +3203,79 @@
         document.getElementById('puzzle-type-dnf').addEventListener('click', () => recordTypedSolve('dnf'));
         puzzleTypeIn.addEventListener('keydown', (e) => {
             if (e.code === 'Enter') { e.preventDefault(); recordTypedSolve(); }
+        });
+
+        // ---- Ao5 share / paste ----
+        const ao5ShareModal = document.getElementById('ao5-share-modal');
+        const ao5ShareText = document.getElementById('ao5-share-text');
+        function latestAo5Solves() {
+            const solves = curSolves();
+            return solves.length >= 5 ? solves.slice(-5) : [];
+        }
+        function formatAo5ShareBlock(solves) {
+            return solves.map((s, idx) => {
+                const label = s.penalty === 'dnf' ? 'DNF'
+                    : (s.penalty === '+2' ? fmt(s.t + 2) + '+' : fmt(s.t));
+                const scramble = (s.scramble || '').trim();
+                return `${idx + 1}. ${label}${scramble ? ' - ' + scramble : ''}`;
+            }).join('\n');
+        }
+        function parseAo5ShareBlock(text) {
+            const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+            const parsed = [];
+            for (const line of lines) {
+                const m = line.match(/^(?:\d+\.\s*)?([A-Za-z0-9:+.]+)\s*(?:[-|]\s*(.*))?$/);
+                if (!m) continue;
+                const timeToken = m[1].replace(/\+$/, '');
+                const time = parseTypedTime(timeToken);
+                if (!time) continue;
+                const penalty = /(?:\+2|\+)\s*$/i.test(m[1]) ? '+2' : time.penalty;
+                parsed.push({
+                    t: time.t,
+                    penalty,
+                    scramble: (m[2] || '').trim(),
+                    note: 'Imported Ao5',
+                    date: Date.now() + parsed.length
+                });
+            }
+            return parsed;
+        }
+        function openAo5ShareModal(prefillLatest = true) {
+            if (prefillLatest) {
+                const latest = latestAo5Solves();
+                ao5ShareText.value = latest.length ? formatAo5ShareBlock(latest) : '';
+            }
+            ao5ShareModal.style.display = 'flex';
+            setTimeout(() => ao5ShareText.focus(), 30);
+        }
+        function closeAo5ShareModal() { ao5ShareModal.style.display = 'none'; }
+        document.getElementById('ao5-share-open')?.addEventListener('click', () => openAo5ShareModal(true));
+        document.getElementById('ao5-share-close')?.addEventListener('click', closeAo5ShareModal);
+        document.getElementById('ao5-fill-latest')?.addEventListener('click', () => {
+            const latest = latestAo5Solves();
+            ao5ShareText.value = latest.length ? formatAo5ShareBlock(latest) : '';
+        });
+        document.getElementById('ao5-copy-btn')?.addEventListener('click', async () => {
+            if (!ao5ShareText.value.trim()) {
+                const latest = latestAo5Solves();
+                ao5ShareText.value = latest.length ? formatAo5ShareBlock(latest) : '';
+            }
+            if (!ao5ShareText.value.trim()) return;
+            try { if (navigator.clipboard) await navigator.clipboard.writeText(ao5ShareText.value); } catch (_) {}
+        });
+        document.getElementById('ao5-import-btn')?.addEventListener('click', () => {
+            const incoming = parseAo5ShareBlock(ao5ShareText.value);
+            if (!incoming.length) {
+                alert('Could not parse any solves from that Ao5 block.');
+                return;
+            }
+            curSolves().push(...incoming);
+            savePuzzle();
+            refreshPuzzle();
+            closeAo5ShareModal();
+        });
+        ao5ShareModal?.addEventListener('click', (e) => {
+            if (e.target === ao5ShareModal) closeAo5ShareModal();
         });
 
         // ---- Profile editor modal ----
@@ -3523,8 +3626,13 @@
         smartBtn?.addEventListener('click', () => {
             if (smartCubeHandle) disconnectSmartCube(); else connectSmartCube();
         });
+        document.getElementById('smart-cube-reset')?.addEventListener('click', () => {
+            resetPuzzleCubeView();
+            applyPuzzleCube();
+            initSolvedSim(currentScramble);
+        });
 
-        // ---- 1v1 / 1v1v1 Battles ----
+        // ---- Battles ----
         const battlesLobby = document.getElementById('battles-lobby');
         const battlesRoom  = document.getElementById('battles-room');
         const battleScrambleEl = document.getElementById('battle-scramble');
@@ -3536,26 +3644,66 @@
         const battleHintEl     = document.getElementById('battle-hint');
         const battleResultEl   = document.getElementById('battle-result');
         const battleReadyBtn   = document.getElementById('battle-ready-btn');
+        const battleEndBtn     = document.getElementById('battle-end-btn');
+        const battleModeLine   = document.getElementById('battle-mode-line');
+        const battleCountdownOverlay = document.getElementById('battle-countdown-overlay');
+        const battleCountdownNumber  = document.getElementById('battle-countdown-number');
 
         let battleCode   = null;
         let battleData   = null;
         let battlePlayers = {};
         let battleUnsub  = null;
-        let battleSubmitting = false;     // guards a single in-flight write
+        let battleSubmitting = false;
+        let battleCountdownTick = null;
 
+        function battleMode() { return (battleData && battleData.mode) || 'ao5'; }
+        function battleTarget() { return Math.max(1, parseInt((battleData && battleData.target) || 3, 10)); }
+        function battleSolveCap() { return battleMode() === 'ao5' ? 5 : null; }
+        function battleModeLabel(data = battleData) {
+            if (!data) return '';
+            if ((data.mode || 'ao5') === 'sets') return `Sets · first to ${Math.max(1, parseInt(data.target || 3, 10))}`;
+            if ((data.mode || 'ao5') === 'infinite') return 'Infinite';
+            return 'Ao5';
+        }
         function myBattleTimes() {
             const me = fbSync.getUser();
             return (me && battlePlayers[me.uid] && battlePlayers[me.uid].times) || [];
         }
         function myBattleFinished() {
-            const me = fbSync.getUser();
-            return !!(me && battlePlayers[me.uid] && battlePlayers[me.uid].finished);
+            if (!battleData) return false;
+            if ((battleData.state || '') === 'finished') return true;
+            return battleMode() === 'ao5' && myBattleTimes().length >= 5;
+        }
+        function stopBattleCountdownLoop() {
+            if (battleCountdownTick) {
+                clearTimeout(battleCountdownTick);
+                battleCountdownTick = null;
+            }
+        }
+        function updateBattleCountdownOverlay() {
+            stopBattleCountdownLoop();
+            if (!battleData || battleData.state !== 'countdown' || !battleData.countdownEndsAt) {
+                battleCountdownOverlay.style.display = 'none';
+                return;
+            }
+            const remaining = battleData.countdownEndsAt - Date.now();
+            if (remaining <= 0) {
+                battleCountdownOverlay.style.display = 'none';
+                const me = fbSync.getUser();
+                if (me && battleData.createdBy && battleData.createdBy.uid === me.uid) {
+                    import('./battles.js').then(m => m.setBattleState(battleCode, 'racing', { countdownEndsAt: null }).catch(() => {}));
+                }
+                return;
+            }
+            battleCountdownOverlay.style.display = 'flex';
+            battleCountdownNumber.textContent = remaining <= 350 ? 'BATTLE!' : String(Math.ceil(remaining / 1000));
+            battleCountdownTick = setTimeout(updateBattleCountdownOverlay, 100);
         }
 
         const battleTimer = createTimer(battleTimerEl, {
+            holdDelay: () => 500,
             onSolve: async (t, pen) => {
-                if (!battleCode || battleSubmitting) return;
-                if (myBattleFinished()) return;       // already done with all 5
+                if (!battleCode || battleSubmitting || myBattleFinished()) return;
                 battleSubmitting = true;
                 try {
                     const m = await import('./battles.js');
@@ -3575,18 +3723,29 @@
                             && battleData && battleData.state === 'racing'
                             && !myBattleFinished()
         });
+        battlesRoom.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (!battleData || battleData.state !== 'racing') return;
+            if (e.target.closest('button, input, select, a')) return;
+            battleTimer.press();
+        });
+        battlesRoom.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (!battleData || battleData.state !== 'racing') return;
+            if (e.target.closest('button, input, select, a')) return;
+            battleTimer.release();
+        });
 
         function showBattlesLobby() {
             battlesLobby.style.display = '';
             battlesRoom.style.display = 'none';
+            stopBattleCountdownLoop();
             updateBattlesGate();
         }
 
         function updateBattlesGate() {
             const total = totalSolvesAll();
             const unlocked = battlesUnlocked();
-            // Wait for Firebase auth to resolve before deciding sign-in state.
-            // Before resolution getUser() returns null even for signed-in users.
             const authReady = fbSync.isInitialAuthResolved();
             const signedIn  = !!fbSync.getUser();
             const gateEl = document.getElementById('battles-gate');
@@ -3600,12 +3759,10 @@
                     if (rulesEl) rulesEl.style.display = '';
                     if (signinPrompt) signinPrompt.style.display = 'none';
                 } else if (authReady) {
-                    // Auth resolved and not signed in → show prompt
                     if (actionsEl) actionsEl.style.display = 'none';
                     if (rulesEl) rulesEl.style.display = 'none';
                     if (signinPrompt) signinPrompt.style.display = '';
                 } else {
-                    // Auth still loading — hide everything, will re-run when resolved
                     if (actionsEl) actionsEl.style.display = 'none';
                     if (rulesEl) rulesEl.style.display = 'none';
                     if (signinPrompt) signinPrompt.style.display = 'none';
@@ -3626,113 +3783,145 @@
             battlesLobby.style.display = 'none';
             battlesRoom.style.display = '';
         }
+        function applyBattleCreateModeUI() {
+            const mode = document.getElementById('battle-create-mode').value;
+            const targetSel = document.getElementById('battle-create-target');
+            const targetLbl = document.getElementById('battle-target-label');
+            const showTarget = mode === 'sets';
+            targetSel.style.display = showTarget ? '' : 'none';
+            targetLbl.style.display = showTarget ? '' : 'none';
+        }
+        document.getElementById('battle-create-mode')?.addEventListener('change', applyBattleCreateModeUI);
+        applyBattleCreateModeUI();
+
+        async function maybeAdvanceBattleState(me, allHere, allReady, winnerUid) {
+            if (!battleData || !battleCode || !me || !battleData.createdBy || battleData.createdBy.uid !== me.uid) return;
+            const state = battleData.state || 'waiting';
+            if (state === 'waiting' && allHere && allReady) {
+                await import('./battles.js').then(m => m.setBattleState(battleCode, 'countdown', { countdownEndsAt: Date.now() + 3100 })).catch(() => {});
+                return;
+            }
+            if ((battleMode() === 'ao5' && Object.values(battlePlayers).every(p => (p.times || []).length >= 5)) ||
+                (battleMode() === 'sets' && winnerUid)) {
+                await import('./battles.js').then(m => m.setBattleState(battleCode, 'finished')).catch(() => {});
+            }
+        }
 
         function renderBattleRoom() {
             if (!battleData) return;
             battleCodeEl.textContent = battleCode;
             battleEventEl.textContent = ({ '222':'2x2', '333':'3x3', 'pyram':'Pyraminx' }[battleData.puzzle] || battleData.puzzle);
             const state = battleData.state || 'waiting';
-            battleStateEl.textContent = state + ' · Ao5';
+            battleStateEl.textContent = `${state} · ${battleModeLabel()}`;
+            battleModeLine.textContent = battleMode() === 'sets'
+                ? `First to ${battleTarget()} set wins`
+                : (battleMode() === 'infinite' ? 'No solve cap. Anyone can end the battle.' : 'Average of 5 solves');
 
             const me = fbSync.getUser();
             const playerList = Object.entries(battlePlayers);
             const wanted = battleData.maxPlayers || 2;
-            const allHere   = playerList.length >= wanted;
-            const allReady    = allHere && playerList.every(([_, p]) => p.ready);
-            const allFinished = allHere && playerList.every(([_, p]) => p.finished);
-
-            // --- Player rows with mini solve list + running ao5 ---
-            battlePlayersEl.innerHTML = playerList.map(([uid, p]) => {
-                const isMe = me && uid === me.uid;
-                const times = p.times || [];
-                const progress = `${times.length} / 5`;
-                const chips = times.map(s => {
-                    const lbl = s.penalty === 'dnf' ? 'DNF'
-                              : (s.penalty === '+2' ? (s.t + 2).toFixed(2) + '+' : s.t.toFixed(2));
-                    return `<span class="bp-chip">${lbl}</span>`;
-                }).join('');
-                let stat;
-                if (p.finished) {
-                    // We need ao5 — compute locally to avoid awaiting
-                    const eff = times.slice(0, 5).map(s => s.penalty === 'dnf' ? Infinity : (s.penalty === '+2' ? s.t + 2 : s.t)).sort((a,b)=>a-b).slice(1,-1);
-                    const avg = eff.some(v => v === Infinity) ? null : eff.reduce((a,b)=>a+b,0)/eff.length;
-                    stat = `<span class="bp-ao5">Ao5 <b>${avg == null ? 'DNF' : avg.toFixed(2)}</b></span>`;
-                } else if (state === 'racing') {
-                    stat = `<span class="bp-status racing">solve ${times.length + 1} / 5</span>`;
-                } else {
-                    stat = p.ready ? '<span class="bp-status ready">ready</span>' : '<span class="bp-status">waiting</span>';
-                }
-                return `<div class="bp-row ${isMe ? 'me' : ''}">
-                    <div class="bp-row-head">
-                        <span class="bp-name">${escHTML(p.name)}${isMe ? ' (you)' : ''}</span>
-                        <span class="bp-prog">${progress}</span>
-                        ${stat}
-                    </div>
-                    ${chips ? `<div class="bp-chips">${chips}</div>` : ''}
-                </div>`;
-            }).join('');
-
-            // --- Scramble: show my CURRENT one (depends on my solve count) ---
+            const allHere = playerList.length >= wanted;
+            const allReady = allHere && playerList.every(([_, p]) => p.ready);
             const myTimes = me && battlePlayers[me.uid] ? (battlePlayers[me.uid].times || []) : [];
             const myCount = myTimes.length;
-            const scrList = battleData.scrambles || (battleData.scramble ? [battleData.scramble] : []);
-            const myScramble = scrList[myCount] || '';
 
-            if (allFinished) {
-                battleScrambleEl.textContent = 'Race complete!';
-            } else if (state === 'racing') {
-                battleScrambleEl.textContent = myCount >= 5
-                    ? '✓ Done. Waiting for opponent…'
-                    : `Solve ${myCount + 1} / 5  ·  ${myScramble}`;
-            } else if (allReady) {
-                if (battleData.createdBy && me && battleData.createdBy.uid === me.uid) {
-                    import('./battles.js').then(m => m.setBattleState(battleCode, 'racing').catch(console.error));
-                }
-                battleScrambleEl.textContent = 'Starting…';
-            } else {
-                battleScrambleEl.textContent = `Waiting for ${wanted} players to be ready…`;
-            }
+            import('./battles.js').then(async m => {
+                const setInfo = m.computeSetScores(battlePlayers);
+                const winner = m.computeWinner(battlePlayers, battleData);
+                const allAo5Finished = battleMode() === 'ao5' && playerList.length && playerList.every(([_, p]) => (p.times || []).length >= 5);
+                if (state !== 'finished') await maybeAdvanceBattleState(me, allHere, allReady, battleMode() === 'sets' ? winner : null);
 
-            // Ready button
-            const myEntry = me ? battlePlayers[me.uid] : null;
-            if (state === 'racing') {
-                battleReadyBtn.style.display = 'none';
-            } else {
-                battleReadyBtn.style.display = '';
-                battleReadyBtn.textContent = (myEntry && myEntry.ready) ? '✓ Ready (click to un-ready)' : 'Ready';
-                battleReadyBtn.classList.toggle('on', !!(myEntry && myEntry.ready));
-            }
-
-            // Hint
-            if (state === 'racing') {
-                battleHintEl.textContent = myCount >= 5
-                    ? 'You\'re done — waiting for the other cuber to finish.'
-                    : `Race! Press Space (or use your smart cube) to time solve ${myCount + 1} of 5.`;
-            } else if (allReady) {
-                battleHintEl.textContent = 'Everyone ready — starting…';
-            } else {
-                battleHintEl.textContent = 'Mark yourself Ready, then wait for everyone else.';
-            }
-
-            // Auto finish detection
-            if (allFinished && state !== 'finished') {
-                import('./battles.js').then(m => m.setBattleState(battleCode, 'finished').catch(() => {}));
-            }
-            if (allFinished) {
-                import('./battles.js').then(m => {
-                    const winner = m.computeWinner(battlePlayers);
-                    let html;
-                    if (winner === 'tie')      html = `<div class="result-line tie">🤝 It's a tie!</div>`;
-                    else if (winner === 'all-dnf') html = `<div class="result-line dnf">All DNF.</div>`;
-                    else if (winner) {
-                        const p = battlePlayers[winner];
-                        html = `<div class="result-line win">🏆 <b>${escHTML(p.name)}</b> wins!</div>`;
+                battlePlayersEl.innerHTML = playerList.map(([uid, p]) => {
+                    const isMe = me && uid === me.uid;
+                    const times = p.times || [];
+                    const chips = times.slice(-(battleMode() === 'infinite' ? 10 : times.length)).map(s => {
+                        const lbl = s.penalty === 'dnf' ? 'DNF'
+                            : (s.penalty === '+2' ? (s.t + 2).toFixed(2) + '+' : s.t.toFixed(2));
+                        return `<span class="bp-chip">${lbl}</span>`;
+                    }).join('');
+                    let progress = `${times.length} solves`;
+                    let stat = p.ready ? '<span class="bp-status ready">ready</span>' : '<span class="bp-status">waiting</span>';
+                    if (battleMode() === 'ao5') {
+                        progress = `${times.length} / 5`;
+                        if (times.length >= 5) {
+                            const avg = m.ao5(times);
+                            stat = `<span class="bp-ao5">Ao5 <b>${avg === Infinity ? 'DNF' : avg.toFixed(2)}</b></span>`;
+                        } else if (state === 'racing') {
+                            stat = `<span class="bp-status racing">solve ${times.length + 1} / 5</span>`;
+                        }
+                    } else if (battleMode() === 'sets') {
+                        const wins = setInfo.scores[uid] || 0;
+                        progress = `${wins} / ${battleTarget()} sets`;
+                        stat = `<span class="bp-status ${wins >= battleTarget() ? 'ready' : 'racing'}">rounds won: ${wins}</span>`;
+                    } else if (battleMode() === 'infinite' && state === 'racing') {
+                        stat = `<span class="bp-status racing">live battle</span>`;
                     }
-                    if (html) battleResultEl.innerHTML = html, battleResultEl.style.display = '';
-                });
-            } else {
-                battleResultEl.style.display = 'none';
-            }
+                    return `<div class="bp-row ${isMe ? 'me' : ''}">
+                        <div class="bp-row-head">
+                            <span class="bp-name">${escHTML(p.name)}${isMe ? ' (you)' : ''}</span>
+                            <span class="bp-prog">${progress}</span>
+                            ${stat}
+                        </div>
+                        ${chips ? `<div class="bp-chips">${chips}</div>` : ''}
+                    </div>`;
+                }).join('');
+
+                const scrList = battleData.scrambles || [];
+                const myScramble = scrList[Math.min(myCount, scrList.length - 1)] || '';
+                if (state === 'countdown') {
+                    battleScrambleEl.textContent = myScramble ? `First scramble ready · ${myScramble}` : 'Get ready…';
+                } else if (state === 'racing') {
+                    if (battleMode() === 'ao5') {
+                        battleScrambleEl.textContent = myCount >= 5 ? '✓ Done. Waiting for the others…' : `Solve ${myCount + 1} / 5 · ${myScramble}`;
+                    } else if (battleMode() === 'sets') {
+                        battleScrambleEl.textContent = `Round ${setInfo.resolvedRounds + 1} · ${myScramble}`;
+                    } else {
+                        battleScrambleEl.textContent = `Live scramble ${myCount + 1} · ${myScramble}`;
+                    }
+                } else if (state === 'finished') {
+                    battleScrambleEl.textContent = battleMode() === 'infinite' ? 'Battle ended.' : 'Race complete!';
+                } else {
+                    battleScrambleEl.textContent = `Waiting for ${wanted} players to be ready…`;
+                }
+
+                if (state === 'racing' || state === 'countdown' || state === 'finished') {
+                    battleReadyBtn.style.display = 'none';
+                } else {
+                    const myEntry = me ? battlePlayers[me.uid] : null;
+                    battleReadyBtn.style.display = '';
+                    battleReadyBtn.textContent = (myEntry && myEntry.ready) ? '✓ Ready (click to un-ready)' : 'Ready';
+                    battleReadyBtn.classList.toggle('on', !!(myEntry && myEntry.ready));
+                }
+                battleEndBtn.style.display = battleMode() === 'infinite' && state !== 'finished' ? '' : 'none';
+
+                if (state === 'countdown') {
+                    battleHintEl.textContent = 'Hold Space now. The timer will arm with a 0.50s hold once BATTLE starts.';
+                } else if (state === 'racing') {
+                    if (battleMode() === 'ao5') battleHintEl.textContent = myCount >= 5 ? 'You are done.' : `Race! Hold Space for 0.50s to arm solve ${myCount + 1}.`;
+                    else if (battleMode() === 'sets') battleHintEl.textContent = `Race this round. First to ${battleTarget()} set wins takes the match.`;
+                    else battleHintEl.textContent = 'Infinite battle is live. Keep solving until someone ends it.';
+                } else if (state === 'finished') {
+                    battleHintEl.textContent = battleMode() === 'infinite' ? 'Infinite battle ended.' : 'Battle complete.';
+                } else {
+                    battleHintEl.textContent = 'Mark yourself Ready, then wait for everyone else.';
+                }
+
+                if (state === 'finished' || allAo5Finished || (battleMode() === 'sets' && winner)) {
+                    let html = '';
+                    if (winner === 'tie') html = `<div class="result-line tie">It is a tie.</div>`;
+                    else if (winner === 'all-dnf') html = `<div class="result-line dnf">All DNF.</div>`;
+                    else if (winner && battlePlayers[winner]) html = `<div class="result-line win">🏆 <b>${escHTML(battlePlayers[winner].name)}</b> wins!</div>`;
+                    if (battleData.endedBy && battleMode() === 'infinite') {
+                        html += `<div class="battle-ended-by">Ended by ${escHTML(battleData.endedBy.name || 'Player')}</div>`;
+                    }
+                    battleResultEl.innerHTML = html || '<div class="result-line tie">Battle finished.</div>';
+                    battleResultEl.style.display = '';
+                } else {
+                    battleResultEl.style.display = 'none';
+                }
+
+                updateBattleCountdownOverlay();
+            }).catch(console.error);
         }
 
         function attachBattleListener(code) {
@@ -3752,6 +3941,7 @@
         }
 
         function leaveBattleUI() {
+            stopBattleCountdownLoop();
             if (battleUnsub) { try { battleUnsub(); } catch (_) {} battleUnsub = null; }
             if (battleCode) {
                 import('./battles.js').then(m => m.leaveBattle(battleCode).catch(() => {}));
@@ -3762,7 +3952,6 @@
             battleSubmitting = false;
             battleTimer.reset();
             battleResultEl.style.display = 'none';
-            // Clean ?battle= from URL
             const u = new URL(window.location.href);
             u.searchParams.delete('battle');
             history.replaceState({}, document.title, u.pathname + (u.search ? u.search : ''));
@@ -3774,7 +3963,9 @@
                 const m = await import('./battles.js');
                 const ev = document.getElementById('battle-create-event').value;
                 const mp = parseInt(document.getElementById('battle-create-size').value, 10);
-                const code = await m.createBattle({ puzzle: ev, maxPlayers: mp });
+                const mode = document.getElementById('battle-create-mode').value;
+                const target = parseInt(document.getElementById('battle-create-target').value, 10);
+                const code = await m.createBattle({ puzzle: ev, maxPlayers: mp, mode, target });
                 battleCode = code;
                 battleSubmitting = false;
                 showBattlesRoom();
@@ -3814,9 +4005,15 @@
             b.textContent = 'Copied!';
             setTimeout(() => b.textContent = orig, 1200);
         });
+        battleEndBtn?.addEventListener('click', async () => {
+            if (!battleCode) return;
+            try {
+                const m = await import('./battles.js');
+                await m.endBattle(battleCode);
+            } catch (e) { alert(e.message || e); }
+        });
         document.getElementById('battle-leave').addEventListener('click', leaveBattleUI);
 
-        // Battles gate: beta-tester bypass code
         document.getElementById('gate-bypass-toggle')?.addEventListener('click', () => {
             const form = document.getElementById('gate-bypass-form');
             form.style.display = form.style.display === 'none' ? 'flex' : 'none';
@@ -3836,9 +4033,6 @@
             }
         });
         document.getElementById('battles-signin-btn')?.addEventListener('click', () => openSigninModal());
-        // Re-evaluate gate whenever auth state changes (sign-in / sign-out / initial resolve).
-        // No view-visibility guard: must fire even when battles tab is hidden so that
-        // mobile redirect sign-ins (which reload the page) still update correctly.
         fbSync.onUserChange(() => updateBattlesGate());
 
         battleReadyBtn.addEventListener('click', async () => {
@@ -4765,4 +4959,3 @@
 
         // Initialization — only render if a cube was previously selected
         if (LS.get('selectedCube', '')) renderCards();
-
