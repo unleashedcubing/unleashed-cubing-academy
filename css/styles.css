@@ -1346,13 +1346,25 @@
         }
         .leaderboard-row {
             display: grid;
-            grid-template-columns: 50px 110px minmax(120px, 1fr) 110px minmax(140px, 1fr);
+            grid-template-columns: 56px 110px minmax(180px, 1.35fr) minmax(170px, 1fr) minmax(130px, 0.9fr) 72px 72px 72px;
             gap: 10px;
             align-items: center;
             padding: 10px 12px;
             border-radius: 12px;
             background: rgba(255,255,255,0.03);
             font-size: 0.9rem;
+        }
+        .leaderboard-person-link {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .leaderboard-person-link:hover {
+            color: var(--orange);
+        }
+        .leaderboard-person-link.subtle {
+            font-weight: 600;
+            color: var(--text-muted);
         }
         .leaderboard-head {
             background: rgba(255,159,10,0.08);
@@ -5645,13 +5657,17 @@
                 flex: 1 1 180px;
             }
             .leaderboard-row {
-                grid-template-columns: 42px 90px minmax(120px, 1fr);
+                grid-template-columns: 42px 90px minmax(140px, 1fr) 78px 78px;
                 align-items: flex-start;
             }
             .leaderboard-row span:nth-child(4),
             .leaderboard-row span:nth-child(5),
+            .leaderboard-row span:nth-child(7),
+            .leaderboard-row span:nth-child(8),
             .leaderboard-head span:nth-child(4),
-            .leaderboard-head span:nth-child(5) {
+            .leaderboard-head span:nth-child(5),
+            .leaderboard-head span:nth-child(7),
+            .leaderboard-head span:nth-child(8) {
                 display: none;
             }
         }
@@ -5664,10 +5680,18 @@
                 flex: 1 1 100%;
             }
             .leaderboard-row {
-                grid-template-columns: 38px minmax(88px, 96px) minmax(0, 1fr);
+                grid-template-columns: 38px minmax(88px, 96px) minmax(0, 1fr) 64px;
                 gap: 8px;
                 padding: 12px 10px;
                 font-size: 0.85rem;
+            }
+            .leaderboard-row span:nth-child(6),
+            .leaderboard-row span:nth-child(7),
+            .leaderboard-row span:nth-child(8),
+            .leaderboard-head span:nth-child(6),
+            .leaderboard-head span:nth-child(7),
+            .leaderboard-head span:nth-child(8) {
+                display: none;
             }
             .leaderboard-country {
                 max-width: none;

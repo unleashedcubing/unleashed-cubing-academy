@@ -1271,19 +1271,35 @@
             if (type === 'single' || type === 'average') return (n / 100).toFixed(2);
             return String(n);
         }
+        function formatRankCell(raw) {
+            const n = Number(raw);
+            return Number.isFinite(n) && n > 0 ? String(n) : '—';
+        }
+        function countryDisplayName(code) {
+            const raw = String(code || '').trim();
+            if (!raw) return '—';
+            const countries = Array.isArray(window.__ucWcaMeta?.countries) ? window.__ucWcaMeta.countries : [];
+            const match = countries.find(item => String(item.id || '').toUpperCase() === raw.toUpperCase() || String(item.iso2 || '').toUpperCase() === raw.toUpperCase());
+            return match ? `${match.name} (${match.id})` : raw;
+        }
         async function fetchLeaderboardDirect(region) {
             const base = leaderboardDirectBaseUrl();
             const rankUrl = `${base}/rank/${encodeURIComponent(region)}/${encodeURIComponent(leaderboardPrefs.type)}/${encodeURIComponent(leaderboardPrefs.event)}.json`;
             const resp = await fetch(rankUrl);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
-            const top = Array.isArray(data?.items) ? data.items.slice(0, 10) : [];
+            const top = Array.isArray(data?.items) ? data.items.slice(0, 250) : [];
             const people = await Promise.all(top.map(async (item) => {
                 try {
                     const personResp = await fetch(`${base}/persons/${encodeURIComponent(item.personId)}.json`);
                     if (!personResp.ok) return null;
                     const person = await personResp.json();
-                    return { id: item.personId, name: person?.name || item.personId, country: person?.country || '' };
+                    return {
+                        id: item.personId,
+                        name: person?.name || item.personId,
+                        country: person?.country || '',
+                        wcaUrl: `https://www.worldcubeassociation.org/persons/${encodeURIComponent(item.personId)}`
+                    };
                 } catch (_) {
                     return null;
                 }
@@ -1292,11 +1308,15 @@
             return top.map(item => {
                 const person = personMap.get(item.personId);
                 return {
-                    rank: String(item?.rank?.world ?? item?.rank?.country ?? item?.rank?.continent ?? ''),
+                    rank: formatRankCell(item?.rank?.world ?? item?.rank?.country ?? item?.rank?.continent),
+                    worldRank: formatRankCell(item?.rank?.world),
+                    continentRank: formatRankCell(item?.rank?.continent),
+                    countryRank: formatRankCell(item?.rank?.country),
                     result: formatWcaRankValue(item.best, leaderboardPrefs.type),
                     person: person?.name || item.personId,
                     country: person?.country || '',
-                    personId: item.personId
+                    personId: item.personId,
+                    wcaUrl: person?.wcaUrl || `https://www.worldcubeassociation.org/persons/${encodeURIComponent(item.personId)}`
                 };
             });
         }
@@ -2137,19 +2157,22 @@
                 body.innerHTML = `
                     <div class="leaderboard-meta">
                         <a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open WCA REST API docs</a>
-                        <span>Region: ${escHTML(region)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)}</span>
+                        <span>Region: ${escHTML(region)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)} · Showing top ${parsed.length}</span>
                     </div>
                     <div class="leaderboard-table">
                         <div class="leaderboard-row leaderboard-head">
-                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>WCA ID</span>
+                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>WCA ID</span><span>WR</span><span>CR</span><span>NR</span>
                         </div>
                         ${parsed.map(row => `
                             <div class="leaderboard-row">
                                 <span>${escHTML(row.rank)}</span>
                                 <span>${escHTML(row.result)}</span>
-                                <span>${escHTML(row.person)}</span>
-                                <span>${escHTML(row.country)}</span>
-                                <span>${escHTML(row.personId)}</span>
+                                <span><a class="leaderboard-person-link" href="${escHTML(row.wcaUrl || `https://www.worldcubeassociation.org/persons/${row.personId}`)}" target="_blank" rel="noopener">${escHTML(row.person)}</a></span>
+                                <span>${escHTML(countryDisplayName(row.country))}</span>
+                                <span><a class="leaderboard-person-link subtle" href="${escHTML(row.wcaUrl || `https://www.worldcubeassociation.org/persons/${row.personId}`)}" target="_blank" rel="noopener">${escHTML(row.personId)}</a></span>
+                                <span>${escHTML(row.worldRank)}</span>
+                                <span>${escHTML(row.continentRank)}</span>
+                                <span>${escHTML(row.countryRank)}</span>
                             </div>
                         `).join('')}
                     </div>
