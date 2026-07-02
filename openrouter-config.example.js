@@ -2,5 +2,7 @@
 // Do not commit real private keys if this app will be publicly accessible.
 
 export const openrouterConfig = {
-    apiKey: "paste-your-openrouter-key-here"
+    apiKey: "paste-your-openrouter-key-here",
+    backendUrl: "/api/assistant",
+    leaderboardBackendUrl: "/api/leaderboard"
 };

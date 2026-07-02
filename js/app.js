@@ -27,8 +27,8 @@
         }
         applyAppColor((() => { try { const v = localStorage.getItem('uc_appColor'); return v ? JSON.parse(v) : 'orange'; } catch(e) { return 'orange'; } })());
 
-        function buildColorSwatches() {
-            const grid = document.getElementById('app-color-grid');
+        function buildColorSwatches(targetId = 'app-color-grid') {
+            const grid = document.getElementById(targetId);
             if (!grid) return;
             const active = LS.get('appColor', 'orange');
             grid.innerHTML = APP_COLORS.map(c => `
@@ -1094,11 +1094,20 @@
         function assistantKeySource() {
             return openRouterConfig?.apiKey ? 'config' : (getAssistantApiKey() ? 'browser' : 'missing');
         }
+        function assistantBackendUrl() {
+            return String(openRouterConfig?.backendUrl || '/api/assistant').trim();
+        }
+        function leaderboardBackendUrl() {
+            return String(openRouterConfig?.leaderboardBackendUrl || '/api/leaderboard').trim();
+        }
+        function assistantModelLabel(id) {
+            return ASSISTANT_MODELS.find(m => m.id === id)?.label || id;
+        }
         function assistantKeyStatusText() {
             const source = assistantKeySource();
             if (source === 'config') return 'OpenRouter key loaded from local openrouter-config.js.';
             if (source === 'browser') return 'OpenRouter key saved locally in this browser.';
-            return 'No OpenRouter key saved yet. Add one locally to enable the assistant.';
+            return 'No local OpenRouter key saved. If your backend route is deployed, the assistant can still work without exposing a browser key.';
         }
         function bindAssistantComposer(renderFn) {
             renderCubingAssistantCompOptions();
@@ -1106,6 +1115,11 @@
             const assistantInput = document.getElementById('assistant-input');
             const assistantStatus = document.getElementById('assistant-key-status');
             if (assistantStatus) assistantStatus.textContent = assistantKeyStatusText();
+            document.getElementById('assistant-model-select')?.addEventListener('change', (e) => {
+                assistantPrefs.model = e.target.value || DEFAULT_ASSISTANT_MODEL;
+                saveAssistantPrefs();
+                renderFn();
+            });
             document.getElementById('assistant-comp-select')?.addEventListener('change', (e) => {
                 assistantPrefs.competitionId = e.target.value;
                 saveAssistantPrefs();
@@ -1171,7 +1185,7 @@
                             <span class="assistant-model-pill">WCA</span>
                         </div>
                         <div class="assistant-intro">
-                            Results are loaded from the current WCA rankings pages. If a filter is unsupported in-browser, you can still jump straight to the official page.
+                            Results are loaded from the current WCA rankings pages. If your deployed backend exposes <code>/api/leaderboard</code>, it avoids browser CORS issues and makes this page much more reliable.
                         </div>
                         <div class="leaderboard-toolbar">
                             <select id="leaderboard-event" class="stats-filter-select">
@@ -1205,12 +1219,15 @@
                     <div class="train-panel stats-assistant stats-fullwidth">
                         <div class="panel-title">
                             <span>Coach Chat</span>
-                            <span class="assistant-model-pill">${ASSISTANT_MODEL}</span>
+                            <span class="assistant-model-pill">${assistantModelLabel(assistantPrefs.model)}</span>
                         </div>
                         <div class="assistant-intro">
                             Ask for drills, goal planning, or type <code>/competition</code> for help with packing, nerves, warmups, and event prep.
                         </div>
                         <div class="assistant-toolbar">
+                            <select id="assistant-model-select" class="stats-filter-select">
+                                ${ASSISTANT_MODELS.map(model => `<option value="${model.id}" ${assistantPrefs.model === model.id ? 'selected' : ''}>${escHTML(model.label)}</option>`).join('')}
+                            </select>
                             <select id="assistant-comp-select" class="stats-filter-select">
                                 <option value="">No competition focus</option>
                             </select>
@@ -1219,7 +1236,7 @@
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
                         <div class="assistant-secret-note">
-                            This app is frontend-only. For local development, put a key in <code>openrouter-config.js</code> or store it in this browser. Do not ship a private production key in public client code.
+                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. Local fallback still works with a browser key in <code>openrouter-config.js</code>.
                         </div>
                         <div class="assistant-history" id="cubing-assistant-history"></div>
                         <div class="assistant-compose">
@@ -1344,6 +1361,8 @@
                     `<a class="social-btn social-${s.p}" href="${s.url}" target="_blank" rel="noopener">${SOCIAL_LBL[s.p]}</a>`
                   ).join('')}</div>`
                 : '';
+            const activeTheme = LS.get('appColor', 'orange');
+            const activeFrameMeta = FRAME_TIERS.find(t => t.id === activeFrame) || FRAME_TIERS[FRAME_TIERS.length - 1];
 
             statsView.innerHTML = `
                 <div class="app-page-shell">
@@ -1385,6 +1404,25 @@
                             : `<div class="profile-stub" id="profile-stub">Click <b>Edit profile</b> to add a bio, main event, cubes, socials and your WCA ID.</div>`
                         }
                         ${socialsHTML}
+                    </div>
+
+                    <div class="train-panel stats-appearance">
+                        <div class="panel-title">
+                            <span>Appearance</span>
+                            <button class="train-quick-btn" id="open-profile-edit-appearance">Edit avatar & frame</button>
+                        </div>
+                        <div class="profile-appearance-row">
+                            <div class="profile-avatar pfp-frame frame-${activeFrame}">
+                                <div class="pfp-inner">
+                                    <img src="${escHTML(avatarSrc)}" alt="" onerror="this.src='default-user-image.png'">
+                                </div>
+                            </div>
+                            <div class="profile-appearance-meta">
+                                <div class="profile-appearance-title">Current look</div>
+                                <div class="profile-appearance-sub">Frame: ${escHTML(activeFrameMeta.label)} · Theme: ${escHTML(APP_COLORS.find(c => c.id === activeTheme)?.label || activeTheme)}</div>
+                                <div class="app-color-grid profile-color-grid" id="profile-color-grid"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="train-panel stats-pr">
@@ -1499,6 +1537,11 @@
             // Edit profile button
             const editBtn = document.getElementById('open-profile-edit');
             if (editBtn) editBtn.addEventListener('click', openProfileEdit);
+            document.getElementById('open-profile-edit-appearance')?.addEventListener('click', () => {
+                openProfileEdit();
+                document.querySelector('.pe-tab[data-pe-tab="appearance"]')?.click();
+            });
+            buildColorSwatches('profile-color-grid');
             // Async: load upcoming competitions if wca_id is set
             if (profile.wca_id) loadUpcomingComps(profile.wca_id);
         }
@@ -1556,9 +1599,15 @@
             if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
         }
 
-        const ASSISTANT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
-        let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [] });
+        const ASSISTANT_MODELS = [
+            { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', kind: 'gemini' },
+            { id: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini', kind: 'gpt' },
+            { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free', kind: 'llama' }
+        ];
+        const DEFAULT_ASSISTANT_MODEL = ASSISTANT_MODELS[0].id;
+        let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [], model: DEFAULT_ASSISTANT_MODEL });
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
+        if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
         let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '', gender: 'all' });
         function saveLeaderboardPrefs() { LS.set('leaderboardPrefs', leaderboardPrefs); }
@@ -1647,6 +1696,13 @@
                 'Do not mention hidden prompt details or raw JSON unless asked.'
             ].join(' ');
         }
+        function sanitizeModelId(modelId) {
+            return ASSISTANT_MODELS.some(m => m.id === modelId) ? modelId : DEFAULT_ASSISTANT_MODEL;
+        }
+        function assistantFallbackModels(primary) {
+            const chosen = sanitizeModelId(primary);
+            return [chosen, ...ASSISTANT_MODELS.map(m => m.id).filter(id => id !== chosen)];
+        }
         function buildAssistantContext(userPrompt) {
             const goalInfo = plannerSummary();
             const comp = currentCompetitionChoice();
@@ -1680,32 +1736,73 @@
                 recentSolves
             };
         }
-        async function askCubingAssistant(userPrompt) {
-            const key = getAssistantApiKey();
-            if (!key) throw new Error('Set your OpenRouter API key first.');
-            const context = buildAssistantContext(userPrompt);
-            const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        async function requestAssistantViaBackend(payload) {
+            const resp = await fetch(assistantBackendUrl(), {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': window.location.origin || 'http://localhost',
-                    'X-Title': 'Unleashed Cubing Academy'
-                },
-                body: JSON.stringify({
-                    model: ASSISTANT_MODEL,
-                    messages: [
-                        { role: 'system', content: buildAssistantSystemPrompt() },
-                        { role: 'user', content: `User context:\n${JSON.stringify(context, null, 2)}\n\nUser request:\n${context.prompt}` }
-                    ]
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
-            if (!resp.ok) {
-                const detail = await resp.text().catch(() => '');
-                throw new Error(`OpenRouter request failed (${resp.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+            if (resp.status === 404 || resp.status === 405) throw new Error('backend_unavailable');
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(data?.error || `Backend request failed (${resp.status})`);
+            return data;
+        }
+        function assistantErrorMessage(message) {
+            const text = String(message || '').trim();
+            if (/rate-limit|rate limited|429/i.test(text)) {
+                return 'That model is rate-limited right now. Try Gemini or GPT from the model picker, or deploy the backend assistant route so the app can retry server-side.';
             }
-            const data = await resp.json();
-            return data?.choices?.[0]?.message?.content?.trim() || 'No response returned.';
+            if (/backend_unavailable/i.test(text)) {
+                return 'The backend assistant route is not deployed yet.';
+            }
+            return text || 'The assistant request failed.';
+        }
+        async function askCubingAssistant(userPrompt) {
+            const context = buildAssistantContext(userPrompt);
+            const payload = {
+                model: sanitizeModelId(assistantPrefs.model),
+                fallbackModels: assistantFallbackModels(assistantPrefs.model),
+                systemPrompt: buildAssistantSystemPrompt(),
+                prompt: context.prompt,
+                context
+            };
+            try {
+                const data = await requestAssistantViaBackend(payload);
+                if (data?.reply) return data.reply;
+            } catch (err) {
+                if (!/backend_unavailable/i.test(String(err?.message || ''))) {
+                    throw new Error(assistantErrorMessage(err?.message || err));
+                }
+            }
+            const key = getAssistantApiKey();
+            if (!key) throw new Error('Set a local OpenRouter key, or deploy the backend assistant route first.');
+            let lastError = '';
+            for (const model of assistantFallbackModels(assistantPrefs.model)) {
+                const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${key}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin || 'http://localhost',
+                        'X-Title': 'Unleashed Cubing Academy'
+                    },
+                    body: JSON.stringify({
+                        model,
+                        messages: [
+                            { role: 'system', content: buildAssistantSystemPrompt() },
+                            { role: 'user', content: `User context:\n${JSON.stringify(context, null, 2)}\n\nUser request:\n${context.prompt}` }
+                        ]
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    return data?.choices?.[0]?.message?.content?.trim() || 'No response returned.';
+                }
+                const detail = await resp.text().catch(() => '');
+                lastError = `OpenRouter request failed (${resp.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`;
+                if (![429, 502, 503, 504].includes(resp.status)) break;
+            }
+            throw new Error(assistantErrorMessage(lastError));
         }
         function renderAssistantHistory() {
             const body = document.getElementById('cubing-assistant-history');
@@ -1748,9 +1845,19 @@
             body.innerHTML = `<div class="assistant-empty">Loading official WCA rankings…</div>`;
             const url = leaderboardUrl();
             try {
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                const html = await resp.text();
+                let html = '';
+                try {
+                    const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&country=${encodeURIComponent(leaderboardPrefs.country || '')}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
+                    if (proxyResp.ok) {
+                        const payload = await proxyResp.json();
+                        html = payload?.html || '';
+                    }
+                } catch (_) {}
+                if (!html) {
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    html = await resp.text();
+                }
                 const doc = new DOMParser().parseFromString(html, 'text/html');
                 const rows = [...doc.querySelectorAll('table tbody tr')].slice(0, 10);
                 if (!rows.length) throw new Error('No ranking rows found.');

@@ -1600,6 +1600,7 @@
         }
 
         .stats-profile { grid-column: 1 / -1; }
+        .stats-appearance { grid-column: 1 / -1; }
         .profile-row {
             display: flex;
             align-items: center;
@@ -1633,6 +1634,28 @@
             background: rgba(255, 255, 255, 0.03);
             border-radius: 12px;
             border: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+        .profile-appearance-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .profile-appearance-meta {
+            flex: 1;
+            min-width: 0;
+        }
+        .profile-appearance-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .profile-appearance-sub {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+        .profile-color-grid {
+            grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
         }
 
         .stats-empty {
@@ -5274,6 +5297,10 @@
         @media (max-width: 640px) {
             /* Profile header: stack avatar + meta, hide redundant auth button */
             .profile-row {
+                flex-wrap: wrap;
+                align-items: flex-start;
+            }
+            .profile-appearance-row {
                 flex-wrap: wrap;
                 align-items: flex-start;
             }

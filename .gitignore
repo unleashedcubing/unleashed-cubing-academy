@@ -1,3 +1,5 @@
 .DS_Store
 .venv_uca/
 openrouter-config.js
+.env
+.env.local
