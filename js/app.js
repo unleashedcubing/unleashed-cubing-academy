@@ -1109,6 +1109,10 @@
             if (source === 'browser') return 'OpenRouter key saved locally in this browser.';
             return 'No local OpenRouter key saved. If your backend route is deployed, the assistant can still work without exposing a browser key.';
         }
+        function leaderboardRegionValue() {
+            const raw = String(leaderboardPrefs.country || '').trim();
+            return raw || 'world';
+        }
         function bindAssistantComposer(renderFn) {
             renderCubingAssistantCompOptions();
             renderAssistantHistory();
@@ -1185,7 +1189,7 @@
                             <span class="assistant-model-pill">WCA</span>
                         </div>
                         <div class="assistant-intro">
-                            Results are loaded from the current WCA rankings pages. If your deployed backend exposes <code>/api/leaderboard</code>, it avoids browser CORS issues and makes this page much more reliable.
+                            Uses Robin Ingelbrecht's unofficial WCA REST API for rank data. Region filters are supported directly there; gender filters are not part of that API, so this page treats gender as informational only.
                         </div>
                         <div class="leaderboard-toolbar">
                             <select id="leaderboard-event" class="stats-filter-select">
@@ -1197,7 +1201,7 @@
                                 <option value="single" ${leaderboardPrefs.type === 'single' ? 'selected' : ''}>Single</option>
                                 <option value="average" ${leaderboardPrefs.type === 'average' ? 'selected' : ''}>Average / Mean</option>
                             </select>
-                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="Country code or region" value="${escHTML(leaderboardPrefs.country || '')}">
+                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="world, continent id, or country code" value="${escHTML(leaderboardPrefs.country || '')}">
                             <select id="leaderboard-gender" class="stats-filter-select">
                                 <option value="all" ${leaderboardPrefs.gender === 'all' ? 'selected' : ''}>All</option>
                                 <option value="m" ${leaderboardPrefs.gender === 'm' ? 'selected' : ''}>Male</option>
@@ -1236,7 +1240,7 @@
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
                         <div class="assistant-secret-note">
-                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. Local fallback still works with a browser key in <code>openrouter-config.js</code>.
+                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. The model picker is now free-only and uses currently-available OpenRouter <code>:free</code> models.
                         </div>
                         <div class="assistant-history" id="cubing-assistant-history"></div>
                         <div class="assistant-compose">
@@ -1600,9 +1604,10 @@
         }
 
         const ASSISTANT_MODELS = [
-            { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', kind: 'gemini' },
-            { id: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini', kind: 'gpt' },
-            { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free', kind: 'llama' }
+            { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', kind: 'gpt', free: true },
+            { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B Free', kind: 'qwen', free: true },
+            { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B Free', kind: 'gemma', free: true },
+            { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free', kind: 'llama', free: true }
         ];
         const DEFAULT_ASSISTANT_MODEL = ASSISTANT_MODELS[0].id;
         let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [], model: DEFAULT_ASSISTANT_MODEL });
@@ -1842,44 +1847,22 @@
         async function loadWcaLeaderboard() {
             const body = document.getElementById('wca-leaderboard-body');
             if (!body) return;
-            body.innerHTML = `<div class="assistant-empty">Loading official WCA rankings…</div>`;
-            const url = leaderboardUrl();
+            body.innerHTML = `<div class="assistant-empty">Loading WCA rank data…</div>`;
+            const region = leaderboardRegionValue();
             try {
-                let html = '';
-                try {
-                    const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&country=${encodeURIComponent(leaderboardPrefs.country || '')}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
-                    if (proxyResp.ok) {
-                        const payload = await proxyResp.json();
-                        html = payload?.html || '';
-                    }
-                } catch (_) {}
-                if (!html) {
-                    const resp = await fetch(url);
-                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                    html = await resp.text();
-                }
-                const doc = new DOMParser().parseFromString(html, 'text/html');
-                const rows = [...doc.querySelectorAll('table tbody tr')].slice(0, 10);
-                if (!rows.length) throw new Error('No ranking rows found.');
-                const parsed = rows.map((tr) => {
-                    const tds = [...tr.querySelectorAll('td')].map(td => td.textContent.trim().replace(/\s+/g, ' '));
-                    const link = tr.querySelector('a[href*="/persons/"]');
-                    return {
-                        rank: tds[0] || '',
-                        result: tds[1] || '',
-                        person: link ? link.textContent.trim() : (tds[2] || ''),
-                        country: tds[3] || '',
-                        competition: tds[4] || ''
-                    };
-                }).filter(r => r.rank && r.person);
+                const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
+                if (!proxyResp.ok) throw new Error(`HTTP ${proxyResp.status}`);
+                const payload = await proxyResp.json();
+                const parsed = Array.isArray(payload?.items) ? payload.items : [];
                 if (!parsed.length) throw new Error('Could not parse rankings.');
                 body.innerHTML = `
                     <div class="leaderboard-meta">
-                        <a href="${escHTML(url)}" target="_blank" rel="noopener">Open official WCA rankings</a>
+                        <a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open WCA REST API docs</a>
+                        <span>Region: ${escHTML(region)}${leaderboardPrefs.gender && leaderboardPrefs.gender !== 'all' ? ` · Gender filter unsupported by this API (${escHTML(leaderboardPrefs.gender)})` : ''}</span>
                     </div>
                     <div class="leaderboard-table">
                         <div class="leaderboard-row leaderboard-head">
-                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>Competition</span>
+                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>WCA ID</span>
                         </div>
                         ${parsed.map(row => `
                             <div class="leaderboard-row">
@@ -1887,15 +1870,15 @@
                                 <span>${escHTML(row.result)}</span>
                                 <span>${escHTML(row.person)}</span>
                                 <span>${escHTML(row.country)}</span>
-                                <span>${escHTML(row.competition)}</span>
+                                <span>${escHTML(row.personId)}</span>
                             </div>
                         `).join('')}
                     </div>
                 `;
             } catch (e) {
                 body.innerHTML = `
-                    <div class="assistant-empty">Could not load the official WCA leaderboard in-browser right now.</div>
-                    <div class="leaderboard-meta"><a href="${escHTML(url)}" target="_blank" rel="noopener">Open the rankings page directly</a></div>
+                    <div class="assistant-empty">Could not load the WCA REST leaderboard right now.</div>
+                    <div class="leaderboard-meta"><a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open the API docs directly</a></div>
                 `;
             }
         }
