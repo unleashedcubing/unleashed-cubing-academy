@@ -33,9 +33,9 @@ module.exports = async (req, res) => {
             source: 'wca-rest-api.robiningelbrecht.be',
             sourceUrl: 'https://wca-rest-api.robiningelbrecht.be/',
             countries: countries.map(item => ({
-                id: String(item?.id || '').trim(),
+                id: String(item?.id || item?.iso2 || item?.iso2Code || '').trim(),
                 name: String(item?.name || '').trim(),
-                iso2: String(item?.iso2 || item?.id || '').trim()
+                iso2: String(item?.iso2 || item?.iso2Code || item?.id || '').trim()
             })).filter(item => item.id && item.name),
             continents: continents.map(item => ({
                 id: String(item?.id || '').trim(),

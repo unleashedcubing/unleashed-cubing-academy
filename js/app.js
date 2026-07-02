@@ -1190,32 +1190,80 @@
             const continents = Array.isArray(window.__ucWcaMeta?.continents) ? window.__ucWcaMeta.continents : [];
             return { countries, continents };
         }
+        function normalizeRegionKey(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/&/g, 'and')
+                .replace(/[^a-z0-9]+/g, '');
+        }
+        function buildRegionAliasMap() {
+            const map = new Map();
+            map.set('world', 'world');
+            map.set('worldwide', 'world');
+            map.set('global', 'world');
+
+            const continentAliases = {
+                africa: ['africa'],
+                asia: ['asia'],
+                europe: ['europe'],
+                oceania: ['oceania'],
+                'north-america': ['northamerica', 'north-america', 'north america', 'na'],
+                'south-america': ['southamerica', 'south-america', 'south america', 'sa']
+            };
+            Object.entries(continentAliases).forEach(([target, aliases]) => {
+                aliases.forEach(alias => map.set(normalizeRegionKey(alias), target));
+            });
+
+            const countryAliases = {
+                US: ['usa', 'unitedstates', 'unitedstatesofamerica', 'america'],
+                GB: ['uk', 'unitedkingdom', 'greatbritain', 'britain'],
+                AE: ['uae', 'unitedarabemirates'],
+                KR: ['southkorea', 'republicofkorea'],
+                KP: ['northkorea', 'democraticpeoplesrepublicofkorea'],
+                CZ: ['czechia', 'czechrepublic'],
+                TW: ['taiwan', 'chinesetaipei'],
+                HK: ['hongkong'],
+                MO: ['macao', 'macau'],
+                RU: ['russia', 'russianfederation'],
+                VN: ['vietnam'],
+                LA: ['laos', 'laopeoplesdemocraticrepublic'],
+                VE: ['venezuela', 'bolivarianrepublicofvenezuela'],
+                IR: ['iran', 'islamicrepublicofiran'],
+                SY: ['syria', 'syrianarabrepublic'],
+                TZ: ['tanzania', 'unitedrepublicoftanzania'],
+                MD: ['moldova', 'republicofmoldova'],
+                BO: ['bolivia', 'plurinationalstateofbolivia'],
+                BN: ['brunei', 'bruneidarussalam']
+            };
+            Object.entries(countryAliases).forEach(([target, aliases]) => {
+                aliases.forEach(alias => map.set(normalizeRegionKey(alias), target));
+            });
+
+            const { countries, continents } = regionMetaCandidates();
+            continents.forEach(item => {
+                const id = String(item.id || '').trim();
+                const name = String(item.name || '').trim();
+                if (!id) return;
+                [id, name].filter(Boolean).forEach(alias => map.set(normalizeRegionKey(alias), id.toLowerCase()));
+            });
+            countries.forEach(item => {
+                const id = String(item.id || '').trim().toUpperCase();
+                const name = String(item.name || '').trim();
+                const iso2 = String(item.iso2 || item.id || '').trim().toUpperCase();
+                [id, iso2, name].filter(Boolean).forEach(alias => map.set(normalizeRegionKey(alias), id));
+            });
+            return map;
+        }
         function leaderboardRegionValue() {
             const raw = String(leaderboardPrefs.country || '').trim();
             if (!raw) return 'world';
-            const lower = raw.toLowerCase();
-            const aliases = {
-                worldwide: 'world',
-                global: 'world',
-                africa: 'africa',
-                asia: 'asia',
-                europe: 'europe',
-                northamerica: 'north-america',
-                'north-america': 'north-america',
-                southamerica: 'south-america',
-                'south-america': 'south-america',
-                oceania: 'oceania'
-            };
-            if (aliases[lower]) return aliases[lower];
-            const { countries, continents } = regionMetaCandidates();
-            const countryByName = countries.find(item => item.name.toLowerCase() === lower);
-            if (countryByName?.id) return countryByName.id;
-            const countryByIso = countries.find(item => item.iso2.toLowerCase() === lower || item.id.toLowerCase() === lower);
-            if (countryByIso?.id) return countryByIso.id;
-            const continentByName = continents.find(item => item.name.toLowerCase() === lower);
-            if (continentByName?.id) return continentByName.id.toLowerCase();
+            const aliasMap = buildRegionAliasMap();
+            const normalized = normalizeRegionKey(raw);
+            if (aliasMap.has(normalized)) return aliasMap.get(normalized);
             if (/^[a-z]{2}$/i.test(raw)) return raw.toUpperCase();
-            return lower;
+            return raw.toLowerCase();
         }
         function formatWcaRankValue(raw, type) {
             const n = Number(raw);
@@ -1269,9 +1317,9 @@
             ]);
             return {
                 countries: Array.isArray(countriesData?.items) ? countriesData.items.map(item => ({
-                    id: String(item?.id || '').trim(),
+                    id: String(item?.id || item?.iso2 || item?.iso2Code || '').trim(),
                     name: String(item?.name || '').trim(),
-                    iso2: String(item?.iso2 || item?.id || '').trim()
+                    iso2: String(item?.iso2 || item?.iso2Code || item?.id || '').trim()
                 })).filter(item => item.id && item.name) : [],
                 continents: Array.isArray(continentsData?.items) ? continentsData.items.map(item => ({
                     id: String(item?.id || '').trim(),
@@ -1289,8 +1337,8 @@
             const { countries, continents } = regionMetaCandidates();
             const staticOptions = [
                 { value: 'world', label: 'World' },
-                ...continents.map(item => ({ value: item.name.toLowerCase(), label: item.name })),
-                ...countries.map(item => ({ value: item.id, label: `${item.name} (${item.id})` }))
+                ...continents.map(item => ({ value: item.name, label: `${item.name} (${item.id})` })),
+                ...countries.map(item => ({ value: item.name, label: `${item.name} (${item.id})` }))
             ];
             list.innerHTML = staticOptions.map(item =>
                 `<option value="${escHTML(item.value)}">${escHTML(item.label)}</option>`
