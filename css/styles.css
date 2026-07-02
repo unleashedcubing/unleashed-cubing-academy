@@ -1109,6 +1109,64 @@
             font-size: 0.9rem;
             padding: 18px 0;
         }
+        .assistant-empty-shell {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 24px 4px 8px;
+            max-width: 620px;
+        }
+        .assistant-empty-mark,
+        .assistant-avatar,
+        .assistant-chat-banner-mark {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #111;
+            background: linear-gradient(135deg, #f59e0b, #fde047);
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
+        }
+        .assistant-empty-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        .assistant-starter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+        .assistant-starter {
+            appearance: none;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.035);
+            color: var(--text-main);
+            border-radius: 16px;
+            padding: 14px 14px;
+            text-align: left;
+            font: inherit;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .assistant-starter:hover {
+            transform: translateY(-1px);
+            border-color: rgba(245, 158, 11, 0.28);
+            background: rgba(245, 158, 11, 0.08);
+        }
+        .assistant-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .assistant-row.assistant-user {
+            flex-direction: row-reverse;
+        }
         .assistant-msg {
             border-radius: 14px;
             padding: 12px 14px;
@@ -1190,6 +1248,25 @@
                 linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)),
                 rgba(12,12,14,0.72);
             overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+        }
+        .assistant-chat-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+        }
+        .assistant-chat-banner-title {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        .assistant-chat-banner-sub {
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
         }
         .assistant-chat-history {
             flex: 1;
@@ -1200,12 +1277,21 @@
         }
         .assistant-msg {
             max-width: min(760px, 92%);
+            background: rgba(255,255,255,0.04);
         }
         .assistant-user {
             align-self: flex-end;
         }
         .assistant-assistant {
             align-self: flex-start;
+        }
+        .assistant-row .assistant-avatar {
+            flex: 0 0 auto;
+        }
+        .assistant-row.assistant-user .assistant-avatar {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(203,213,225,0.95));
+            color: #111827;
+            box-shadow: none;
         }
         .assistant-chat-compose {
             position: sticky;
@@ -1222,9 +1308,10 @@
             min-height: 54px;
             max-height: 180px;
             resize: none;
-            border-radius: 18px;
+            border-radius: 22px;
             padding: 16px 18px;
             font-size: 0.96rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
         }
         .assistant-slash-btn,
         .assistant-send-btn {
@@ -4290,6 +4377,89 @@
                 radial-gradient(circle at 20% 0%, rgba(255, 159, 10, 0.18), transparent 60%),
                 var(--card-bg);
         }
+        .quest-highlight-grid {
+            display: grid;
+            grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1fr);
+            gap: 14px;
+        }
+        .quest-spotlight {
+            background:
+                radial-gradient(circle at top right, rgba(250, 204, 21, 0.16), transparent 38%),
+                radial-gradient(circle at bottom left, rgba(249, 115, 22, 0.12), transparent 35%),
+                var(--card-bg);
+        }
+        .quest-spotlight-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+        .quest-spotlight-label,
+        .quest-rarity {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+        }
+        .quest-spotlight-title {
+            margin-top: 12px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        .quest-spotlight-desc {
+            margin-top: 8px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+        .quest-spotlight-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .quest-spotlight-tip {
+            margin-top: 12px;
+            color: var(--orange);
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+        .quest-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .quest-stat-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: space-between;
+            min-height: 100%;
+        }
+        .quest-stat-label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+        }
+        .quest-stat-value {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--text-main);
+            line-height: 1;
+        }
+        .quest-stat-value span {
+            margin-left: 4px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+        .quest-stat-note {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
         .quest-hero-head {
             display: flex;
             justify-content: space-between;
@@ -4391,13 +4561,15 @@
         .quest-card-head {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
         }
         .quest-title {
             font-weight: 700;
             color: var(--text);
             font-size: 0.95rem;
+            display: block;
+            margin-top: 2px;
         }
         .quest-reward {
             font-family: 'Ubuntu Mono', monospace;
@@ -4438,6 +4610,20 @@
             color: var(--text-muted);
             min-width: 50px;
             text-align: right;
+        }
+        .quest-foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            font-size: 0.78rem;
+        }
+        .quest-momentum {
+            color: var(--text-muted);
+        }
+        .quest-percent {
+            color: var(--orange);
+            font-weight: 700;
         }
         .quest-card.is-done .quest-count { color: var(--orange); }
 
@@ -5451,6 +5637,10 @@
             .app-page-heading {
                 align-items: flex-start;
             }
+            .quest-highlight-grid,
+            .quest-stat-grid {
+                grid-template-columns: 1fr;
+            }
             .leaderboard-toolbar > * {
                 flex: 1 1 180px;
             }
@@ -5485,11 +5675,22 @@
             .assistant-chat-compose {
                 grid-template-columns: 1fr;
             }
+            .assistant-chat-banner {
+                align-items: flex-start;
+            }
+            .assistant-row,
+            .assistant-row.assistant-user {
+                flex-direction: column;
+            }
             .assistant-slash-btn,
             .assistant-send-btn {
                 width: 100%;
             }
             .assistant-msg {
                 max-width: 100%;
+            }
+            .assistant-avatar {
+                width: 34px;
+                height: 34px;
             }
         }

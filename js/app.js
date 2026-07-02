@@ -915,19 +915,45 @@
                 ]
             };
         }
+        function questRarityLabel(q) {
+            if (q.tier === 'legendary') return 'Legendary';
+            if (q.tier === 'rainbow') return 'Mythic';
+            if (q.tier === 'gold') return 'Epic';
+            if (q.tier === 'silver') return 'Rare';
+            if (q.tier === 'bronze') return 'Starter';
+            if (q.need >= 5000) return 'Legendary';
+            if (q.need >= 500) return 'Epic';
+            if (q.need >= 100) return 'Rare';
+            return 'Daily';
+        }
+        function questMomentumText(q, done) {
+            if (done) return 'Completed';
+            if (q.need === 1) return 'One move away';
+            const left = Math.max(0, q.need - q.have);
+            if (left <= 3) return `Closing in: ${left} left`;
+            if (left <= Math.max(5, Math.ceil(q.need * 0.15))) return 'Near completion';
+            return `${left} left to clear`;
+        }
         function questCard(q) {
             const done = (q.extraDone !== undefined) ? q.extraDone : (q.have >= q.need);
             const pct = Math.min(100, Math.max(0, (q.have / q.need) * 100));
             const haveDisplay = (q.need === 1) ? (done ? '✓' : '–') : `${Math.min(q.have, q.need)} / ${q.need}`;
             return `<div class="quest-card ${done ? 'is-done' : ''}">
                 <div class="quest-card-head">
-                    <span class="quest-title">${q.title}</span>
+                    <div>
+                        <div class="quest-rarity">${questRarityLabel(q)}</div>
+                        <span class="quest-title">${q.title}</span>
+                    </div>
                     <span class="quest-reward">+${q.xp} XP</span>
                 </div>
                 ${q.desc ? `<div class="quest-desc">${q.desc}</div>` : ''}
                 <div class="quest-progress">
                     <div class="quest-bar"><div class="quest-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
                     <div class="quest-count">${haveDisplay}</div>
+                </div>
+                <div class="quest-foot">
+                    <span class="quest-momentum">${questMomentumText(q, done)}</span>
+                    <span class="quest-percent">${Math.round(pct)}%</span>
                 </div>
             </div>`;
         }
@@ -949,6 +975,18 @@
             }, 0);
             const dailyXpTotal = Object.values((profile && profile.dailyQuestLog) || {})
                 .reduce((a, b) => a + b, 0);
+            const featuredDaily = [...q.daily].sort((a, b) => {
+                const aDone = (a.extraDone !== undefined) ? a.extraDone : (a.have >= a.need);
+                const bDone = (b.extraDone !== undefined) ? b.extraDone : (b.have >= b.need);
+                if (aDone !== bDone) return aDone ? 1 : -1;
+                return (b.xp || 0) - (a.xp || 0);
+            })[0];
+            const completedPermanent = [...q.battles, ...q.borders]
+                .filter(quest => (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need)).length;
+            const completedDaily = q.daily.filter(quest => (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need)).length;
+            const totalTracked = q.daily.length + q.battles.length + q.borders.length;
+            const totalCompleted = completedPermanent + completedDaily;
+            const dailyPercent = featuredDaily ? Math.min(100, Math.max(0, (featuredDaily.have / featuredDaily.need) * 100)) : 0;
 
             const section = (title, sub, items) => `
                 <div class="train-panel quest-section">
@@ -963,7 +1001,7 @@
                 <div class="app-page-shell">
                     <div class="page-heading app-page-heading">
                         <h1 class="page-title">Quests</h1>
-                        <p class="page-sub">Track your XP, unlock rewards, and see what to grind next.</p>
+                        <p class="page-sub">Chase streaks, clear challenge tiers, and make your training feel worth logging into.</p>
                     </div>
                 <div class="quests-grid-outer">
                     <div class="train-panel quest-hero">
@@ -987,6 +1025,40 @@
                                 <span title="1 XP per solve, 2 per alg learned">Activity: ${actXp}</span>
                                 <span title="XP from completed quests">Quests: ${permanentXp + dailyXpTotal}</span>
                             </span>
+                        </div>
+                    </div>
+                    <div class="quest-highlight-grid">
+                        <div class="train-panel quest-spotlight">
+                            <div class="quest-spotlight-top">
+                                <span class="quest-spotlight-label">Featured Daily</span>
+                                ${featuredDaily ? `<span class="quest-reward">+${featuredDaily.xp} XP</span>` : ''}
+                            </div>
+                            ${featuredDaily ? `
+                                <div class="quest-spotlight-title">${featuredDaily.title}</div>
+                                <div class="quest-spotlight-desc">${featuredDaily.desc || 'Stay in motion and keep the streak alive.'}</div>
+                                <div class="quest-spotlight-progress">
+                                    <div class="quest-bar"><div class="quest-bar-fill" style="width:${dailyPercent.toFixed(1)}%"></div></div>
+                                    <div class="quest-count">${featuredDaily.need === 1 ? (((featuredDaily.extraDone !== undefined) ? featuredDaily.extraDone : (featuredDaily.have >= featuredDaily.need)) ? '✓' : '–') : `${Math.min(featuredDaily.have, featuredDaily.need)} / ${featuredDaily.need}`}</div>
+                                </div>
+                                <div class="quest-spotlight-tip">${questMomentumText(featuredDaily, (featuredDaily.extraDone !== undefined) ? featuredDaily.extraDone : (featuredDaily.have >= featuredDaily.need))}</div>
+                            ` : `<div class="quest-spotlight-desc">No daily quests loaded right now.</div>`}
+                        </div>
+                        <div class="quest-stat-grid">
+                            <div class="train-panel quest-stat-card">
+                                <div class="quest-stat-label">Quest Clears</div>
+                                <div class="quest-stat-value">${totalCompleted}<span>/${totalTracked}</span></div>
+                                <div class="quest-stat-note">Completed across daily, milestone, and border tracks.</div>
+                            </div>
+                            <div class="train-panel quest-stat-card">
+                                <div class="quest-stat-label">Today&apos;s Momentum</div>
+                                <div class="quest-stat-value">${completedDaily}<span>/${q.daily.length}</span></div>
+                                <div class="quest-stat-note">Daily quests already cashed in for XP.</div>
+                            </div>
+                            <div class="train-panel quest-stat-card">
+                                <div class="quest-stat-label">Big Unlocks</div>
+                                <div class="quest-stat-value">${completedPermanent}</div>
+                                <div class="quest-stat-note">Permanent milestones and cosmetics earned so far.</div>
+                            </div>
                         </div>
                     </div>
                     ${section('Daily Quests', 'Auto-awarded at completion', q.daily)}
@@ -1076,14 +1148,12 @@
                 leaderboardPrefs.event = document.getElementById('leaderboard-event')?.value || '333';
                 leaderboardPrefs.type = document.getElementById('leaderboard-type')?.value || 'single';
                 leaderboardPrefs.country = (document.getElementById('leaderboard-country')?.value || '').trim();
-                leaderboardPrefs.gender = document.getElementById('leaderboard-gender')?.value || 'all';
                 saveLeaderboardPrefs();
                 loadWcaLeaderboard();
             }
             document.getElementById('leaderboard-refresh')?.addEventListener('click', refreshLeaderboardFromControls);
             document.getElementById('leaderboard-event')?.addEventListener('change', refreshLeaderboardFromControls);
             document.getElementById('leaderboard-type')?.addEventListener('change', refreshLeaderboardFromControls);
-            document.getElementById('leaderboard-gender')?.addEventListener('change', refreshLeaderboardFromControls);
             document.getElementById('leaderboard-country')?.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -1114,7 +1184,23 @@
         }
         function leaderboardRegionValue() {
             const raw = String(leaderboardPrefs.country || '').trim();
-            return raw || 'world';
+            if (!raw) return 'world';
+            const lower = raw.toLowerCase();
+            const aliases = {
+                worldwide: 'world',
+                global: 'world',
+                africa: 'africa',
+                asia: 'asia',
+                europe: 'europe',
+                northamerica: 'north-america',
+                'north-america': 'north-america',
+                southamerica: 'south-america',
+                'south-america': 'south-america',
+                oceania: 'oceania'
+            };
+            if (aliases[lower]) return aliases[lower];
+            if (/^[a-z]{2}$/i.test(raw)) return raw.toUpperCase();
+            return lower;
         }
         function formatWcaRankValue(raw, type) {
             const n = Number(raw);
@@ -1220,14 +1306,14 @@
         function renderLeaderboardPage() {
             leaderboardView.innerHTML = `
                 <div class="app-page-shell">
-                    ${appPageHeading('WCA Leaderboard', 'Browse current official WCA rankings by event, result type, region, and gender.')}
+                    ${appPageHeading('WCA Leaderboard', 'Browse current WCA rankings by event, result type, and region.')}
                     <div class="train-panel stats-leaderboard stats-fullwidth">
                         <div class="panel-title">
                             <span>Official Rankings</span>
                             <span class="assistant-model-pill">WCA</span>
                         </div>
                         <div class="assistant-intro">
-                            Uses Robin Ingelbrecht's unofficial WCA REST API for rank data. Region filters are supported directly there; gender filters are not part of that API, so this page treats gender as informational only.
+                            Uses Robin Ingelbrecht&apos;s WCA REST API for live rank data. Try regions like <code>world</code>, <code>europe</code>, <code>asia</code>, or a country code like <code>US</code>.
                         </div>
                         <div class="leaderboard-toolbar">
                             <select id="leaderboard-event" class="stats-filter-select">
@@ -1239,12 +1325,7 @@
                                 <option value="single" ${leaderboardPrefs.type === 'single' ? 'selected' : ''}>Single</option>
                                 <option value="average" ${leaderboardPrefs.type === 'average' ? 'selected' : ''}>Average / Mean</option>
                             </select>
-                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="world, continent id, or country code" value="${escHTML(leaderboardPrefs.country || '')}">
-                            <select id="leaderboard-gender" class="stats-filter-select">
-                                <option value="all" ${leaderboardPrefs.gender === 'all' ? 'selected' : ''}>All</option>
-                                <option value="m" ${leaderboardPrefs.gender === 'm' ? 'selected' : ''}>Male</option>
-                                <option value="f" ${leaderboardPrefs.gender === 'f' ? 'selected' : ''}>Female</option>
-                            </select>
+                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="world, europe, asia, US..." value="${escHTML(leaderboardPrefs.country || '')}">
                             <button class="train-quick-btn" id="leaderboard-refresh">Refresh</button>
                         </div>
                         <div id="wca-leaderboard-body"></div>
@@ -1262,7 +1343,7 @@
                         <div class="assistant-chat-head">
                             <div>
                                 <div class="assistant-chat-title">Coach Chat</div>
-                                <div class="assistant-chat-sub">Free-model coach using your solves, WCA times, goals, and comp plans.</div>
+                                <div class="assistant-chat-sub">A proper cubing chat workspace with your solves, goals, WCA context, and comp prep in one place.</div>
                             </div>
                             <span class="assistant-model-pill">${assistantModelLabel(assistantPrefs.model)}</span>
                         </div>
@@ -1281,10 +1362,17 @@
                             Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. This page defaults to Qwen because it’s the free model working best here.
                         </div>
                         <div class="assistant-chat-panel">
+                            <div class="assistant-chat-banner">
+                                <div class="assistant-chat-banner-mark">U</div>
+                                <div>
+                                    <div class="assistant-chat-banner-title">Unleashed Coach</div>
+                                    <div class="assistant-chat-banner-sub">Reads your recent solves, WCA data, goals, and optional competition focus.</div>
+                                </div>
+                            </div>
                             <div class="assistant-history assistant-chat-history" id="cubing-assistant-history"></div>
                             <div class="assistant-compose assistant-chat-compose">
                                 <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
-                                <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Message your cubing coach..."></textarea>
+                                <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Message Unleashed Coach..."></textarea>
                                 <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
                             </div>
                         </div>
@@ -1652,7 +1740,9 @@
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
-        let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '', gender: 'all' });
+        let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '' });
+        if (!leaderboardPrefs || typeof leaderboardPrefs !== 'object') leaderboardPrefs = { event: '333', type: 'single', country: '' };
+        if ('gender' in leaderboardPrefs) delete leaderboardPrefs.gender;
         function saveLeaderboardPrefs() { LS.set('leaderboardPrefs', leaderboardPrefs); }
         function getAssistantApiKey() {
             if (openRouterConfig?.apiKey) return String(openRouterConfig.apiKey).trim();
@@ -1852,13 +1942,36 @@
             if (!body) return;
             const rows = assistantPrefs.history || [];
             if (!rows.length) {
-                body.innerHTML = `<div class="assistant-empty">Ask about training, goals, nerves, comps, or use <code>/competition</code>.</div>`;
+                body.innerHTML = `
+                    <div class="assistant-empty-shell">
+                        <div class="assistant-empty-mark">U</div>
+                        <div class="assistant-empty-title">Your cubing coach is ready.</div>
+                        <div class="assistant-empty">Ask about training, nerves, comps, or use <code>/competition</code> for event-specific prep.</div>
+                        <div class="assistant-starter-grid">
+                            <button class="assistant-starter" data-assistant-starter="Help me drop my 3x3 ao5 by 2 seconds.">Drop my 3x3 ao5</button>
+                            <button class="assistant-starter" data-assistant-starter="/competition Help me prep for my next comp.">Prep my next comp</button>
+                            <button class="assistant-starter" data-assistant-starter="Look at my recent solves and tell me the biggest weakness.">Find my biggest weakness</button>
+                        </div>
+                    </div>
+                `;
+                body.querySelectorAll('[data-assistant-starter]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const input = document.getElementById('assistant-input');
+                        if (!input) return;
+                        input.value = btn.getAttribute('data-assistant-starter') || '';
+                        input.focus();
+                        input.setSelectionRange(input.value.length, input.value.length);
+                    });
+                });
                 return;
             }
             body.innerHTML = rows.map(row => `
-                <div class="assistant-msg assistant-${row.role}">
-                    <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Assistant'}</div>
-                    <div class="assistant-msg-body">${escHTML(row.content).replace(/\n/g, '<br>')}</div>
+                <div class="assistant-row assistant-${row.role}">
+                    <div class="assistant-avatar">${row.role === 'user' ? 'Y' : 'U'}</div>
+                    <div class="assistant-msg assistant-${row.role}">
+                        <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Unleashed Coach'}</div>
+                        <div class="assistant-msg-body">${escHTML(row.content).replace(/\n/g, '<br>')}</div>
+                    </div>
                 </div>
             `).join('');
             body.scrollTop = body.scrollHeight;
@@ -1878,7 +1991,6 @@
             const type = leaderboardPrefs.type === 'average' ? 'average' : 'single';
             const params = new URLSearchParams();
             if (leaderboardPrefs.country) params.set('region', leaderboardPrefs.country);
-            if (leaderboardPrefs.gender && leaderboardPrefs.gender !== 'all') params.set('gender', leaderboardPrefs.gender);
             const qs = params.toString();
             return `https://www.worldcubeassociation.org/results/rankings/${encodeURIComponent(leaderboardPrefs.event)}/${type}${qs ? '?' + qs : ''}`;
         }
@@ -1890,7 +2002,7 @@
             try {
                 let parsed = [];
                 try {
-                    const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
+                    const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}`);
                     if (proxyResp.ok) {
                         const payload = await proxyResp.json();
                         parsed = Array.isArray(payload?.items) ? payload.items : [];
@@ -1901,7 +2013,7 @@
                 body.innerHTML = `
                     <div class="leaderboard-meta">
                         <a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open WCA REST API docs</a>
-                        <span>Region: ${escHTML(region)}${leaderboardPrefs.gender && leaderboardPrefs.gender !== 'all' ? ` · Gender filter unsupported by this API (${escHTML(leaderboardPrefs.gender)})` : ''}</span>
+                        <span>Region: ${escHTML(region)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)}</span>
                     </div>
                     <div class="leaderboard-table">
                         <div class="leaderboard-row leaderboard-head">
@@ -1920,7 +2032,7 @@
                 `;
             } catch (e) {
                 body.innerHTML = `
-                    <div class="assistant-empty">Could not load the WCA REST leaderboard right now.</div>
+                    <div class="assistant-empty">Could not load the WCA leaderboard right now. Try <code>world</code>, <code>europe</code>, or a country code like <code>US</code>.</div>
                     <div class="leaderboard-meta"><a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open the API docs directly</a></div>
                 `;
             }
