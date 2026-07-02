@@ -1170,6 +1170,9 @@
         function leaderboardBackendUrl() {
             return String(openRouterConfig?.leaderboardBackendUrl || '/api/leaderboard').trim();
         }
+        function wcaMetaBackendUrl() {
+            return String(openRouterConfig?.wcaMetaBackendUrl || '/api/wca-meta').trim();
+        }
         function leaderboardDirectBaseUrl() {
             return String(openRouterConfig?.leaderboardDirectBaseUrl || 'https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1').trim().replace(/\/$/, '');
         }
@@ -1181,6 +1184,11 @@
             if (source === 'config') return 'OpenRouter key loaded from local openrouter-config.js.';
             if (source === 'browser') return 'OpenRouter key saved locally in this browser.';
             return 'No local OpenRouter key saved. If your backend route is deployed, the assistant can still work without exposing a browser key.';
+        }
+        function regionMetaCandidates() {
+            const countries = Array.isArray(window.__ucWcaMeta?.countries) ? window.__ucWcaMeta.countries : [];
+            const continents = Array.isArray(window.__ucWcaMeta?.continents) ? window.__ucWcaMeta.continents : [];
+            return { countries, continents };
         }
         function leaderboardRegionValue() {
             const raw = String(leaderboardPrefs.country || '').trim();
@@ -1199,6 +1207,13 @@
                 oceania: 'oceania'
             };
             if (aliases[lower]) return aliases[lower];
+            const { countries, continents } = regionMetaCandidates();
+            const countryByName = countries.find(item => item.name.toLowerCase() === lower);
+            if (countryByName?.id) return countryByName.id;
+            const countryByIso = countries.find(item => item.iso2.toLowerCase() === lower || item.id.toLowerCase() === lower);
+            if (countryByIso?.id) return countryByIso.id;
+            const continentByName = continents.find(item => item.name.toLowerCase() === lower);
+            if (continentByName?.id) return continentByName.id.toLowerCase();
             if (/^[a-z]{2}$/i.test(raw)) return raw.toUpperCase();
             return lower;
         }
@@ -1236,6 +1251,65 @@
                     personId: item.personId
                 };
             });
+        }
+        async function fetchWcaMetaDirect() {
+            const base = leaderboardDirectBaseUrl();
+            const [countriesResp, continentsResp, eventsResp] = await Promise.all([
+                fetch(`${base}/countries.json`),
+                fetch(`${base}/continents.json`),
+                fetch(`${base}/events.json`)
+            ]);
+            if (!countriesResp.ok || !continentsResp.ok || !eventsResp.ok) {
+                throw new Error('Could not load WCA metadata.');
+            }
+            const [countriesData, continentsData, eventsData] = await Promise.all([
+                countriesResp.json(),
+                continentsResp.json(),
+                eventsResp.json()
+            ]);
+            return {
+                countries: Array.isArray(countriesData?.items) ? countriesData.items.map(item => ({
+                    id: String(item?.id || '').trim(),
+                    name: String(item?.name || '').trim(),
+                    iso2: String(item?.iso2 || item?.id || '').trim()
+                })).filter(item => item.id && item.name) : [],
+                continents: Array.isArray(continentsData?.items) ? continentsData.items.map(item => ({
+                    id: String(item?.id || '').trim(),
+                    name: String(item?.name || '').trim()
+                })).filter(item => item.id && item.name) : [],
+                events: Array.isArray(eventsData?.items) ? eventsData.items.map(item => ({
+                    id: String(item?.id || '').trim(),
+                    name: String(item?.name || '').trim()
+                })).filter(item => item.id && item.name) : []
+            };
+        }
+        function applyWcaMetaToLeaderboard() {
+            const list = document.getElementById('leaderboard-region-list');
+            if (!list) return;
+            const { countries, continents } = regionMetaCandidates();
+            const staticOptions = [
+                { value: 'world', label: 'World' },
+                ...continents.map(item => ({ value: item.name.toLowerCase(), label: item.name })),
+                ...countries.map(item => ({ value: item.id, label: `${item.name} (${item.id})` }))
+            ];
+            list.innerHTML = staticOptions.map(item =>
+                `<option value="${escHTML(item.value)}">${escHTML(item.label)}</option>`
+            ).join('');
+        }
+        async function ensureWcaMetaLoaded() {
+            if (window.__ucWcaMeta) {
+                applyWcaMetaToLeaderboard();
+                return window.__ucWcaMeta;
+            }
+            try {
+                const resp = await fetch(wcaMetaBackendUrl());
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                window.__ucWcaMeta = await resp.json();
+            } catch (_) {
+                window.__ucWcaMeta = await fetchWcaMetaDirect();
+            }
+            applyWcaMetaToLeaderboard();
+            return window.__ucWcaMeta;
         }
         function bindAssistantComposer(renderFn) {
             renderCubingAssistantCompOptions();
@@ -1325,7 +1399,8 @@
                                 <option value="single" ${leaderboardPrefs.type === 'single' ? 'selected' : ''}>Single</option>
                                 <option value="average" ${leaderboardPrefs.type === 'average' ? 'selected' : ''}>Average / Mean</option>
                             </select>
-                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" placeholder="world, europe, asia, US..." value="${escHTML(leaderboardPrefs.country || '')}">
+                            <input id="leaderboard-country" class="pe-input leaderboard-country" type="text" maxlength="32" list="leaderboard-region-list" placeholder="world, europe, India, US..." value="${escHTML(leaderboardPrefs.country || '')}">
+                            <datalist id="leaderboard-region-list"></datalist>
                             <button class="train-quick-btn" id="leaderboard-refresh">Refresh</button>
                         </div>
                         <div id="wca-leaderboard-body"></div>
@@ -1333,6 +1408,7 @@
                 </div>
             `;
             bindLeaderboardControls();
+            ensureWcaMetaLoaded().catch(() => {});
             loadWcaLeaderboard();
         }
         function renderAssistantPage() {

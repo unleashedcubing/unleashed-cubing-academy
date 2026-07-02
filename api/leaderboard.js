@@ -20,7 +20,6 @@ module.exports = async (req, res) => {
     const type = q.type === 'average' ? 'average' : 'single';
     const event = String(q.event || '333').trim();
     const region = String(q.region || 'world').trim() || 'world';
-    const gender = String(q.gender || 'all').trim() || 'all';
     const base = 'https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1';
     const url = `${base}/rank/${encodeURIComponent(region)}/${type}/${encodeURIComponent(event)}.json`;
 
@@ -50,8 +49,6 @@ module.exports = async (req, res) => {
             region,
             event,
             type,
-            gender,
-            note: gender !== 'all' ? 'Gender filtering is not supported by this API.' : '',
             items: top.map(item => {
                 const person = personMap.get(item.personId);
                 return {

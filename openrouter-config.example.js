@@ -7,6 +7,7 @@ export const openrouterConfig = {
     apiKey: "paste-your-openrouter-key-here",
     backendUrl: "/api/assistant",
     leaderboardBackendUrl: "/api/leaderboard",
+    wcaMetaBackendUrl: "/api/wca-meta",
     leaderboardDirectBaseUrl: "https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1"
 };
 
