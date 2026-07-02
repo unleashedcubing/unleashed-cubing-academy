@@ -1100,6 +1100,9 @@
         function leaderboardBackendUrl() {
             return String(openRouterConfig?.leaderboardBackendUrl || '/api/leaderboard').trim();
         }
+        function leaderboardDirectBaseUrl() {
+            return String(openRouterConfig?.leaderboardDirectBaseUrl || 'https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1').trim().replace(/\/$/, '');
+        }
         function assistantModelLabel(id) {
             return ASSISTANT_MODELS.find(m => m.id === id)?.label || id;
         }
@@ -1112,6 +1115,41 @@
         function leaderboardRegionValue() {
             const raw = String(leaderboardPrefs.country || '').trim();
             return raw || 'world';
+        }
+        function formatWcaRankValue(raw, type) {
+            const n = Number(raw);
+            if (!Number.isFinite(n) || n <= 0) return '—';
+            if (type === 'single' || type === 'average') return (n / 100).toFixed(2);
+            return String(n);
+        }
+        async function fetchLeaderboardDirect(region) {
+            const base = leaderboardDirectBaseUrl();
+            const rankUrl = `${base}/rank/${encodeURIComponent(region)}/${encodeURIComponent(leaderboardPrefs.type)}/${encodeURIComponent(leaderboardPrefs.event)}.json`;
+            const resp = await fetch(rankUrl);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const top = Array.isArray(data?.items) ? data.items.slice(0, 10) : [];
+            const people = await Promise.all(top.map(async (item) => {
+                try {
+                    const personResp = await fetch(`${base}/persons/${encodeURIComponent(item.personId)}.json`);
+                    if (!personResp.ok) return null;
+                    const person = await personResp.json();
+                    return { id: item.personId, name: person?.name || item.personId, country: person?.country || '' };
+                } catch (_) {
+                    return null;
+                }
+            }));
+            const personMap = new Map(people.filter(Boolean).map(p => [p.id, p]));
+            return top.map(item => {
+                const person = personMap.get(item.personId);
+                return {
+                    rank: String(item?.rank?.world ?? item?.rank?.country ?? item?.rank?.continent ?? ''),
+                    result: formatWcaRankValue(item.best, leaderboardPrefs.type),
+                    person: person?.name || item.personId,
+                    country: person?.country || '',
+                    personId: item.personId
+                };
+            });
         }
         function bindAssistantComposer(renderFn) {
             renderCubingAssistantCompOptions();
@@ -1173,7 +1211,7 @@
             }
             document.getElementById('assistant-send')?.addEventListener('click', submitAssistantPrompt);
             assistantInput?.addEventListener('keydown', (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     submitAssistantPrompt();
                 }
@@ -1220,15 +1258,15 @@
             assistantView.innerHTML = `
                 <div class="app-page-shell assistant-page-shell">
                     ${appPageHeading('Cubing Assistant', 'Chat with your coach using your WCA times, recent 150 solves, goals, and competition plans.')}
-                    <div class="train-panel stats-assistant stats-fullwidth">
-                        <div class="panel-title">
-                            <span>Coach Chat</span>
+                    <div class="assistant-chat-shell">
+                        <div class="assistant-chat-head">
+                            <div>
+                                <div class="assistant-chat-title">Coach Chat</div>
+                                <div class="assistant-chat-sub">Free-model coach using your solves, WCA times, goals, and comp plans.</div>
+                            </div>
                             <span class="assistant-model-pill">${assistantModelLabel(assistantPrefs.model)}</span>
                         </div>
-                        <div class="assistant-intro">
-                            Ask for drills, goal planning, or type <code>/competition</code> for help with packing, nerves, warmups, and event prep.
-                        </div>
-                        <div class="assistant-toolbar">
+                        <div class="assistant-toolbar assistant-chat-toolbar">
                             <select id="assistant-model-select" class="stats-filter-select">
                                 ${ASSISTANT_MODELS.map(model => `<option value="${model.id}" ${assistantPrefs.model === model.id ? 'selected' : ''}>${escHTML(model.label)}</option>`).join('')}
                             </select>
@@ -1239,15 +1277,15 @@
                             <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
-                        <div class="assistant-secret-note">
-                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. The model picker is now free-only and uses currently-available OpenRouter <code>:free</code> models.
+                        <div class="assistant-secret-note assistant-chat-note">
+                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. This page defaults to Qwen because it’s the free model working best here.
                         </div>
-                        <div class="assistant-history" id="cubing-assistant-history"></div>
-                        <div class="assistant-compose">
-                            <textarea id="assistant-input" class="pe-input assistant-input" rows="5" placeholder="Ask for training advice, goal planning, or type /competition for upcoming comp help."></textarea>
-                            <div class="assistant-actions">
-                                <button class="train-quick-btn" id="assistant-quick-comp">/competition</button>
-                                <button class="train-cta" id="assistant-send">Ask Assistant</button>
+                        <div class="assistant-chat-panel">
+                            <div class="assistant-history assistant-chat-history" id="cubing-assistant-history"></div>
+                            <div class="assistant-compose assistant-chat-compose">
+                                <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
+                                <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Message your cubing coach..."></textarea>
+                                <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
                             </div>
                         </div>
                     </div>
@@ -1604,8 +1642,8 @@
         }
 
         const ASSISTANT_MODELS = [
-            { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', kind: 'gpt', free: true },
             { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B Free', kind: 'qwen', free: true },
+            { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', kind: 'gpt', free: true },
             { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B Free', kind: 'gemma', free: true },
             { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free', kind: 'llama', free: true }
         ];
@@ -1755,7 +1793,7 @@
         function assistantErrorMessage(message) {
             const text = String(message || '').trim();
             if (/rate-limit|rate limited|429/i.test(text)) {
-                return 'That model is rate-limited right now. Try Gemini or GPT from the model picker, or deploy the backend assistant route so the app can retry server-side.';
+                return 'That free model is rate-limited right now. Qwen is the default because it has been the most reliable here, but you can try the other free models or use the backend route with your server-side key.';
             }
             if (/backend_unavailable/i.test(text)) {
                 return 'The backend assistant route is not deployed yet.';
@@ -1850,10 +1888,15 @@
             body.innerHTML = `<div class="assistant-empty">Loading WCA rank data…</div>`;
             const region = leaderboardRegionValue();
             try {
-                const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
-                if (!proxyResp.ok) throw new Error(`HTTP ${proxyResp.status}`);
-                const payload = await proxyResp.json();
-                const parsed = Array.isArray(payload?.items) ? payload.items : [];
+                let parsed = [];
+                try {
+                    const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}&gender=${encodeURIComponent(leaderboardPrefs.gender || 'all')}`);
+                    if (proxyResp.ok) {
+                        const payload = await proxyResp.json();
+                        parsed = Array.isArray(payload?.items) ? payload.items : [];
+                    }
+                } catch (_) {}
+                if (!parsed.length) parsed = await fetchLeaderboardDirect(region);
                 if (!parsed.length) throw new Error('Could not parse rankings.');
                 body.innerHTML = `
                     <div class="leaderboard-meta">
