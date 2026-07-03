@@ -14,6 +14,12 @@ function rankValue(value) {
     const n = Number(value);
     return Number.isFinite(n) && n > 0 ? String(n) : '—';
 }
+function rankScopeForRegion(region) {
+    const raw = String(region || '').trim().toLowerCase();
+    if (!raw || raw === 'world') return 'world';
+    if (['africa', 'asia', 'europe', 'north-america', 'south-america', 'oceania'].includes(raw)) return 'continent';
+    return 'country';
+}
 
 module.exports = async (req, res) => {
     setCors(res);
@@ -24,6 +30,7 @@ module.exports = async (req, res) => {
     const type = q.type === 'average' ? 'average' : 'single';
     const event = String(q.event || '333').trim();
     const region = String(q.region || 'world').trim() || 'world';
+    const rankScope = rankScopeForRegion(region);
     const base = 'https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1';
     const url = `${base}/rank/${encodeURIComponent(region)}/${type}/${encodeURIComponent(event)}.json`;
 
@@ -56,15 +63,19 @@ module.exports = async (req, res) => {
             sourceUrl: 'https://wca-rest-api.robiningelbrecht.be/',
             url,
             region,
+            rankScope,
             event,
             type,
             items: top.map(item => {
                 const person = personMap.get(item.personId);
+                const worldRank = rankValue(item?.rank?.world);
+                const continentRank = rankValue(item?.rank?.continent);
+                const countryRank = rankValue(item?.rank?.country);
                 return {
-                    rank: rankValue(item?.rank?.world ?? item?.rank?.country ?? item?.rank?.continent),
-                    worldRank: rankValue(item?.rank?.world),
-                    continentRank: rankValue(item?.rank?.continent),
-                    countryRank: rankValue(item?.rank?.country),
+                    rank: rankScope === 'world' ? worldRank : (rankScope === 'continent' ? continentRank : countryRank),
+                    worldRank,
+                    continentRank,
+                    countryRank,
                     result: bestToDisplay(item.best, type),
                     person: person?.name || item.personId,
                     country: person?.country || '',

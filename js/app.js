@@ -1282,6 +1282,31 @@
             const match = countries.find(item => String(item.id || '').toUpperCase() === raw.toUpperCase() || String(item.iso2 || '').toUpperCase() === raw.toUpperCase());
             return match ? `${match.name} (${match.id})` : raw;
         }
+        function continentDisplayName(id) {
+            const raw = String(id || '').trim();
+            if (!raw) return 'World';
+            const continents = Array.isArray(window.__ucWcaMeta?.continents) ? window.__ucWcaMeta.continents : [];
+            const match = continents.find(item => String(item.id || '').toLowerCase() === raw.toLowerCase());
+            return match?.name || raw;
+        }
+        function leaderboardRankScope(region) {
+            const raw = String(region || '').trim().toLowerCase();
+            if (!raw || raw === 'world') return 'world';
+            if (['africa', 'asia', 'europe', 'north-america', 'south-america', 'oceania'].includes(raw)) return 'continent';
+            return 'country';
+        }
+        function leaderboardPrimaryRankLabel(region) {
+            const scope = leaderboardRankScope(region);
+            if (scope === 'world') return 'WR';
+            if (scope === 'continent') return 'CR';
+            return 'NR';
+        }
+        function leaderboardRegionLabel(region) {
+            const scope = leaderboardRankScope(region);
+            if (scope === 'world') return 'World';
+            if (scope === 'continent') return continentDisplayName(region);
+            return countryDisplayName(region);
+        }
         async function fetchLeaderboardDirect(region) {
             const base = leaderboardDirectBaseUrl();
             const rankUrl = `${base}/rank/${encodeURIComponent(region)}/${encodeURIComponent(leaderboardPrefs.type)}/${encodeURIComponent(leaderboardPrefs.event)}.json`;
@@ -1289,6 +1314,7 @@
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
             const top = Array.isArray(data?.items) ? data.items.slice(0, 250) : [];
+            const rankScope = leaderboardRankScope(region);
             const people = await Promise.all(top.map(async (item) => {
                 try {
                     const personResp = await fetch(`${base}/persons/${encodeURIComponent(item.personId)}.json`);
@@ -1307,11 +1333,14 @@
             const personMap = new Map(people.filter(Boolean).map(p => [p.id, p]));
             return top.map(item => {
                 const person = personMap.get(item.personId);
+                const worldRank = formatRankCell(item?.rank?.world);
+                const continentRank = formatRankCell(item?.rank?.continent);
+                const countryRank = formatRankCell(item?.rank?.country);
                 return {
-                    rank: formatRankCell(item?.rank?.world ?? item?.rank?.country ?? item?.rank?.continent),
-                    worldRank: formatRankCell(item?.rank?.world),
-                    continentRank: formatRankCell(item?.rank?.continent),
-                    countryRank: formatRankCell(item?.rank?.country),
+                    rank: rankScope === 'world' ? worldRank : (rankScope === 'continent' ? continentRank : countryRank),
+                    worldRank,
+                    continentRank,
+                    countryRank,
                     result: formatWcaRankValue(item.best, leaderboardPrefs.type),
                     person: person?.name || item.personId,
                     country: person?.country || '',
@@ -2145,6 +2174,8 @@
             const region = leaderboardRegionValue();
             try {
                 let parsed = [];
+                const rankLabel = leaderboardPrimaryRankLabel(region);
+                const regionLabel = leaderboardRegionLabel(region);
                 try {
                     const proxyResp = await fetch(`${leaderboardBackendUrl()}?event=${encodeURIComponent(leaderboardPrefs.event)}&type=${encodeURIComponent(leaderboardPrefs.type)}&region=${encodeURIComponent(region)}`);
                     if (proxyResp.ok) {
@@ -2157,11 +2188,11 @@
                 body.innerHTML = `
                     <div class="leaderboard-meta">
                         <a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open WCA REST API docs</a>
-                        <span>Region: ${escHTML(region)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)} · Showing top ${parsed.length}</span>
+                        <span>Region: ${escHTML(regionLabel)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)} · Primary rank: ${escHTML(rankLabel)} · Showing top ${parsed.length}</span>
                     </div>
                     <div class="leaderboard-table">
                         <div class="leaderboard-row leaderboard-head">
-                            <span>#</span><span>Result</span><span>Cuber</span><span>Country</span><span>WCA ID</span><span>WR</span><span>CR</span><span>NR</span>
+                            <span>${escHTML(rankLabel)}</span><span>Result</span><span>Cuber</span><span>Country</span><span>WCA ID</span><span>WR</span><span>CR</span><span>NR</span>
                         </div>
                         ${parsed.map(row => `
                             <div class="leaderboard-row">
