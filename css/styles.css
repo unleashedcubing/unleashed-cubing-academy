@@ -1112,10 +1112,12 @@
         .assistant-empty-shell {
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 24px 4px 8px;
-            max-width: 620px;
+            align-items: center;
+            text-align: center;
+            gap: 14px;
+            padding: 40px 8px 12px;
+            max-width: 720px;
+            margin: 0 auto;
         }
         .assistant-empty-mark,
         .assistant-avatar,
@@ -1132,8 +1134,9 @@
             box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
         }
         .assistant-empty-title {
-            font-size: 1.2rem;
-            font-weight: 800;
+            font-family: 'EB Garamond', serif;
+            font-size: clamp(2.2rem, 4.8vw, 3.4rem);
+            font-weight: 500;
             color: var(--text-main);
         }
         .assistant-starter-grid {
@@ -1141,15 +1144,16 @@
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 10px;
             width: 100%;
+            margin-top: 4px;
         }
         .assistant-starter {
             appearance: none;
             border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.035);
+            background: rgba(255,255,255,0.025);
             color: var(--text-main);
-            border-radius: 16px;
-            padding: 14px 14px;
-            text-align: left;
+            border-radius: 999px;
+            padding: 12px 16px;
+            text-align: center;
             font: inherit;
             cursor: pointer;
             transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
@@ -1212,7 +1216,7 @@
             display: flex;
             flex-direction: column;
             gap: 14px;
-            min-height: 72vh;
+            min-height: 78vh;
         }
         .assistant-chat-head {
             display: flex;
@@ -1222,8 +1226,8 @@
             flex-wrap: wrap;
         }
         .assistant-chat-title {
-            font-size: 1.15rem;
-            font-weight: 800;
+            font-size: 1rem;
+            font-weight: 700;
             color: var(--text-main);
         }
         .assistant-chat-sub {
@@ -1242,37 +1246,22 @@
             flex: 1;
             min-height: 0;
             flex-direction: column;
-            border-radius: 22px;
-            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 28px;
+            border: 1px solid rgba(255,255,255,0.06);
             background:
-                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)),
-                rgba(12,12,14,0.72);
+                radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 42%),
+                rgba(20,19,18,0.94);
             overflow: hidden;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.28);
         }
-        .assistant-chat-banner {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 18px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-        }
-        .assistant-chat-banner-title {
-            font-size: 0.95rem;
-            font-weight: 800;
-            color: var(--text-main);
-        }
-        .assistant-chat-banner-sub {
-            margin-top: 2px;
-            color: var(--text-muted);
-            font-size: 0.8rem;
+        .assistant-chat-panel.is-empty {
+            justify-content: center;
         }
         .assistant-chat-history {
             flex: 1;
             max-height: none;
             margin-bottom: 0;
-            padding: 18px 18px 8px;
+            padding: 22px 22px 10px;
             overflow-y: auto;
         }
         .assistant-msg {
@@ -1296,27 +1285,97 @@
         .assistant-chat-compose {
             position: sticky;
             bottom: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px 18px 18px;
+            background: linear-gradient(180deg, rgba(20,19,18,0.08), rgba(20,19,18,0.96) 24%);
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+        .assistant-compose-main {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 12px;
             align-items: end;
+            padding: 12px;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(46,43,41,0.88);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .assistant-compose-actions {
+            display: flex;
+            align-items: center;
             gap: 10px;
-            padding: 14px 16px 16px;
-            background: linear-gradient(180deg, rgba(10,10,12,0.12), rgba(10,10,12,0.92) 28%);
-            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .assistant-compose-model {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .assistant-suggestion-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        .assistant-suggestion-pill {
+            appearance: none;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.02);
+            color: var(--text-main);
+            border-radius: 999px;
+            padding: 9px 14px;
+            font: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+        .assistant-suggestion-pill:hover {
+            transform: translateY(-1px);
+            border-color: rgba(245,159,10,0.24);
+            background: rgba(245,159,10,0.08);
         }
         .assistant-chat-input {
             min-height: 54px;
             max-height: 180px;
             resize: none;
-            border-radius: 22px;
-            padding: 16px 18px;
+            border-radius: 20px;
+            padding: 14px 16px;
             font-size: 0.96rem;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+            border: none;
+            background: transparent;
+            box-shadow: none;
         }
         .assistant-slash-btn,
         .assistant-send-btn {
             align-self: center;
             white-space: nowrap;
+        }
+        .assistant-send-btn {
+            min-width: 78px;
+        }
+        .assistant-thinking-msg {
+            min-width: 110px;
+        }
+        .assistant-thinking-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 18px;
+        }
+        .assistant-thinking-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(245,159,10,0.9);
+            animation: assistant-think 0.9s infinite ease-in-out;
+        }
+        .assistant-thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .assistant-thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes assistant-think {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+            40% { transform: translateY(-4px); opacity: 1; }
         }
         .stats-leaderboard { grid-column: 1 / -1; }
         .leaderboard-toolbar {
@@ -5716,14 +5775,17 @@
                 max-width: none;
             }
             .assistant-chat-compose {
-                grid-template-columns: 1fr;
+                padding: 14px;
             }
-            .assistant-chat-banner {
-                align-items: flex-start;
+            .assistant-compose-main {
+                grid-template-columns: 1fr;
             }
             .assistant-row,
             .assistant-row.assistant-user {
                 flex-direction: column;
+            }
+            .assistant-compose-actions {
+                justify-content: space-between;
             }
             .assistant-slash-btn,
             .assistant-send-btn {

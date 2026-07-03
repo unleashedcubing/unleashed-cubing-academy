@@ -1415,6 +1415,14 @@
             const assistantInput = document.getElementById('assistant-input');
             const assistantStatus = document.getElementById('assistant-key-status');
             if (assistantStatus) assistantStatus.textContent = assistantKeyStatusText();
+            document.querySelectorAll('[data-assistant-starter]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!assistantInput) return;
+                    assistantInput.value = btn.getAttribute('data-assistant-starter') || '';
+                    assistantInput.focus();
+                    assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+                });
+            });
             document.getElementById('assistant-model-select')?.addEventListener('change', (e) => {
                 assistantPrefs.model = e.target.value || DEFAULT_ASSISTANT_MODEL;
                 saveAssistantPrefs();
@@ -1449,22 +1457,23 @@
                 assistantPrefs.history.push({ role: 'user', content: raw });
                 assistantPrefs.history = assistantPrefs.history.slice(-10);
                 saveAssistantPrefs();
+                assistantPending = true;
                 renderAssistantHistory();
                 assistantInput.value = '';
                 const sendBtn = document.getElementById('assistant-send');
-                if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking…'; }
+                if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking'; }
                 try {
                     const reply = await askCubingAssistant(raw);
                     assistantPrefs.history.push({ role: 'assistant', content: reply });
                     assistantPrefs.history = assistantPrefs.history.slice(-10);
                     saveAssistantPrefs();
-                    renderAssistantHistory();
                 } catch (err) {
                     assistantPrefs.history.push({ role: 'assistant', content: `Error: ${err.message || err}` });
                     saveAssistantPrefs();
-                    renderAssistantHistory();
                 } finally {
-                    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Ask Assistant'; }
+                    assistantPending = false;
+                    renderAssistantHistory();
+                    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
                 }
             }
             document.getElementById('assistant-send')?.addEventListener('click', submitAssistantPrompt);
@@ -1512,12 +1521,11 @@
         function renderAssistantPage() {
             assistantView.innerHTML = `
                 <div class="app-page-shell assistant-page-shell">
-                    ${appPageHeading('Cubing Assistant', 'Chat with your coach using your WCA times, recent 150 solves, goals, and competition plans.')}
                     <div class="assistant-chat-shell">
                         <div class="assistant-chat-head">
                             <div>
-                                <div class="assistant-chat-title">Coach Chat</div>
-                                <div class="assistant-chat-sub">A proper cubing chat workspace with your solves, goals, WCA context, and comp prep in one place.</div>
+                                <div class="assistant-chat-title">Unleashed Coach</div>
+                                <div class="assistant-chat-sub">Training guidance powered by your solves, goals, WCA context, and competition plans.</div>
                             </div>
                             <span class="assistant-model-pill">${assistantModelLabel(assistantPrefs.model)}</span>
                         </div>
@@ -1533,21 +1541,25 @@
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
                         <div class="assistant-secret-note assistant-chat-note">
-                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. This page defaults to Qwen because it’s the free model working best here.
+                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. Default model: NVIDIA Nemotron 3 Super Free, with free-model fallbacks if it is unavailable.
                         </div>
                         <div class="assistant-chat-panel">
-                            <div class="assistant-chat-banner">
-                                <div class="assistant-chat-banner-mark">U</div>
-                                <div>
-                                    <div class="assistant-chat-banner-title">Unleashed Coach</div>
-                                    <div class="assistant-chat-banner-sub">Reads your recent solves, WCA data, goals, and optional competition focus.</div>
-                                </div>
-                            </div>
                             <div class="assistant-history assistant-chat-history" id="cubing-assistant-history"></div>
                             <div class="assistant-compose assistant-chat-compose">
-                                <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
-                                <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Message Unleashed Coach..."></textarea>
-                                <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
+                                <div class="assistant-compose-main">
+                                    <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
+                                    <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Ask for drills, comp prep, analysis, or a training plan..."></textarea>
+                                    <div class="assistant-compose-actions">
+                                        <span class="assistant-compose-model">${assistantModelLabel(assistantPrefs.model)}</span>
+                                        <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
+                                    </div>
+                                </div>
+                                <div class="assistant-suggestion-row">
+                                    <button class="assistant-suggestion-pill" data-assistant-starter="Review my recent 3x3 solves and tell me my top 3 priorities.">Review Solves</button>
+                                    <button class="assistant-suggestion-pill" data-assistant-starter="Build me a focused 30 minute practice session for today.">Build Practice</button>
+                                    <button class="assistant-suggestion-pill" data-assistant-starter="/competition Help me prepare for my upcoming competition.">Comp Prep</button>
+                                    <button class="assistant-suggestion-pill" data-assistant-starter="Help me choose what alg set to improve next.">Alg Focus</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1904,12 +1916,14 @@
         }
 
         const ASSISTANT_MODELS = [
+            { id: 'nvidia/nemotron-3-super:free', label: 'NVIDIA Nemotron 3 Super Free', kind: 'nemotron', free: true },
             { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B Free', kind: 'qwen', free: true },
             { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', kind: 'gpt', free: true },
             { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B Free', kind: 'gemma', free: true },
             { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free', kind: 'llama', free: true }
         ];
         const DEFAULT_ASSISTANT_MODEL = ASSISTANT_MODELS[0].id;
+        let assistantPending = false;
         let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [], model: DEFAULT_ASSISTANT_MODEL });
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
@@ -2057,7 +2071,7 @@
         function assistantErrorMessage(message) {
             const text = String(message || '').trim();
             if (/rate-limit|rate limited|429/i.test(text)) {
-                return 'That free model is rate-limited right now. Qwen is the default because it has been the most reliable here, but you can try the other free models or use the backend route with your server-side key.';
+                return 'That free model is rate-limited right now. Nemotron is the default, but you can switch models or use the backend route with your server-side key.';
             }
             if (/backend_unavailable/i.test(text)) {
                 return 'The backend assistant route is not deployed yet.';
@@ -2114,13 +2128,15 @@
         function renderAssistantHistory() {
             const body = document.getElementById('cubing-assistant-history');
             if (!body) return;
+            const panel = body.closest('.assistant-chat-panel');
             const rows = assistantPrefs.history || [];
             if (!rows.length) {
+                panel?.classList.add('is-empty');
                 body.innerHTML = `
                     <div class="assistant-empty-shell">
-                        <div class="assistant-empty-mark">U</div>
-                        <div class="assistant-empty-title">Your cubing coach is ready.</div>
-                        <div class="assistant-empty">Ask about training, nerves, comps, or use <code>/competition</code> for event-specific prep.</div>
+                        <div class="assistant-empty-mark">✺</div>
+                        <div class="assistant-empty-title">Evening, cuber.</div>
+                        <div class="assistant-empty">Ask for solve breakdowns, event strategy, comp mindset help, or a focused practice block built from your data.</div>
                         <div class="assistant-starter-grid">
                             <button class="assistant-starter" data-assistant-starter="Help me drop my 3x3 ao5 by 2 seconds.">Drop my 3x3 ao5</button>
                             <button class="assistant-starter" data-assistant-starter="/competition Help me prep for my next comp.">Prep my next comp</button>
@@ -2128,18 +2144,10 @@
                         </div>
                     </div>
                 `;
-                body.querySelectorAll('[data-assistant-starter]').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const input = document.getElementById('assistant-input');
-                        if (!input) return;
-                        input.value = btn.getAttribute('data-assistant-starter') || '';
-                        input.focus();
-                        input.setSelectionRange(input.value.length, input.value.length);
-                    });
-                });
                 return;
             }
-            body.innerHTML = rows.map(row => `
+            panel?.classList.remove('is-empty');
+            const historyMarkup = rows.map(row => `
                 <div class="assistant-row assistant-${row.role}">
                     <div class="assistant-avatar">${row.role === 'user' ? 'Y' : 'U'}</div>
                     <div class="assistant-msg assistant-${row.role}">
@@ -2148,6 +2156,18 @@
                     </div>
                 </div>
             `).join('');
+            const pendingMarkup = assistantPending ? `
+                <div class="assistant-row assistant-assistant">
+                    <div class="assistant-avatar">U</div>
+                    <div class="assistant-msg assistant-assistant assistant-thinking-msg">
+                        <div class="assistant-msg-role">Unleashed Coach</div>
+                        <div class="assistant-thinking-dots" aria-label="Thinking">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+            ` : '';
+            body.innerHTML = historyMarkup + pendingMarkup;
             body.scrollTop = body.scrollHeight;
         }
         function renderCubingAssistantCompOptions() {
