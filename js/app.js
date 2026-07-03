@@ -1315,6 +1315,7 @@
             const data = await resp.json();
             const top = Array.isArray(data?.items) ? data.items.slice(0, 250) : [];
             const rankScope = leaderboardRankScope(region);
+            const normalizedRegion = String(region || '').trim().toUpperCase();
             const people = await Promise.all(top.map(async (item) => {
                 try {
                     const personResp = await fetch(`${base}/persons/${encodeURIComponent(item.personId)}.json`);
@@ -1347,7 +1348,7 @@
                     personId: item.personId,
                     wcaUrl: person?.wcaUrl || `https://www.worldcubeassociation.org/persons/${encodeURIComponent(item.personId)}`
                 };
-            });
+            }).filter(row => rankScope !== 'country' || String(row.country || '').trim().toUpperCase() === normalizedRegion);
         }
         async function fetchWcaMetaDirect() {
             const base = leaderboardDirectBaseUrl();
@@ -2187,7 +2188,6 @@
                 if (!parsed.length) throw new Error('Could not parse rankings.');
                 body.innerHTML = `
                     <div class="leaderboard-meta">
-                        <a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open WCA REST API docs</a>
                         <span>Region: ${escHTML(regionLabel)} · Event: ${escHTML(leaderboardPrefs.event)} · Type: ${escHTML(leaderboardPrefs.type)} · Primary rank: ${escHTML(rankLabel)} · Showing top ${parsed.length}</span>
                     </div>
                     <div class="leaderboard-table">
@@ -2211,7 +2211,6 @@
             } catch (e) {
                 body.innerHTML = `
                     <div class="assistant-empty">Could not load the WCA leaderboard right now. Try <code>world</code>, <code>europe</code>, or a country code like <code>US</code>.</div>
-                    <div class="leaderboard-meta"><a href="https://wca-rest-api.robiningelbrecht.be/" target="_blank" rel="noopener">Open the API docs directly</a></div>
                 `;
             }
         }

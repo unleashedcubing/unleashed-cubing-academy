@@ -58,6 +58,24 @@ module.exports = async (req, res) => {
             }
         }));
         const personMap = new Map(personDetails.filter(Boolean).map(p => [p.id, p]));
+        const normalizedRegion = String(region || '').trim().toUpperCase();
+        const rows = top.map(item => {
+            const person = personMap.get(item.personId);
+            const worldRank = rankValue(item?.rank?.world);
+            const continentRank = rankValue(item?.rank?.continent);
+            const countryRank = rankValue(item?.rank?.country);
+            return {
+                rank: rankScope === 'world' ? worldRank : (rankScope === 'continent' ? continentRank : countryRank),
+                worldRank,
+                continentRank,
+                countryRank,
+                result: bestToDisplay(item.best, type),
+                person: person?.name || item.personId,
+                country: person?.country || '',
+                personId: item.personId,
+                wcaUrl: person?.wcaUrl || `https://www.worldcubeassociation.org/persons/${encodeURIComponent(item.personId)}`
+            };
+        }).filter(row => rankScope !== 'country' || String(row.country || '').trim().toUpperCase() === normalizedRegion);
         return res.status(200).json({
             source: 'wca-rest-api.robiningelbrecht.be',
             sourceUrl: 'https://wca-rest-api.robiningelbrecht.be/',
@@ -66,23 +84,7 @@ module.exports = async (req, res) => {
             rankScope,
             event,
             type,
-            items: top.map(item => {
-                const person = personMap.get(item.personId);
-                const worldRank = rankValue(item?.rank?.world);
-                const continentRank = rankValue(item?.rank?.continent);
-                const countryRank = rankValue(item?.rank?.country);
-                return {
-                    rank: rankScope === 'world' ? worldRank : (rankScope === 'continent' ? continentRank : countryRank),
-                    worldRank,
-                    continentRank,
-                    countryRank,
-                    result: bestToDisplay(item.best, type),
-                    person: person?.name || item.personId,
-                    country: person?.country || '',
-                    personId: item.personId,
-                    wcaUrl: person?.wcaUrl || `https://www.worldcubeassociation.org/persons/${encodeURIComponent(item.personId)}`
-                };
-            })
+            items: rows
         });
     } catch (err) {
         return res.status(502).json({ error: err?.message || String(err), url });
