@@ -2,6 +2,7 @@
         import { randomScrambleForEvent } from "https://cdn.cubing.net/v0/js/cubing/scramble";
         import { db } from './data.js';
         import { fbSync } from './firebase-sync.js';
+        import * as social from './social.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
 
         let openRouterConfig = { apiKey: '' };
@@ -647,6 +648,7 @@
         const statsView   = document.getElementById('stats-view');
         const leaderboardView = document.getElementById('leaderboard-view');
         const assistantView = document.getElementById('assistant-view');
+        const socialView  = document.getElementById('social-view');
         const planView    = document.getElementById('plan-view');
         const questsView  = document.getElementById('quests-view');
         document.querySelectorAll('.nav-item').forEach(tab => {
@@ -663,6 +665,7 @@
                     stats: statsView,
                     leaderboard: leaderboardView,
                     assistant: assistantView,
+                    social: socialView,
                     quests: questsView
                 };
                 Object.entries(views).forEach(([k, v]) => {
@@ -683,6 +686,7 @@
                 if (mode === 'stats') renderStats();
                 if (mode === 'leaderboard') renderLeaderboardPage();
                 if (mode === 'assistant') renderAssistantPage();
+                if (mode === 'social') renderSocialPage();
                 if (mode === 'quests') renderQuests();
                 if (mode === 'battles') showBattlesLobby();
                 if (mode === 'plan') renderPlanner();
@@ -1568,6 +1572,362 @@
             bindAssistantComposer(renderAssistantPage);
             if (profile.wca_id) loadUpcomingComps(profile.wca_id);
         }
+        function socialModeActive() {
+            return socialView && socialView.style.display !== 'none';
+        }
+        function socialSelectedFriendUid() {
+            const valid = (socialHubState.friends || []).some(item => item.id === socialPrefs.selectedFriendUid);
+            if (!valid) socialPrefs.selectedFriendUid = socialHubState.friends?.[0]?.id || '';
+            return socialPrefs.selectedFriendUid || '';
+        }
+        function socialAvatarMarkup(profileData, size = 'md') {
+            const src = escHTML(profileData?.photoURL || 'default-user-image.png');
+            const label = escHTML((profileData?.displayName || 'U').slice(0, 1).toUpperCase());
+            return `<div class="social-avatar ${size} ${profileData?.isOnline ? 'online' : ''}"><img src="${src}" alt="" onerror="this.style.display='none'; this.parentNode.classList.add('fallback');"><span>${label}</span></div>`;
+        }
+        function socialFriendlyTime(ms) {
+            if (!ms) return 'just now';
+            const diff = Math.max(0, Date.now() - ms);
+            if (diff < 60000) return 'just now';
+            if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`;
+            if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
+            return `${Math.round(diff / 86400000)}d ago`;
+        }
+        function stopSocialHubListener() {
+            if (socialHubUnsub) { try { socialHubUnsub(); } catch (_) {} socialHubUnsub = null; }
+        }
+        function stopSocialChatListener() {
+            if (socialChatUnsub) { try { socialChatUnsub(); } catch (_) {} socialChatUnsub = null; }
+            socialChatState = { friend: null, me: null, chatId: null, chat: null, messages: [], call: null };
+        }
+        function ensureSocialHubListener() {
+            if (socialHubUnsub || !fbSync.getUser()) return;
+            socialHubUnsub = social.listenSocialHub((state) => {
+                socialHubState = state;
+                socialSelectedFriendUid();
+                saveSocialPrefs();
+                ensureSocialChatListener();
+                if (socialModeActive()) renderSocialPage();
+            });
+        }
+        function ensureSocialChatListener() {
+            const friendUid = socialSelectedFriendUid();
+            if (!friendUid || !fbSync.getUser()) { stopSocialChatListener(); return; }
+            if (socialChatState.friend?.uid === friendUid && socialChatUnsub) return;
+            stopSocialChatListener();
+            socialChatUnsub = social.listenDirectChat(friendUid, (state) => {
+                socialChatState = state;
+                if (socialModeActive()) renderSocialPage();
+            });
+        }
+        function socialCallBanner() {
+            const call = socialChatState.call;
+            const me = fbSync.getUser();
+            if (!call || !me) return '';
+            const incoming = call.status === 'ringing' && call.callerUid && call.callerUid !== me.uid;
+            const active = call.status === 'active';
+            const ringingOut = call.status === 'ringing' && call.callerUid === me.uid;
+            return `<div class="social-call-banner ${active ? 'active' : ''}">
+                <div>
+                    <div class="social-call-title">${active ? 'Voice chat live' : (incoming ? 'Incoming voice call' : 'Calling friend...')}</div>
+                    <div class="social-call-sub">${active ? 'Your DM is connected by voice.' : (incoming ? 'Accept to join the cubing voice chat.' : 'Waiting for your friend to pick up.')}</div>
+                </div>
+                <div class="social-call-actions">
+                    ${incoming ? `<button class="train-cta" id="social-accept-call">Join VC</button>` : ''}
+                    ${ringingOut || active || incoming ? `<button class="train-quick-btn" id="social-end-call">${active ? 'Leave VC' : 'Cancel'}</button>` : ''}
+                </div>
+            </div>`;
+        }
+        function renderSocialPage() {
+            const user = fbSync.getUser();
+            if (!user) {
+                socialView.innerHTML = `
+                    <div class="app-page-shell">
+                        ${appPageHeading('Social', 'Friend requests, Discord-style chat, battle invites, and friend voice chat.')}
+                        <div class="train-panel social-signin-panel">
+                            <div class="social-signin-title">Sign in with Google to unlock Social</div>
+                            <div class="social-signin-sub">Friends, battle invites, and voice chat all use your real-time cloud account.</div>
+                            <button class="train-cta" id="social-signin-btn">Sign in with Google</button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('social-signin-btn')?.addEventListener('click', () => openSigninModal());
+                stopSocialHubListener();
+                stopSocialChatListener();
+                return;
+            }
+            ensureSocialHubListener();
+            ensureSocialChatListener();
+            const selectedFriendUid = socialSelectedFriendUid();
+            const selectedFriend = socialHubState.friends.find(item => item.id === selectedFriendUid)?.profile || socialChatState.friend;
+            const msgs = socialChatState.messages || [];
+            socialView.innerHTML = `
+                <div class="app-page-shell social-page-shell">
+                    ${appPageHeading('Social', 'Build your cube squad with friending, DMs, VC, and one-click battle invites.')}
+                    <div class="social-shell">
+                        <aside class="train-panel social-left">
+                            <div class="social-me-card">
+                                ${socialAvatarMarkup(socialHubState.me || { displayName: user.displayName || 'You', photoURL: user.photoURL || '', isOnline: true }, 'lg')}
+                                <div>
+                                    <div class="social-me-name">${escHTML(socialHubState.me?.displayName || user.displayName || user.email || 'You')}</div>
+                                    <div class="social-me-code">Friend code: <code>${escHTML(socialHubState.me?.friendCode || '')}</code></div>
+                                </div>
+                            </div>
+                            <div class="social-add-card">
+                                <div class="panel-title"><span>Add Friend</span></div>
+                                <div class="social-add-row">
+                                    <input type="text" id="social-friend-code" class="pe-input" placeholder="Friend code" value="${escHTML(socialPrefs.friendCodeInput || '')}">
+                                    <button class="train-cta" id="social-add-friend">Send</button>
+                                </div>
+                            </div>
+                            <div class="social-left-section">
+                                <div class="panel-title"><span>Requests</span><span class="assistant-model-pill">${(socialHubState.incoming || []).length}</span></div>
+                                <div class="social-request-list">
+                                    ${(socialHubState.incoming || []).length ? socialHubState.incoming.map(req => `
+                                        <div class="social-request-card">
+                                            <div class="social-request-main">
+                                                ${socialAvatarMarkup(req.profile)}
+                                                <div>
+                                                    <div class="social-request-name">${escHTML(req.profile?.displayName || 'Friend')}</div>
+                                                    <div class="social-request-sub">Incoming request</div>
+                                                </div>
+                                            </div>
+                                            <div class="social-request-actions">
+                                                <button class="train-quick-btn social-req-accept" data-request-id="${escHTML(req.id)}">Accept</button>
+                                                <button class="train-quick-btn social-req-decline" data-request-id="${escHTML(req.id)}">Decline</button>
+                                            </div>
+                                        </div>`).join('') : `<div class="social-empty-small">No pending requests.</div>`}
+                                </div>
+                            </div>
+                            <div class="social-left-section">
+                                <div class="panel-title"><span>Friends</span><span class="assistant-model-pill">${(socialHubState.friends || []).length}</span></div>
+                                <div class="social-friend-list">
+                                    ${(socialHubState.friends || []).length ? socialHubState.friends.map(item => `
+                                        <button class="social-friend-row ${item.id === selectedFriendUid ? 'active' : ''}" data-friend-uid="${escHTML(item.id)}">
+                                            ${socialAvatarMarkup(item.profile)}
+                                            <div class="social-friend-meta">
+                                                <div class="social-friend-name">${escHTML(item.profile?.displayName || 'Friend')}</div>
+                                                <div class="social-friend-status">${item.profile?.isOnline ? 'Online' : `Last seen ${escHTML(socialFriendlyTime(item.profile?.lastSeenAt))}`}</div>
+                                            </div>
+                                        </button>
+                                    `).join('') : `<div class="social-empty-small">Add a friend to start chatting.</div>`}
+                                </div>
+                            </div>
+                        </aside>
+                        <section class="train-panel social-center">
+                            ${selectedFriend ? `
+                                <div class="social-chat-head">
+                                    <div class="social-chat-head-main">
+                                        ${socialAvatarMarkup(selectedFriend, 'lg')}
+                                        <div>
+                                            <div class="social-chat-name">${escHTML(selectedFriend.displayName || 'Friend')}</div>
+                                            <div class="social-chat-sub">${selectedFriend.isOnline ? 'Online now' : `Offline · ${escHTML(socialFriendlyTime(selectedFriend.lastSeenAt))}`}</div>
+                                        </div>
+                                    </div>
+                                    <div class="social-chat-head-actions">
+                                        <button class="train-quick-btn" id="social-start-call">VC</button>
+                                        <button class="train-quick-btn" id="social-remove-friend">Remove Friend</button>
+                                    </div>
+                                </div>
+                                ${socialCallBanner()}
+                                <div class="social-message-list" id="social-message-list">
+                                    ${msgs.length ? msgs.map(msg => `
+                                        <div class="social-message-row ${msg.authorUid === user.uid ? 'me' : ''}">
+                                            ${socialAvatarMarkup({ displayName: msg.authorName || 'U', photoURL: msg.authorUid === user.uid ? (user.photoURL || '') : (selectedFriend.photoURL || ''), isOnline: msg.authorUid === user.uid || selectedFriend.isOnline })}
+                                            <div class="social-message-bubble">
+                                                <div class="social-message-meta">${escHTML(msg.authorUid === user.uid ? 'You' : (msg.authorName || selectedFriend.displayName || 'Friend'))} · ${escHTML(socialFriendlyTime(msg.createdAtMs))}</div>
+                                                <div class="social-message-text">${escHTML(msg.text || '').replace(/\n/g, '<br>')}</div>
+                                            </div>
+                                        </div>`).join('') : `<div class="social-empty-chat">No messages yet. Start the squad chat.</div>`}
+                                </div>
+                                <div class="social-compose">
+                                    <textarea id="social-message-input" class="pe-input social-message-input" rows="2" placeholder="Message ${escHTML(selectedFriend.displayName || 'your friend')}..."></textarea>
+                                    <button class="train-cta" id="social-send-message">Send</button>
+                                </div>
+                            ` : `
+                                <div class="social-empty-large">
+                                    <div class="social-empty-large-title">Pick a friend to open chat</div>
+                                    <div class="social-empty-large-sub">Your DMs, battle invites, and VC controls live here.</div>
+                                </div>
+                            `}
+                        </section>
+                        <aside class="train-panel social-right">
+                            <div class="panel-title"><span>Battle Invite</span></div>
+                            ${selectedFriend ? `
+                                <div class="social-battle-form">
+                                    <select id="social-battle-event" class="stats-filter-select">
+                                        <option value="222" ${socialPrefs.battleEvent === '222' ? 'selected' : ''}>2x2</option>
+                                        <option value="333" ${socialPrefs.battleEvent === '333' ? 'selected' : ''}>3x3</option>
+                                        <option value="pyram" ${socialPrefs.battleEvent === 'pyram' ? 'selected' : ''}>Pyraminx</option>
+                                    </select>
+                                    <select id="social-battle-mode" class="stats-filter-select">
+                                        <option value="ao5" ${socialPrefs.battleMode === 'ao5' ? 'selected' : ''}>Ao5</option>
+                                        <option value="sets" ${socialPrefs.battleMode === 'sets' ? 'selected' : ''}>Sets</option>
+                                        <option value="infinite" ${socialPrefs.battleMode === 'infinite' ? 'selected' : ''}>Infinite</option>
+                                    </select>
+                                    <select id="social-battle-target" class="stats-filter-select" ${socialPrefs.battleMode === 'sets' ? '' : 'disabled'}>
+                                        <option value="3" ${String(socialPrefs.battleTarget) === '3' ? 'selected' : ''}>First to 3</option>
+                                        <option value="5" ${String(socialPrefs.battleTarget) === '5' ? 'selected' : ''}>First to 5</option>
+                                        <option value="7" ${String(socialPrefs.battleTarget) === '7' ? 'selected' : ''}>First to 7</option>
+                                    </select>
+                                    <button class="train-cta" id="social-send-battle">Invite ${escHTML(selectedFriend.displayName || 'Friend')} to Battle</button>
+                                </div>
+                            ` : `<div class="social-empty-small">Select a friend first.</div>`}
+                            <div class="social-right-section">
+                                <div class="panel-title"><span>Battle Inbox</span><span class="assistant-model-pill">${(socialHubState.invites || []).length}</span></div>
+                                <div class="social-invite-list">
+                                    ${(socialHubState.invites || []).length ? socialHubState.invites.map(invite => `
+                                        <div class="social-invite-card">
+                                            <div class="social-invite-title">${escHTML(invite.fromProfile?.displayName || 'Friend')} invited you</div>
+                                            <div class="social-invite-sub">${escHTML(({ '222':'2x2', '333':'3x3', 'pyram':'Pyraminx' }[invite.puzzle] || invite.puzzle))} · ${escHTML(invite.mode)}</div>
+                                            <div class="social-request-actions">
+                                                <button class="train-quick-btn social-invite-accept" data-invite-id="${escHTML(invite.id)}">Join</button>
+                                                <button class="train-quick-btn social-invite-decline" data-invite-id="${escHTML(invite.id)}">Decline</button>
+                                            </div>
+                                        </div>
+                                    `).join('') : `<div class="social-empty-small">No battle invites waiting.</div>`}
+                                </div>
+                            </div>
+                            <div class="social-right-section">
+                                <div class="panel-title"><span>Outgoing Requests</span></div>
+                                <div class="social-outgoing-list">
+                                    ${(socialHubState.outgoing || []).length ? socialHubState.outgoing.map(req => `
+                                        <div class="social-outgoing-card">
+                                            ${socialAvatarMarkup(req.profile)}
+                                            <div>
+                                                <div class="social-request-name">${escHTML(req.profile?.displayName || 'Friend')}</div>
+                                                <div class="social-request-sub">Pending</div>
+                                            </div>
+                                        </div>
+                                    `).join('') : `<div class="social-empty-small">No pending outgoing requests.</div>`}
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+            `;
+            document.getElementById('social-signin-btn')?.addEventListener('click', () => openSigninModal());
+            document.getElementById('social-friend-code')?.addEventListener('input', (e) => {
+                socialPrefs.friendCodeInput = e.target.value;
+                saveSocialPrefs();
+            });
+            document.getElementById('social-add-friend')?.addEventListener('click', async () => {
+                if (socialBusy) return;
+                socialBusy = true;
+                try {
+                    await social.sendFriendRequestByCode(document.getElementById('social-friend-code')?.value || '');
+                    socialPrefs.friendCodeInput = '';
+                    saveSocialPrefs();
+                    renderSocialPage();
+                } catch (e) {
+                    alert(e.message || e);
+                } finally {
+                    socialBusy = false;
+                }
+            });
+            socialView.querySelectorAll('.social-req-accept').forEach(btn => btn.addEventListener('click', async () => {
+                try { await social.acceptFriendRequest(btn.dataset.requestId); } catch (e) { alert(e.message || e); }
+            }));
+            socialView.querySelectorAll('.social-req-decline').forEach(btn => btn.addEventListener('click', async () => {
+                try { await social.declineFriendRequest(btn.dataset.requestId); } catch (e) { alert(e.message || e); }
+            }));
+            socialView.querySelectorAll('.social-friend-row').forEach(btn => btn.addEventListener('click', () => {
+                socialPrefs.selectedFriendUid = btn.dataset.friendUid || '';
+                saveSocialPrefs();
+                ensureSocialChatListener();
+                renderSocialPage();
+            }));
+            document.getElementById('social-remove-friend')?.addEventListener('click', async () => {
+                if (!selectedFriendUid) return;
+                if (!window.confirm(`Remove ${selectedFriend?.displayName || 'this friend'} from your friends list?`)) return;
+                try {
+                    await social.removeFriend(selectedFriendUid);
+                    if (socialPrefs.selectedFriendUid === selectedFriendUid) socialPrefs.selectedFriendUid = '';
+                    saveSocialPrefs();
+                } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-send-message')?.addEventListener('click', async () => {
+                const input = document.getElementById('social-message-input');
+                if (!selectedFriendUid || !input) return;
+                try {
+                    await social.sendDirectMessage(selectedFriendUid, input.value);
+                    input.value = '';
+                } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-message-input')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    document.getElementById('social-send-message')?.click();
+                }
+            });
+            document.getElementById('social-start-call')?.addEventListener('click', async () => {
+                if (!selectedFriendUid) return;
+                try { await social.startVoiceCall(selectedFriendUid); } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-accept-call')?.addEventListener('click', async () => {
+                if (!socialChatState.chatId || !socialChatState.call?.id) return;
+                try { await social.acceptVoiceCall(socialChatState.chatId, socialChatState.call.id); } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-end-call')?.addEventListener('click', async () => {
+                try { await social.endVoiceCall(); } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-battle-mode')?.addEventListener('change', (e) => {
+                socialPrefs.battleMode = e.target.value || 'ao5';
+                saveSocialPrefs();
+                renderSocialPage();
+            });
+            document.getElementById('social-battle-event')?.addEventListener('change', (e) => {
+                socialPrefs.battleEvent = e.target.value || '333';
+                saveSocialPrefs();
+            });
+            document.getElementById('social-battle-target')?.addEventListener('change', (e) => {
+                socialPrefs.battleTarget = parseInt(e.target.value, 10) || 3;
+                saveSocialPrefs();
+            });
+            document.getElementById('social-send-battle')?.addEventListener('click', async () => {
+                if (!selectedFriendUid) return;
+                try {
+                    const battles = await import('./battles.js');
+                    const code = await battles.createBattle({
+                        puzzle: socialPrefs.battleEvent || '333',
+                        maxPlayers: 2,
+                        mode: socialPrefs.battleMode || 'ao5',
+                        target: socialPrefs.battleTarget || 3
+                    });
+                    await social.createBattleInvite(selectedFriendUid, {
+                        code,
+                        puzzle: socialPrefs.battleEvent,
+                        mode: socialPrefs.battleMode,
+                        target: socialPrefs.battleMode === 'sets' ? socialPrefs.battleTarget : null
+                    });
+                    await social.sendDirectMessage(selectedFriendUid, `Battle invite sent. Code: ${code}`, 'system');
+                    alert('Battle invite sent.');
+                } catch (e) { alert(e.message || e); }
+            });
+            socialView.querySelectorAll('.social-invite-accept').forEach(btn => btn.addEventListener('click', async () => {
+                try {
+                    const invite = await social.acceptBattleInvite(btn.dataset.inviteId);
+                    const battles = await import('./battles.js');
+                    await battles.joinBattle(invite.battleCode);
+                    battleCode = invite.battleCode;
+                    showBattlesRoom();
+                    attachBattleListener(invite.battleCode);
+                    document.querySelector('.nav-item[data-mode="battles"]')?.click();
+                } catch (e) { alert(e.message || e); }
+            }));
+            socialView.querySelectorAll('.social-invite-decline').forEach(btn => btn.addEventListener('click', async () => {
+                try { await social.declineBattleInvite(btn.dataset.inviteId); } catch (e) { alert(e.message || e); }
+            }));
+            const messageList = document.getElementById('social-message-list');
+            if (messageList) messageList.scrollTop = messageList.scrollHeight;
+        }
+        fbSync.onUserChange(() => {
+            if (!fbSync.getUser()) {
+                stopSocialHubListener();
+                stopSocialChatListener();
+            }
+            if (socialModeActive()) renderSocialPage();
+        });
         function renderStats() {
             // --- Personal records across all puzzles ---
             const perPuzzle = PUZZLES_FOR_STATS.map(pid => {
@@ -1928,6 +2288,14 @@
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
+        let socialPrefs = LS.get('socialPrefs', { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3 });
+        if (!socialPrefs || typeof socialPrefs !== 'object') socialPrefs = { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3 };
+        function saveSocialPrefs() { LS.set('socialPrefs', socialPrefs); }
+        let socialHubState = { me: null, friends: [], incoming: [], outgoing: [], invites: [] };
+        let socialChatState = { friend: null, me: null, chatId: null, chat: null, messages: [], call: null };
+        let socialHubUnsub = null;
+        let socialChatUnsub = null;
+        let socialBusy = false;
         let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '' });
         if (!leaderboardPrefs || typeof leaderboardPrefs !== 'object') leaderboardPrefs = { event: '333', type: 'single', country: '' };
         if ('gender' in leaderboardPrefs) delete leaderboardPrefs.gender;
