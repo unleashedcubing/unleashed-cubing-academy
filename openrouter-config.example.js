@@ -12,6 +12,7 @@ export const openrouterConfig = {
 };
 
 // Current free-model stack verified on OpenRouter on July 2, 2026:
+// - nvidia/nemotron-3-super-120b-a12b:free
 // - qwen/qwen3-next-80b-a3b-instruct:free
 // - openai/gpt-oss-120b:free
 // - google/gemma-4-31b-it:free

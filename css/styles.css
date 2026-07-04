@@ -1235,6 +1235,18 @@
             color: var(--text-muted);
             font-size: 0.88rem;
         }
+        .assistant-beta-badge {
+            display: inline-flex;
+            margin-left: 8px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--orange);
+            background: color-mix(in srgb, var(--orange) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--orange) 40%, transparent);
+            vertical-align: middle;
+        }
         .assistant-chat-toolbar {
             margin-bottom: 0;
         }
@@ -1308,6 +1320,59 @@
             align-items: center;
             gap: 10px;
         }
+        .assistant-comp-picker {
+            grid-column: 2 / 4;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .assistant-comp-picker-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+        .assistant-comp-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .assistant-comp-card {
+            appearance: none;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.02);
+            color: var(--text-main);
+            border-radius: 16px;
+            padding: 12px;
+            text-align: left;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .assistant-comp-card:hover {
+            transform: translateY(-1px);
+            border-color: color-mix(in srgb, var(--orange) 45%, transparent);
+            background: color-mix(in srgb, var(--orange) 8%, transparent);
+        }
+        .assistant-comp-card-name {
+            display: block;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .assistant-comp-card-meta,
+        .assistant-comp-card-events,
+        .assistant-comp-picker-empty {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
         .assistant-compose-model {
             font-size: 0.82rem;
             color: var(--text-muted);
@@ -1357,6 +1422,17 @@
         }
         .assistant-thinking-msg {
             min-width: 110px;
+        }
+        .battles-live-count {
+            display: inline-flex;
+            margin-top: 12px;
+            align-self: flex-start;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            color: var(--orange);
+            background: color-mix(in srgb, var(--orange) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
         }
         .social-page-shell {
             min-height: 78vh;

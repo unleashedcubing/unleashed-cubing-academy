@@ -1185,9 +1185,26 @@
         }
         function assistantKeyStatusText() {
             const source = assistantKeySource();
-            if (source === 'config') return 'OpenRouter key loaded from local openrouter-config.js.';
-            if (source === 'browser') return 'OpenRouter key saved locally in this browser.';
-            return 'No local OpenRouter key saved. If your backend route is deployed, the assistant can still work without exposing a browser key.';
+            if (source === 'config') return 'Cubey is connected and ready.';
+            if (source === 'browser') return 'Cubey is connected on this device.';
+            return 'Cubey will work once your assistant connection is set up.';
+        }
+        function slugifyCompetitionName(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/&/g, ' and ')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .slice(0, 90);
+        }
+        function competitionCommandText(comp) {
+            const wcaId = String(profile.wca_id || '').trim().toUpperCase();
+            const slug = slugifyCompetitionName(comp?.name || comp?.id || 'competition');
+            return `/competition:${slug}:${wcaId}`;
+        }
+        function competitionCommandHint(comp) {
+            const events = Array.isArray(comp?.event_ids) && comp.event_ids.length ? ` · ${comp.event_ids.join(', ')}` : '';
+            return `${comp?.name || 'Competition'}${events}`;
         }
         function regionMetaCandidates() {
             const countries = Array.isArray(window.__ucWcaMeta?.countries) ? window.__ucWcaMeta.countries : [];
@@ -1419,12 +1436,59 @@
             const assistantInput = document.getElementById('assistant-input');
             const assistantStatus = document.getElementById('assistant-key-status');
             if (assistantStatus) assistantStatus.textContent = assistantKeyStatusText();
+            function updateCompetitionPicker() {
+                const box = document.getElementById('assistant-comp-picker');
+                if (!box || !assistantInput) return;
+                const raw = assistantInput.value || '';
+                const wantsComp = raw.trim().toLowerCase().startsWith('/competition');
+                const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
+                if (!wantsComp) {
+                    box.style.display = 'none';
+                    box.innerHTML = '';
+                    return;
+                }
+                box.style.display = '';
+                if (!profile.wca_id) {
+                    box.innerHTML = `<div class="assistant-comp-picker-empty">Link your WCA account first to use competition-specific prep.</div>`;
+                    return;
+                }
+                if (!comps.length) {
+                    box.innerHTML = `<div class="assistant-comp-picker-empty">No upcoming registered competitions found for your linked WCA account yet.</div>`;
+                    return;
+                }
+                box.innerHTML = `
+                    <div class="assistant-comp-picker-head">
+                        <span>Choose a competition</span>
+                        <span class="assistant-model-pill">WCA linked</span>
+                    </div>
+                    <div class="assistant-comp-picker-grid">
+                        ${comps.map(comp => `
+                            <button class="assistant-comp-card" data-comp-command="${escHTML(competitionCommandText(comp))}" data-comp-id="${escHTML(comp.id || comp.name || '')}">
+                                <span class="assistant-comp-card-name">${escHTML(comp.name || 'Competition')}</span>
+                                <span class="assistant-comp-card-meta">${escHTML((comp.start_date || '').slice(0, 10))}${comp.city ? ` · ${escHTML(comp.city)}` : ''}</span>
+                                <span class="assistant-comp-card-events">${escHTML((comp.event_ids || []).join(', ') || 'events loading')}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                box.querySelectorAll('[data-comp-command]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        assistantPrefs.competitionId = btn.getAttribute('data-comp-id') || '';
+                        saveAssistantPrefs();
+                        assistantInput.value = `${btn.getAttribute('data-comp-command') || '/competition'} `;
+                        assistantInput.focus();
+                        assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+                        updateCompetitionPicker();
+                    });
+                });
+            }
             document.querySelectorAll('[data-assistant-starter]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     if (!assistantInput) return;
                     assistantInput.value = btn.getAttribute('data-assistant-starter') || '';
                     assistantInput.focus();
                     assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+                    updateCompetitionPicker();
                 });
             });
             document.getElementById('assistant-model-select')?.addEventListener('change', (e) => {
@@ -1453,6 +1517,7 @@
                 assistantInput.value = '/competition ';
                 assistantInput.focus();
                 assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
+                updateCompetitionPicker();
             });
             async function submitAssistantPrompt() {
                 if (!assistantInput) return;
@@ -1464,6 +1529,7 @@
                 assistantPending = true;
                 renderAssistantHistory();
                 assistantInput.value = '';
+                updateCompetitionPicker();
                 const sendBtn = document.getElementById('assistant-send');
                 if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking'; }
                 try {
@@ -1487,6 +1553,8 @@
                     submitAssistantPrompt();
                 }
             });
+            assistantInput?.addEventListener('input', updateCompetitionPicker);
+            updateCompetitionPicker();
         }
         function renderLeaderboardPage() {
             leaderboardView.innerHTML = `
@@ -1528,33 +1596,27 @@
                     <div class="assistant-chat-shell">
                         <div class="assistant-chat-head">
                             <div>
-                                <div class="assistant-chat-title">Unleashed Coach</div>
-                                <div class="assistant-chat-sub">Training guidance powered by your solves, goals, WCA context, and competition plans.</div>
+                                <div class="assistant-chat-title">Cubey <span class="assistant-beta-badge">Beta</span></div>
+                                <div class="assistant-chat-sub">Your cubing coach for training blocks, comp prep, nerves, packing, and progress reviews.</div>
                             </div>
-                            <span class="assistant-model-pill">${assistantModelLabel(assistantPrefs.model)}</span>
+                            <span class="assistant-model-pill">AI Coach</span>
                         </div>
                         <div class="assistant-toolbar assistant-chat-toolbar">
-                            <select id="assistant-model-select" class="stats-filter-select">
-                                ${ASSISTANT_MODELS.map(model => `<option value="${model.id}" ${assistantPrefs.model === model.id ? 'selected' : ''}>${escHTML(model.label)}</option>`).join('')}
-                            </select>
                             <select id="assistant-comp-select" class="stats-filter-select">
                                 <option value="">No competition focus</option>
                             </select>
-                            <button class="train-quick-btn" id="assistant-set-key">Set OpenRouter Key</button>
                             <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
-                        <div class="assistant-secret-note assistant-chat-note">
-                            Preferred setup: deploy <code>${escHTML(assistantBackendUrl())}</code> with your server-side key, then keep the browser key empty. Default model: NVIDIA Nemotron 3 Super Free, with free-model fallbacks if it is unavailable.
-                        </div>
                         <div class="assistant-chat-panel">
                             <div class="assistant-history assistant-chat-history" id="cubing-assistant-history"></div>
                             <div class="assistant-compose assistant-chat-compose">
                                 <div class="assistant-compose-main">
                                     <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
                                     <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Ask for drills, comp prep, analysis, or a training plan..."></textarea>
+                                    <div class="assistant-comp-picker" id="assistant-comp-picker" style="display:none;"></div>
                                     <div class="assistant-compose-actions">
-                                        <span class="assistant-compose-model">${assistantModelLabel(assistantPrefs.model)}</span>
+                                        <span class="assistant-compose-model">Cubey is learning with you</span>
                                         <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
                                     </div>
                                 </div>
@@ -1643,10 +1705,10 @@
             if (!user) {
                 socialView.innerHTML = `
                     <div class="app-page-shell">
-                        ${appPageHeading('Social', 'Friend requests, Discord-style chat, battle invites, and friend voice chat.')}
+                        ${appPageHeading('Social', 'Your cube squad, DMs, battle invites, and voice chat.')}
                         <div class="train-panel social-signin-panel">
-                            <div class="social-signin-title">Sign in with Google to unlock Social</div>
-                            <div class="social-signin-sub">Friends, battle invites, and voice chat all use your real-time cloud account.</div>
+                            <div class="social-signin-title">Sign in to unlock Social</div>
+                            <div class="social-signin-sub">Bring your friends, chats, invites, and voice rooms together in one place.</div>
                             <button class="train-cta" id="social-signin-btn">Sign in with Google</button>
                         </div>
                     </div>
@@ -1663,7 +1725,7 @@
             const msgs = socialChatState.messages || [];
             socialView.innerHTML = `
                 <div class="app-page-shell social-page-shell">
-                    ${appPageHeading('Social', 'Build your cube squad with friending, DMs, VC, and one-click battle invites.')}
+                    ${appPageHeading('Social', 'Build your cube squad with friend requests, DMs, voice rooms, and one-click battle invites.')}
                     <div class="social-shell">
                         <aside class="train-panel social-left">
                             <div class="social-me-card">
@@ -1672,6 +1734,7 @@
                                     <div class="social-me-name">${escHTML(socialHubState.me?.displayName || user.displayName || user.email || 'You')}</div>
                                     <div class="social-me-code">Friend code: <code>${escHTML(socialHubState.me?.friendCode || '')}</code></div>
                                 </div>
+                                <button class="train-quick-btn" id="social-copy-code">Copy</button>
                             </div>
                             <div class="social-add-card">
                                 <div class="panel-title"><span>Add Friend</span></div>
@@ -1700,7 +1763,7 @@
                                 </div>
                             </div>
                             <div class="social-left-section">
-                                <div class="panel-title"><span>Friends</span><span class="assistant-model-pill">${(socialHubState.friends || []).length}</span></div>
+                                <div class="panel-title"><span>Chats</span><span class="assistant-model-pill">${(socialHubState.friends || []).length}</span></div>
                                 <div class="social-friend-list">
                                     ${(socialHubState.friends || []).length ? socialHubState.friends.map(item => `
                                         <button class="social-friend-row ${item.id === selectedFriendUid ? 'active' : ''}" data-friend-uid="${escHTML(item.id)}">
@@ -1807,6 +1870,11 @@
                 </div>
             `;
             document.getElementById('social-signin-btn')?.addEventListener('click', () => openSigninModal());
+            document.getElementById('social-copy-code')?.addEventListener('click', async () => {
+                const code = socialHubState.me?.friendCode || '';
+                if (!code) return;
+                try { if (navigator.clipboard) await navigator.clipboard.writeText(code); } catch (_) {}
+            });
             document.getElementById('social-friend-code')?.addEventListener('input', (e) => {
                 socialPrefs.friendCodeInput = e.target.value;
                 saveSocialPrefs();
@@ -2276,7 +2344,7 @@
         }
 
         const ASSISTANT_MODELS = [
-            { id: 'nvidia/nemotron-3-super:free', label: 'NVIDIA Nemotron 3 Super Free', kind: 'nemotron', free: true },
+            { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super', kind: 'nemotron', free: true },
             { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B Free', kind: 'qwen', free: true },
             { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', kind: 'gpt', free: true },
             { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B Free', kind: 'gemma', free: true },
@@ -2376,7 +2444,7 @@
         }
         function buildAssistantSystemPrompt() {
             return [
-                'You are Unleashed Cubing Academy\'s cubing assistant.',
+                'You are Cubey, the beta cubing coach inside Unleashed Cubing Academy.',
                 'You are an expert speedcubing coach, well versed in WCA regulations, event strategy, common algorithm sets, practice planning, competition prep, and mindset.',
                 'Use the user\'s WCA official times, recent solves, goals, algorithm progress, and selected competition to give concrete coaching.',
                 'Be specific, practical, encouraging, and honest.',
@@ -2439,12 +2507,19 @@
         function assistantErrorMessage(message) {
             const text = String(message || '').trim();
             if (/rate-limit|rate limited|429/i.test(text)) {
-                return 'That free model is rate-limited right now. Nemotron is the default, but you can switch models or use the backend route with your server-side key.';
+                return 'Cubey is busy right now. Try again in a moment.';
             }
             if (/backend_unavailable/i.test(text)) {
-                return 'The backend assistant route is not deployed yet.';
+                return 'Cubey is not connected yet on this deployment.';
             }
             return text || 'The assistant request failed.';
+        }
+        function refreshRoadmapTask(label, done) {
+            const roadmap = (plannerData.plans || []).find(p => p.id === 'uc-product-roadmap');
+            const task = roadmap?.tasks?.find(t => t.text === label);
+            if (!task) return;
+            task.done = !!done;
+            savePlanner();
         }
         async function askCubingAssistant(userPrompt) {
             const context = buildAssistantContext(userPrompt);
@@ -2464,7 +2539,7 @@
                 }
             }
             const key = getAssistantApiKey();
-            if (!key) throw new Error('Set a local OpenRouter key, or deploy the backend assistant route first.');
+            if (!key) throw new Error('Cubey is not connected yet.');
             let lastError = '';
             for (const model of assistantFallbackModels(assistantPrefs.model)) {
                 const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -2503,7 +2578,7 @@
                 body.innerHTML = `
                     <div class="assistant-empty-shell">
                         <div class="assistant-empty-mark">✺</div>
-                        <div class="assistant-empty-title">Evening, cuber.</div>
+                        <div class="assistant-empty-title">Cubey is ready.</div>
                         <div class="assistant-empty">Ask for solve breakdowns, event strategy, comp mindset help, or a focused practice block built from your data.</div>
                         <div class="assistant-starter-grid">
                             <button class="assistant-starter" data-assistant-starter="Help me drop my 3x3 ao5 by 2 seconds.">Drop my 3x3 ao5</button>
@@ -2517,18 +2592,18 @@
             panel?.classList.remove('is-empty');
             const historyMarkup = rows.map(row => `
                 <div class="assistant-row assistant-${row.role}">
-                    <div class="assistant-avatar">${row.role === 'user' ? 'Y' : 'U'}</div>
+                    <div class="assistant-avatar">${row.role === 'user' ? 'Y' : 'C'}</div>
                     <div class="assistant-msg assistant-${row.role}">
-                        <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Unleashed Coach'}</div>
+                        <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Cubey'}</div>
                         <div class="assistant-msg-body">${escHTML(row.content).replace(/\n/g, '<br>')}</div>
                     </div>
                 </div>
             `).join('');
             const pendingMarkup = assistantPending ? `
                 <div class="assistant-row assistant-assistant">
-                    <div class="assistant-avatar">U</div>
+                    <div class="assistant-avatar">C</div>
                     <div class="assistant-msg assistant-assistant assistant-thinking-msg">
-                        <div class="assistant-msg-role">Unleashed Coach</div>
+                        <div class="assistant-msg-role">Cubey</div>
                         <div class="assistant-thinking-dots" aria-label="Thinking">
                             <span></span><span></span><span></span>
                         </div>
@@ -2606,8 +2681,40 @@
         // ---- Training Planner ----
         let plannerData = LS.get('planner', { plans: [], algGoals: [] });
         if (!plannerData.algGoals) plannerData.algGoals = [];
+        if (!plannerData.plans) plannerData.plans = [];
         function savePlanner() { LS.set('planner', plannerData); }
         function genPlanId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+        function ensureProductRoadmapChecklist() {
+            const roadmapId = 'uc-product-roadmap';
+            const existing = plannerData.plans.find(p => p.id === roadmapId);
+            const tasks = [
+                ['Fix assistant model connection', true],
+                ['Rename the assistant to Cubey and mark it Beta', true],
+                ['Clean up technical UI copy and make assistant/social feel friendlier', true],
+                ['Add friend requests, DMs, voice chat, and battle invites', true],
+                ['Add /competition competition-picker cards above the assistant chat box', true],
+                ['Show live battle activity count in the Battles lobby', false],
+                ['Polish linked Google + WCA account messaging and UX', false],
+                ['Expand social into richer multi-chat / group chat support', false],
+                ['Make smart cubes, analog mic timers, and hardware timer flows production-ready', false],
+                ['Add battle mode artwork / hover visuals once assets are provided', false],
+                ['Design paid tier implementation plan without shipping billing code yet', false],
+                ['Plan merch + international shipping workflow', false]
+            ].map(([text, done], idx) => ({ id: `road-${idx}`, text, done }));
+            if (!existing) {
+                plannerData.plans.unshift({
+                    id: roadmapId,
+                    name: 'UC Product Roadmap Checklist',
+                    date: null,
+                    tasks
+                });
+                savePlanner();
+                return;
+            }
+            const byText = new Map((existing.tasks || []).map(task => [task.text, task]));
+            existing.tasks = tasks.map(task => byText.get(task.text) ? { ...task, done: byText.get(task.text).done } : task);
+        }
+        ensureProductRoadmapChecklist();
 
         // ---- Alg Goal helpers ----
         function buildAlgGoalSplits(category, totalDays, hasDrillDay) {
@@ -4690,7 +4797,7 @@
         const peWcaNote = document.getElementById('pe-wca-verified-note');
         function updateWcaVerifyNote() {
             if (!wcaEnabled) {
-                peWcaNote.textContent = 'WCA verification not configured. Edit wca-config.js to enable.';
+                peWcaNote.textContent = 'WCA linking is not configured yet on this deployment.';
                 peWcaVerifyBtn.disabled = true;
                 peWcaVerifyBtn.style.opacity = '0.5';
                 peWcaVerifyBtn.style.display = '';
@@ -4704,7 +4811,7 @@
                 peWcaVerifyBtn.style.display = 'none';
             } else if (profile.wca_id && profile.wca_records && Object.keys(profile.wca_records).length) {
                 // Linked via public lookup (not identity-verified)
-                peWcaNote.innerHTML = `Linked to <b>${escHTML(profile.wca_name || profile.wca_id)}</b> · <span style="opacity:.7">(public lookup)</span>`;
+                peWcaNote.innerHTML = `Linked to <b>${escHTML(profile.wca_name || profile.wca_id)}</b> · <span style="opacity:.7">Google sync can stay linked too.</span>`;
                 peWcaNote.style.color = '#5fe08c';
                 peWcaVerifyBtn.textContent = 'Verify identity with WCA';
                 peWcaVerifyBtn.style.display = '';
@@ -4731,7 +4838,7 @@
                     profile.wca_verified = false;     // public lookup, not identity-verified
                     profile.wca_records = pub.personal_records || {};
                     saveProfile();
-                    peWcaNote.innerHTML = `Linked to <b>${escHTML(pub.name || pub.wca_id)}</b> (public lookup). For a verified badge, click again to sign in with WCA.`;
+                    peWcaNote.innerHTML = `Linked to <b>${escHTML(pub.name || pub.wca_id)}</b>. Google sync can stay linked, and you can verify with WCA anytime.`;
                     peWcaNote.style.color = '#5fe08c';
                     if (statsView.style.display !== 'none') renderStats();
                     return;
@@ -4943,6 +5050,7 @@
         const battleModeLine   = document.getElementById('battle-mode-line');
         const battleCountdownOverlay = document.getElementById('battle-countdown-overlay');
         const battleCountdownNumber  = document.getElementById('battle-countdown-number');
+        const battlesLiveCountEl = document.getElementById('battles-live-count');
 
         let battleCode   = null;
         let battleData   = null;
@@ -4950,6 +5058,7 @@
         let battleUnsub  = null;
         let battleSubmitting = false;
         let battleCountdownTick = null;
+        let battlesCountUnsub = null;
 
         function battleMode() { return (battleData && battleData.mode) || 'ao5'; }
         function battleTarget() { return Math.max(1, parseInt((battleData && battleData.target) || 3, 10)); }
@@ -4974,6 +5083,22 @@
                 clearTimeout(battleCountdownTick);
                 battleCountdownTick = null;
             }
+        }
+        function ensureBattleLiveCountListener() {
+            if (battlesCountUnsub || !fbSync.enabled || !fbSync.getUser() || !battlesLiveCountEl) return;
+            const fs = fbSync.fs();
+            const dbInst = fbSync.db();
+            battlesCountUnsub = fs.onSnapshot(fs.collection(dbInst, 'battles'), (snap) => {
+                const live = snap.docs.map(doc => doc.data()).filter(item => item && item.state !== 'finished').length;
+                battlesLiveCountEl.textContent = `Live matches: ${live}`;
+                refreshRoadmapTask('Show live battle activity count in the Battles lobby', true);
+            }, () => {
+                battlesLiveCountEl.textContent = 'Live matches: —';
+            });
+        }
+        function stopBattleLiveCountListener() {
+            if (battlesCountUnsub) { try { battlesCountUnsub(); } catch (_) {} battlesCountUnsub = null; }
+            if (battlesLiveCountEl) battlesLiveCountEl.textContent = 'Live matches: —';
         }
         function updateBattleCountdownOverlay() {
             stopBattleCountdownLoop();
@@ -5036,6 +5161,7 @@
             battlesRoom.style.display = 'none';
             stopBattleCountdownLoop();
             updateBattlesGate();
+            ensureBattleLiveCountListener();
         }
 
         function updateBattlesGate() {
@@ -5329,6 +5455,10 @@
         });
         document.getElementById('battles-signin-btn')?.addEventListener('click', () => openSigninModal());
         fbSync.onUserChange(() => updateBattlesGate());
+        fbSync.onUserChange((u) => {
+            if (u) ensureBattleLiveCountListener();
+            else stopBattleLiveCountListener();
+        });
 
         battleReadyBtn.addEventListener('click', async () => {
             if (!battleCode || !fbSync.getUser()) return;
