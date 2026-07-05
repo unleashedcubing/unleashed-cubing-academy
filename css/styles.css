@@ -6171,3 +6171,292 @@
                 height: 34px;
             }
         }
+        @media (max-width: 640px) {
+            body {
+                background-attachment: scroll;
+            }
+            .app-shell {
+                flex-direction: column;
+                min-height: 100dvh;
+            }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                min-height: 0;
+                position: sticky;
+                top: 0;
+                z-index: 150;
+                padding: 12px 12px 10px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                overflow: visible;
+            }
+            .sidebar-brand {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+                padding: 0;
+                margin-bottom: 10px;
+            }
+            .brand-text {
+                display: block;
+                flex: 1;
+                font-size: 0.76rem;
+                line-height: 1.1;
+            }
+            .brand-mark {
+                width: 38px;
+                height: 38px;
+                border-radius: 11px;
+            }
+            .sidebar-nav {
+                display: flex;
+                flex-direction: row;
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 2px;
+                scrollbar-width: none;
+            }
+            .sidebar-nav::-webkit-scrollbar {
+                display: none;
+            }
+            .nav-item {
+                flex: 0 0 auto;
+                min-width: 72px;
+                padding: 10px 12px;
+                border-radius: 14px;
+                flex-direction: column;
+                justify-content: center;
+                gap: 6px;
+            }
+            .nav-item span {
+                display: block;
+                font-size: 0.72rem;
+                line-height: 1;
+            }
+            .sidebar-toggle,
+            .sidebar-foot {
+                display: none !important;
+            }
+            .main-content {
+                padding: 14px 12px 24px;
+            }
+            header {
+                margin-bottom: 24px;
+            }
+            h1 {
+                font-size: 2.35rem;
+                letter-spacing: -1px;
+            }
+            h2 {
+                font-size: 1.08rem;
+            }
+            .hover-hint {
+                top: auto;
+                right: 12px;
+                bottom: 72px;
+                left: 12px;
+                padding: 10px 14px;
+                font-size: 0.82rem;
+                border-radius: 14px;
+            }
+            .controls {
+                top: 12px;
+                gap: 10px;
+                margin-bottom: 28px;
+            }
+            .grid {
+                gap: 16px;
+            }
+            .card,
+            .train-panel {
+                border-radius: 22px;
+                padding: 18px;
+            }
+            .card:hover,
+            .train-cta:hover,
+            .train-quick-btn:hover,
+            .nav-item:hover {
+                transform: none;
+            }
+            select,
+            input[type="text"] {
+                font-size: 1rem;
+                padding: 12px 16px;
+                border-radius: 16px;
+            }
+            .uc-scramble {
+                font-size: 1.18rem;
+                padding: 14px;
+            }
+            .uc-bigtimer {
+                font-size: clamp(3rem, 14vw, 4.5rem);
+            }
+            .train-cube-wrap {
+                width: min(220px, 100%);
+            }
+            .app-page-shell {
+                padding: 0 0 28px;
+            }
+            .app-page-heading {
+                gap: 10px;
+                margin-bottom: 6px;
+            }
+            .page-title {
+                font-size: 1.55rem;
+            }
+            .page-sub {
+                font-size: 0.9rem;
+            }
+            .app-page-actions {
+                width: 100%;
+            }
+            .app-page-actions > * {
+                flex: 1 1 100%;
+            }
+            .assistant-chat-shell {
+                min-height: auto;
+                gap: 12px;
+            }
+            .assistant-chat-panel {
+                border-radius: 22px;
+            }
+            .assistant-chat-history {
+                padding: 16px 16px 8px;
+            }
+            .assistant-chat-compose {
+                padding: 12px;
+            }
+            .assistant-compose-main {
+                padding: 10px;
+                border-radius: 20px;
+                gap: 10px;
+            }
+            .assistant-comp-picker {
+                grid-column: 1 / -1;
+                padding: 10px;
+                border-radius: 16px;
+            }
+            .assistant-comp-picker-grid {
+                grid-template-columns: 1fr;
+            }
+            .assistant-msg {
+                border-radius: 18px;
+                padding: 12px 14px;
+            }
+            .social-shell {
+                gap: 12px;
+                min-height: auto;
+            }
+            .social-left,
+            .social-right {
+                padding: 16px;
+            }
+            .social-me-card,
+            .social-request-main,
+            .social-chat-head-main {
+                align-items: flex-start;
+            }
+            .social-friend-row,
+            .social-request-card,
+            .social-invite-card {
+                border-radius: 16px;
+            }
+            .social-chat-log {
+                padding: 14px;
+            }
+            .social-compose textarea {
+                min-height: 96px;
+            }
+            #battles-view {
+                max-width: none;
+            }
+            .battles-hero-title {
+                font-size: 1.5rem;
+            }
+            .battles-hero-sub {
+                font-size: 0.92rem;
+                line-height: 1.5;
+            }
+            .battles-room-head,
+            .battles-room-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .battles-room-controls > * {
+                width: 100%;
+            }
+            .bp-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+                padding: 12px 14px;
+            }
+            .battles-controls .uc-bigtimer {
+                font-size: clamp(2.7rem, 13vw, 4rem);
+            }
+            .leaderboard-toolbar,
+            .stats-leaderboard .leaderboard-toolbar,
+            .stats-pr .panel-title {
+                top: 76px;
+            }
+            .stats-grid,
+            .stats-grid-outer,
+            .quest-highlight-grid,
+            .quest-stat-grid,
+            .widgets-row,
+            .timer-graphs-row {
+                gap: 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 12px 10px 22px;
+            }
+            .sidebar {
+                padding: 10px 10px 8px;
+            }
+            .brand-text b {
+                display: inline;
+            }
+            .nav-item {
+                min-width: 68px;
+                padding: 9px 10px;
+            }
+            .nav-item svg {
+                width: 18px;
+                height: 18px;
+            }
+            .nav-item span {
+                font-size: 0.68rem;
+            }
+            .card,
+            .train-panel,
+            .assistant-chat-panel {
+                border-radius: 20px;
+            }
+            .card,
+            .train-panel {
+                padding: 16px;
+            }
+            .assistant-chat-title,
+            .social-signin-title,
+            .social-empty-large-title {
+                font-size: 1.05rem;
+            }
+            .assistant-beta-badge {
+                margin-left: 6px;
+                padding: 2px 7px;
+            }
+            .assistant-chat-sub,
+            .social-signin-sub,
+            .social-empty-large-sub,
+            .page-sub {
+                font-size: 0.84rem;
+            }
+            .battles-live-count {
+                font-size: 0.74rem;
+                padding: 5px 9px;
+            }
+        }
