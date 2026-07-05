@@ -3730,6 +3730,31 @@
                 </div>
                 ${rows || '<span class="solve-list-empty">No matches.</span>'}`;
         }
+        function solveCopyPayload(index) {
+            const solves = curSolves();
+            const solve = solves[index];
+            if (!solve) return { single: '', ao5: '', ao12: '' };
+            const upto = solves.slice(0, index + 1);
+            const a5 = aoN(upto, 5);
+            const a12 = aoN(upto, 12);
+            return {
+                single: solveLabel(solve),
+                ao5: a5 == null ? '' : (a5 === Infinity ? 'DNF' : fmt(a5)),
+                ao12: a12 == null ? '' : (a12 === Infinity ? 'DNF' : fmt(a12))
+            };
+        }
+        function setSolvePopupCopyButtons(index) {
+            const copyWrap = document.getElementById('solve-popup-copy-actions');
+            if (!copyWrap) return;
+            const payload = solveCopyPayload(index);
+            copyWrap.querySelectorAll('[data-copy-act]').forEach(btn => {
+                const kind = btn.dataset.copyAct;
+                const text = payload[kind] || '';
+                btn.dataset.copyText = text;
+                btn.disabled = !text;
+                btn.title = text ? `Copy ${kind}` : `No ${kind} available yet`;
+            });
+        }
         function renderGraph() {
             puzzleGraph._gdata = null;
             const seq = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
@@ -4353,19 +4378,22 @@
         puzzleSolvesEl.addEventListener('click', async (e) => {
             const chip = e.target.closest('.solve-row');
             if (!chip || chip.classList.contains('solve-row-head')) return;
+            const timeTarget = e.target.closest('.solve-time');
             const copyTarget = e.target.closest('[data-copy-kind]');
             if (copyTarget) {
-                const text = copyTarget.dataset.copyText || '';
-                if (!text) return;
-                const ok = await copyText(text);
-                const prevTitle = copyTarget.getAttribute('title') || '';
-                copyTarget.setAttribute('title', ok ? 'Copied!' : prevTitle);
-                copyTarget.classList.add('copied');
-                setTimeout(() => {
-                    copyTarget.classList.remove('copied');
-                    if (prevTitle) copyTarget.setAttribute('title', prevTitle);
-                }, 900);
-                return;
+                if (!timeTarget) {
+                    const text = copyTarget.dataset.copyText || '';
+                    if (!text) return;
+                    const ok = await copyText(text);
+                    const prevTitle = copyTarget.getAttribute('title') || '';
+                    copyTarget.setAttribute('title', ok ? 'Copied!' : prevTitle);
+                    copyTarget.classList.add('copied');
+                    setTimeout(() => {
+                        copyTarget.classList.remove('copied');
+                        if (prevTitle) copyTarget.setAttribute('title', prevTitle);
+                    }, 900);
+                    return;
+                }
             }
             popupIdx = parseInt(chip.dataset.idx, 10);
             const s = curSolves()[popupIdx];
@@ -4375,6 +4403,7 @@
                 s.date ? new Date(s.date).toLocaleString() : 'no date saved';
             document.getElementById('solve-popup-scramble').textContent =
                 s.scramble || '(no scramble saved)';
+            setSolvePopupCopyButtons(popupIdx);
             solvePopup.classList.add('open');
             const r = chip.getBoundingClientRect();
             const pw = solvePopup.offsetWidth, ph = solvePopup.offsetHeight;
@@ -4385,6 +4414,14 @@
             solvePopup.style.top = Math.max(8, y) + 'px';
         });
         solvePopup.addEventListener('click', (e) => {
+            const copyBtn = e.target.closest('[data-copy-act]');
+            if (copyBtn) {
+                copyText(copyBtn.dataset.copyText || '');
+                const original = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = original; }, 900);
+                return;
+            }
             const btn = e.target.closest('button');
             if (!btn || popupIdx < 0) return;
             const act = btn.dataset.act;
