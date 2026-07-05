@@ -12,21 +12,45 @@
         } catch (_) {}
 
         const MEGAMINX_CASE_ENTRIES = [
-            { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U' R U2' R U' R'", alts: ["y2' R2' D' R U2 R' D R U2' R"] },
-            { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R'"] },
-            { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
             { category: 'Megaminx EO', name: 'EO 1', setup: '', main_alg: "F R U R' U' F'", alts: [] },
             { category: 'Megaminx EO', name: 'EO 2', setup: '', main_alg: "F U R U' R' F'", alts: [] },
             { category: 'Megaminx EO', name: 'EO 3', setup: '', main_alg: "F R U2 R2' F R F' U2' F'", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U R' U2' R U' R'", alts: ["y2' R2' DR' R U2 R' DR R U2' R"] },
+            { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R' U' R'"] },
+            { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
+            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "R U R'", alts: ["F R' F' U' R' F R U R U' R' F'", "y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
+            { category: 'Megaminx CO', name: 'CO 5', setup: '', main_alg: "R U R' U R U2' R'", alts: ["y2 L U' R' U L' U' R U"] },
+            { category: 'Megaminx CO', name: 'CO 6', setup: '', main_alg: "R' U' R U' R' U2 R", alts: ["y2 L' U' L U' L' U2 L"] },
+            { category: 'Megaminx CO', name: 'CO 7', setup: '', main_alg: "R U2 R' U' R U' R'", alts: ["y' R' F R F' L F R' F' R L'"] },
+            { category: 'Megaminx CO', name: 'CO 8', setup: '', main_alg: "R U R' U2 R U2 R'", alts: ["y L' U2' L U L' U L", "y' R' L F R F' L' F R' F' R"] },
+            { category: 'Megaminx CO', name: 'CO 9', setup: '', main_alg: "R U2 R' U' R U R' U' R U' R'", alts: ["y F R U R' U' R U R' U' R U R' U' F'"] },
+            { category: 'Megaminx CO', name: 'CO 10', setup: '', main_alg: "R U R' U R U' R' U R U2' R'", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 11', setup: '', main_alg: "R U R' U R U R' U' R U2' R'", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 12', setup: '', main_alg: "R U2 R' U' R U' R2' U' R U' R' U2 R", alts: ["R U2' R' U2' R U2 R' U2' R U' R'"] },
+            { category: 'Megaminx CO', name: 'CO 13', setup: '', main_alg: "R U2 R2' U' R2 U' R2' U2 R", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 14', setup: '', main_alg: "R' U2' R2 U R2' U R2 U2' R'", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 15', setup: '', main_alg: "R U R' U2 R U2' R' U R U2' R'", alts: [] },
+            { category: 'Megaminx CO', name: 'CO 16', setup: '', main_alg: "R U2 R' U' R U2 R' U2' R U' R'", alts: [] },
             { category: 'Megaminx CP', name: 'CP 1', setup: '', main_alg: "R' BR' R BR R' F' R BR' R' BR F R", alts: [] },
             { category: 'Megaminx CP', name: 'CP 2', setup: '', main_alg: "R' F' BR' R BR R' F R BR' R' BR R", alts: [] },
             { category: 'Megaminx CP', name: 'CP 3', setup: '', main_alg: "BR' R' U L U' R' U L' U' R2 BR", alts: [] },
             { category: 'Megaminx CP', name: 'CP 4', setup: '', main_alg: "BR' R2' U L U' R U L' U' R BR", alts: [] },
-            { category: 'Megaminx CP', name: 'CP 5', setup: '', main_alg: "L' R U2 R' U' R U R' U' R U R' U' R' L", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 5', setup: '', main_alg: "L' R U2 R' U' R U R' U' R U R' U' R U' R' L", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 6', setup: '', main_alg: "R U R' U R' U' R F' R U R' U' R' F R2 U' R2' U R U'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 7', setup: '', main_alg: "R2 U R' U' y R U R' U' R U R' U' R U R' y' R U' R2'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 8', setup: '', main_alg: "F R U2 R' U' R U' R' F' R' y' R' U' R U' R' U2 R BR U'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 9', setup: '', main_alg: "R U R' U R' U' R2 U' R' U R' U R U R U R' U R' U' R2 U' R' U R' U R U", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 10', setup: '', main_alg: "R2 U2 R2' U' R2 U' R2' y' R2' U' R2 U' R2' U2 R2", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 11', setup: '', main_alg: "R2' U2' R2 U R2' U R2 y R2 U R2' U R2 U2' R2'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 12', setup: '', main_alg: "R2 U2' R2' U' R2 U2' R' U R' U' R' F R2 U' R' U' R U R' F'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 13', setup: '', main_alg: "R' U2 R U' R' U2 R U2' R' U' R U2' R' U R U2' R' U R", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 14', setup: '', main_alg: "R2 U2' R2' U' R2 U R2' U' R2 U R2' U' R2 U2' R2'", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 15', setup: '', main_alg: "R2 U2 R2' U R2 U' R2' U R2 U' R2' U R2 U2 R2'", alts: [] },
             { category: 'Megaminx EP', name: 'EP 1', setup: '', main_alg: "R2 U2' R2' U' R2 U2' R2'", alts: [] },
-            { category: 'Megaminx EP', name: 'EP 2', setup: '', main_alg: "R2 U2 R2' U' R2 U2 R2'", alts: [] },
+            { category: 'Megaminx EP', name: 'EP 2', setup: '', main_alg: "R2 U2 R2' U R2 U2 R2'", alts: [] },
             { category: 'Megaminx EP', name: 'EP 3', setup: '', main_alg: "R U R' F' R U R' U' R' F R2 U' R'", alts: [] },
-            { category: 'Megaminx EP', name: 'EP 4', setup: '', main_alg: "R U R' U R' U' R2 U' R' U R' U R U2'", alts: [] }
+            { category: 'Megaminx EP', name: 'EP 4', setup: '', main_alg: "R U R' U R' U' R2 U' R' U R' U R U2'", alts: [] },
+            { category: 'Megaminx EP', name: 'EP 5', setup: '', main_alg: "L R U2 L' U R' L U' R U2 L' U2 R'", alts: [] }
         ];
         MEGAMINX_CASE_ENTRIES.forEach(entry => {
             if (!db.some(item => item.category === entry.category && item.name === entry.name)) db.push(entry);
@@ -35,6 +59,12 @@
         const liteVisualMedia = window.matchMedia('(max-width: 640px), (prefers-reduced-motion: reduce)');
         function useLiteVisuals() {
             return !!liteVisualMedia.matches;
+        }
+        function prefer2DForPuzzle(puzzleId) {
+            return puzzleId === 'megaminx' || useLiteVisuals();
+        }
+        function prefer2DForCategory(category) {
+            return category.startsWith('Megaminx') || useLiteVisuals();
         }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
@@ -80,7 +110,8 @@
                     if (typeof applyPuzzleCube === 'function') applyPuzzleCube();
                 }
                 if (typeof trainCube !== 'undefined' && trainCube) {
-                    if (useLiteVisuals()) trainCube.setAttribute('visualization', '2D');
+                    const currentPuzzle = trainCube.getAttribute('puzzle') || '';
+                    if (prefer2DForPuzzle(currentPuzzle)) trainCube.setAttribute('visualization', '2D');
                     else trainCube.removeAttribute('visualization');
                 }
             } catch (_) {}
@@ -376,7 +407,7 @@
                 const showMap = is3x3LL;
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
-                const visualMode = useLiteVisuals() ? '2D' : '';
+                const visualMode = prefer2DForCategory(cat) ? '2D' : '';
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
@@ -3381,7 +3412,7 @@
         });
 
         function invertAlg(s) {
-            try { return new Alg(s).invert().toString(); } catch (e) { return s; }
+            try { return new Alg(s).invert().toString(); } catch (e) { return inverseAlg(s); }
         }
         // A scramble that leads to the case, but is not the literal setup:
         // a random inverted solution, plus random AUF for last-layer cases.
@@ -3409,7 +3440,7 @@
             const isF2L  = cat === 'F2L' || cat === 'AF2L';
             const orient = (isF2L || isPyraLike) ? '' : 'z2';
             trainCube.setAttribute('puzzle', trainPuzzleId(cat));
-            if (useLiteVisuals()) trainCube.setAttribute('visualization', '2D');
+            if (prefer2DForCategory(cat)) trainCube.setAttribute('visualization', '2D');
             else trainCube.removeAttribute('visualization');
             trainCube.setAttribute('experimental-setup-alg', (orient ? orient + ' ' : '') + scr);
             trainCube.alg = '';
@@ -4005,7 +4036,7 @@
             if (PUZZLE_HAS_CUBE[ev]) {
                 puzzleCubeWrap.dataset.supported = '1';
                 puzzleCube.setAttribute('puzzle', PUZZLE_DISPLAY[ev]);
-                if (useLiteVisuals()) puzzleCube.setAttribute('visualization', '2D');
+                if (prefer2DForPuzzle(PUZZLE_DISPLAY[ev])) puzzleCube.setAttribute('visualization', '2D');
                 else puzzleCube.removeAttribute('visualization');
                 puzzleCube.setAttribute('experimental-setup-alg', scrambleText || '');
                 puzzleCube.alg = '';
