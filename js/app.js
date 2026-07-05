@@ -12,7 +12,7 @@
         } catch (_) {}
 
         const MEGAMINX_CASE_ENTRIES = [
-            { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U R U2' R U' R'", alts: ["y2' R2' D' R U2 R' D R U2' R"] },
+            { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U' R U2' R U' R'", alts: ["y2' R2' D' R U2 R' D R U2' R"] },
             { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R'"] },
             { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
             { category: 'Megaminx EO', name: 'EO 1', setup: '', main_alg: "F R U R' U' F'", alts: [] },
@@ -21,12 +21,12 @@
             { category: 'Megaminx CP', name: 'CP 1', setup: '', main_alg: "R' BR' R BR R' F' R BR' R' BR F R", alts: [] },
             { category: 'Megaminx CP', name: 'CP 2', setup: '', main_alg: "R' F' BR' R BR R' F R BR' R' BR R", alts: [] },
             { category: 'Megaminx CP', name: 'CP 3', setup: '', main_alg: "BR' R' U L U' R' U L' U' R2 BR", alts: [] },
-            { category: 'Megaminx CP', name: 'CP 4', setup: '', main_alg: "BR' R2' U L U' R U' L' U' R BR", alts: [] },
-            { category: 'Megaminx CP', name: 'CP 5', setup: '', main_alg: "L' R U2 R' U' R U' R' U' R U' R' L", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 4', setup: '', main_alg: "BR' R2' U L U' R U L' U' R BR", alts: [] },
+            { category: 'Megaminx CP', name: 'CP 5', setup: '', main_alg: "L' R U2 R' U' R U R' U' R U R' U' R' L", alts: [] },
             { category: 'Megaminx EP', name: 'EP 1', setup: '', main_alg: "R2 U2' R2' U' R2 U2' R2'", alts: [] },
             { category: 'Megaminx EP', name: 'EP 2', setup: '', main_alg: "R2 U2 R2' U' R2 U2 R2'", alts: [] },
             { category: 'Megaminx EP', name: 'EP 3', setup: '', main_alg: "R U R' F' R U R' U' R' F R2 U' R'", alts: [] },
-            { category: 'Megaminx EP', name: 'EP 4', setup: '', main_alg: "R U R' U R' U' R2 U' R' U' R' U R U2'", alts: [] }
+            { category: 'Megaminx EP', name: 'EP 4', setup: '', main_alg: "R U R' U R' U' R2 U' R' U R' U R U2'", alts: [] }
         ];
         MEGAMINX_CASE_ENTRIES.forEach(entry => {
             if (!db.some(item => item.category === entry.category && item.name === entry.name)) db.push(entry);
