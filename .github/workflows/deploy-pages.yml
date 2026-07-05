@@ -1,0 +1,61 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp default-user-image.png _site/
+          cp firebase-config.js _site/
+          cp wca-config.js _site/
+          cp uc_logo.jpg _site/
+          cp -R css _site/css
+          cp -R js _site/js
+          cp -R Cube_Clipart _site/Cube_Clipart
+          cp -R 2x2 _site/2x2
+          cp -R 3x3 _site/3x3
+          cp -R 4x4 _site/4x4
+          cp -R 5x5 _site/5x5
+          cp -R Pyraminx _site/Pyraminx
+          cp -R Megaminx _site/Megaminx
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
