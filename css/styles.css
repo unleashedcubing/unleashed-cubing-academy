@@ -210,6 +210,7 @@
             outline: none;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+            touch-action: manipulation;
         }
 
         select {
@@ -502,6 +503,7 @@
             font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.2s ease;
+            touch-action: manipulation;
         }
         .train-quick-btn:hover { border-color: var(--orange); color: var(--orange); }
         #train-caselist {
@@ -542,6 +544,11 @@
             border-radius: 16px;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            touch-action: manipulation;
+        }
+        twisty-player[control-panel="none"] {
+            pointer-events: none;
+            touch-action: none;
         }
         .train-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255,159,10,0.3); }
         .train-cta:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -2546,6 +2553,118 @@
         }
         .settings-row { display: flex; gap: 8px; flex-wrap: wrap; }
         .settings-row select { padding: 10px 32px 10px 14px; font-size: 0.95rem; flex: 1; min-width: 140px; }
+        .timer-trainer-modal-panel {
+            width: min(980px, 100%);
+        }
+        .timer-trainer-body {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .timer-trainer-copy {
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+        .timer-trainer-layout {
+            display: grid;
+            grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.25fr);
+            gap: 16px;
+            min-height: 0;
+        }
+        .timer-trainer-block {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+        .timer-trainer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .timer-trainer-meta {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+        .timer-trainer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+            max-height: 52vh;
+            overflow: auto;
+            padding: 12px;
+            border-radius: 18px;
+            background: rgba(0,0,0,0.24);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .timer-trainer-case-list {
+            gap: 12px;
+        }
+        .timer-trainer-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .timer-trainer-row input {
+            margin-top: 2px;
+            accent-color: var(--orange);
+        }
+        .timer-trainer-row-main {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+        .timer-trainer-row-title {
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .timer-trainer-row-sub {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .timer-trainer-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .timer-trainer-group-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--orange);
+            letter-spacing: 0.02em;
+        }
+        .timer-trainer-quick {
+            justify-content: flex-start;
+            margin: 0;
+        }
+        .timer-trainer-foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 16px 24px 24px;
+            flex-wrap: wrap;
+        }
+        .timer-trainer-reveal {
+            display: none;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+        .timer-trainer-reveal b {
+            color: var(--text-main);
+        }
 
         .input-method-row .input-mode-btn { flex: 1; min-width: 110px; }
         .input-mode-btn.on {
@@ -6458,5 +6577,14 @@
             .battles-live-count {
                 font-size: 0.74rem;
                 padding: 5px 9px;
+            }
+            .timer-trainer-layout {
+                grid-template-columns: 1fr;
+            }
+            .timer-trainer-list {
+                max-height: 34vh;
+            }
+            .timer-trainer-foot > * {
+                flex: 1 1 100%;
             }
         }

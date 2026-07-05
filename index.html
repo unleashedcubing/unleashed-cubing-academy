@@ -109,6 +109,11 @@
                         <span class="cube-tile-label">Pyraminx</span>
                         <span class="cube-tile-count">L4E · Last Layer</span>
                     </button>
+                    <button type="button" class="cube-tile" data-cube="Megaminx">
+                        <img src="Cube_Clipart/minx.svg" alt="Megaminx" class="cube-tile-img">
+                        <span class="cube-tile-label">Megaminx</span>
+                        <span class="cube-tile-count">CO · EO · CP · EP</span>
+                    </button>
                 </div>
                 <div class="controls" id="learn-controls" style="display:none;">
                     <button class="cube-back-btn" id="cube-back-btn" title="Back to cube selection">← All cubes</button>
@@ -140,6 +145,12 @@
                         <optgroup label="Pyraminx">
                             <option value="Pyraminx L4E">Pyraminx L4E</option>
                             <option value="Pyraminx Last Layer">Pyraminx Last Layer</option>
+                        </optgroup>
+                        <optgroup label="Megaminx">
+                            <option value="Megaminx CO">Megaminx CO</option>
+                            <option value="Megaminx EO">Megaminx EO</option>
+                            <option value="Megaminx CP">Megaminx CP</option>
+                            <option value="Megaminx EP">Megaminx EP</option>
                         </optgroup>
                     </select>
                     <input type="text" id="search-input" placeholder="Search algorithms (e.g., T Perm, R U R')">
@@ -184,6 +195,12 @@
                             <optgroup label="Pyraminx">
                                 <option value="Pyraminx L4E">Pyraminx L4E</option>
                                 <option value="Pyraminx Last Layer">Pyraminx Last Layer</option>
+                            </optgroup>
+                            <optgroup label="Megaminx">
+                                <option value="Megaminx CO">Megaminx CO</option>
+                                <option value="Megaminx EO">Megaminx EO</option>
+                                <option value="Megaminx CP">Megaminx CP</option>
+                                <option value="Megaminx EP">Megaminx EP</option>
                             </optgroup>
                         </select>
                         <div class="group-toggle">
@@ -245,6 +262,10 @@
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3a1 1 0 0 0-.8-.98l-1.8-.36-.5-1.21.94-1.58a1 1 0 0 0-.16-1.2l-1.42-1.42a1 1 0 0 0-1.2-.16l-1.58.95-1.21-.5-.36-1.8A1 1 0 0 0 13 2h-2a1 1 0 0 0-.98.8l-.36 1.8-1.21.5L6.87 4.16a1 1 0 0 0-1.2.16L4.25 5.74a1 1 0 0 0-.16 1.2L5.04 8.52l-.5 1.21-1.8.36a1 1 0 0 0-.74.97v2a1 1 0 0 0 .8.98l1.8.36.5 1.21-.94 1.58a1 1 0 0 0 .16 1.2l1.42 1.42a1 1 0 0 0 1.2.16l1.58-.94 1.21.5.36 1.8A1 1 0 0 0 11 22h2a1 1 0 0 0 .98-.8l.36-1.8 1.21-.5 1.58.94a1 1 0 0 0 1.2-.16l1.42-1.42a1 1 0 0 0 .16-1.2l-.94-1.58.5-1.21 1.8-.36A1 1 0 0 0 21 13z"/></svg>
                                 Settings
                             </button>
+                            <button class="train-quick-btn settings-gear" id="open-timer-trainer" title="Subset trainer">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M9 19V9"/><path d="M14 19v-4"/><path d="M19 19v-8"/></svg>
+                                <span id="timer-trainer-status">Subset Trainer: Off</span>
+                            </button>
                         </div>
 
                         <div class="timer-hidden-controls">
@@ -261,6 +282,7 @@
                                 <div id="solve-feedback-inline" class="solve-feedback-inline" aria-hidden="true"></div>
                             </div>
                             <div class="uc-hint" id="puzzle-hint">Hold <b>Space</b> (or tap below), release to start — press again to stop</div>
+                            <div class="timer-trainer-reveal" id="timer-trainer-reveal" style="display:none;"></div>
                             <div class="widgets-row" id="widgets-row" aria-label="Stat widgets"></div>
 
                             <!-- Typing input (only shown in Type mode) -->
@@ -670,6 +692,43 @@
                         after a scramble.
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="timer-trainer-modal" class="modal-backdrop" style="display:none;">
+        <div class="modal-panel timer-trainer-modal-panel">
+            <div class="modal-head">
+                <div class="modal-title">Subset Trainer In Timer</div>
+                <button class="modal-close" id="close-timer-trainer" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body timer-trainer-body">
+                <div class="timer-trainer-copy">
+                    Pick any subsets across cubes, and Timer will feed you recognition scrambles from those cases.
+                </div>
+                <div class="timer-trainer-layout">
+                    <div class="timer-trainer-block">
+                        <div class="settings-section-title">Categories</div>
+                        <div class="timer-trainer-list" id="timer-trainer-categories"></div>
+                    </div>
+                    <div class="timer-trainer-block">
+                        <div class="timer-trainer-head">
+                            <span class="settings-section-title">Cases</span>
+                            <span class="timer-trainer-meta" id="timer-trainer-count">0 selected</span>
+                        </div>
+                        <div class="train-row timer-trainer-quick">
+                            <button class="train-quick-btn" type="button" data-timer-trainer-pick="all">All</button>
+                            <button class="train-quick-btn" type="button" data-timer-trainer-pick="none">None</button>
+                            <button class="train-quick-btn" type="button" data-timer-trainer-pick="learning">Learning</button>
+                            <button class="train-quick-btn" type="button" data-timer-trainer-pick="learned">Learned</button>
+                        </div>
+                        <div class="timer-trainer-list timer-trainer-case-list" id="timer-trainer-cases"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot timer-trainer-foot">
+                <button class="train-quick-btn" id="timer-trainer-disable" type="button">Use Normal Scrambles</button>
+                <button class="train-cta" id="timer-trainer-save" type="button" style="width:auto; padding:12px 24px;">Use In Timer</button>
             </div>
         </div>
     </div>

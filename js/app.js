@@ -11,6 +11,40 @@
             openRouterConfig = mod.openrouterConfig || mod.default || openRouterConfig;
         } catch (_) {}
 
+        const MEGAMINX_REFERENCE_ENTRIES = [
+            { category: 'Megaminx CO', name: 'Megaminx CO Reference', setup: '', main_alg: 'Open the local CO sheet for the full Megaminx corner orientation set.', alts: [], reference_path: 'Megaminx/CO.pdf' },
+            { category: 'Megaminx EO', name: 'Megaminx EO Reference', setup: '', main_alg: 'Open the local EO sheet for the full Megaminx edge orientation set.', alts: [], reference_path: 'Megaminx/EO.pdf' },
+            { category: 'Megaminx CP', name: 'Megaminx CP Reference', setup: '', main_alg: 'Open the local CP sheet for the full Megaminx corner permutation set.', alts: [], reference_path: 'Megaminx/CP.pdf' },
+            { category: 'Megaminx EP', name: 'Megaminx EP Reference', setup: '', main_alg: 'Open the local EP sheet for the full Megaminx edge permutation set.', alts: [], reference_path: 'Megaminx/EP.pdf' }
+        ];
+        MEGAMINX_REFERENCE_ENTRIES.forEach(entry => {
+            if (!db.some(item => item.category === entry.category && item.name === entry.name)) db.push(entry);
+        });
+
+        const liteVisualMedia = window.matchMedia('(max-width: 640px), (prefers-reduced-motion: reduce)');
+        function useLiteVisuals() {
+            return !!liteVisualMedia.matches;
+        }
+        function algCategoryPuzzleId(category) {
+            if (category.startsWith('2x2')) return '2x2x2';
+            if (category.startsWith('4x4')) return '4x4x4';
+            if (category.startsWith('5x5')) return '5x5x5';
+            if (category.startsWith('Pyraminx')) return 'pyraminx';
+            if (category.startsWith('Megaminx')) return 'megaminx';
+            return '3x3x3';
+        }
+        function algCategoryEventId(category) {
+            if (category.startsWith('2x2')) return '222';
+            if (category.startsWith('4x4')) return '444';
+            if (category.startsWith('5x5')) return '555';
+            if (category.startsWith('Pyraminx')) return 'pyram';
+            if (category.startsWith('Megaminx')) return 'minx';
+            return '333';
+        }
+        function isReferenceCategory(category) {
+            return category.startsWith('Megaminx ');
+        }
+
         // ---- App accent colour theme ----
         const APP_COLORS = [
             { id: 'orange', label: 'Orange', main: '#FF9F0A', dark: '#FF6A00' },
@@ -27,6 +61,19 @@
             document.documentElement.style.setProperty('--orange-dark', c.dark);
         }
         applyAppColor((() => { try { const v = localStorage.getItem('uc_appColor'); return v ? JSON.parse(v) : 'orange'; } catch(e) { return 'orange'; } })());
+        liteVisualMedia.addEventListener?.('change', () => {
+            try {
+                if (document.getElementById('alg-grid')?.style.display !== 'none') renderCards();
+                if (typeof resetPuzzleCubeView === 'function') {
+                    resetPuzzleCubeView(currentScramble);
+                    if (typeof applyPuzzleCube === 'function') applyPuzzleCube();
+                }
+                if (typeof trainCube !== 'undefined' && trainCube) {
+                    if (useLiteVisuals()) trainCube.setAttribute('visualization', '2D');
+                    else trainCube.removeAttribute('visualization');
+                }
+            } catch (_) {}
+        });
 
         function buildColorSwatches(targetId = 'app-color-grid') {
             const grid = document.getElementById(targetId);
@@ -292,7 +339,8 @@
                 }
 
                 const isF2L = item.category === 'F2L' || item.category === 'AF2L';
-                const baseOrient = isF2L ? '' : 'z2';
+                const isPyraLike = item.category.startsWith('Pyraminx') || item.category.startsWith('Megaminx');
+                const baseOrient = (isF2L || isPyraLike) ? '' : 'z2';
                 // If the entry has no explicit setup, derive it as the inverse
                 // of the (cleaned) main algorithm. This auto-fills setups for
                 // all the non-3x3 categories.
@@ -311,23 +359,25 @@
 
                 // Choose the puzzle for this case
                 const cat = item.category;
-                const puzzleFor =
-                    cat.startsWith('2x2')      ? '2x2x2' :
-                    cat.startsWith('4x4')      ? '4x4x4' :
-                    cat.startsWith('5x5')      ? '5x5x5' :
-                    cat.startsWith('Pyraminx') ? 'pyraminx' :
-                    '3x3x3';
+                const puzzleFor = algCategoryPuzzleId(cat);
                 // Only show the 2D LL map for 3x3 LL subsets
                 const is3x3LL = cat === 'OLL' || cat === 'COLL' || cat === 'PLL';
                 const showMap = is3x3LL;
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
+                const visualMode = useLiteVisuals() ? '2D' : '';
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
                     const alt = parseAlgEntry(a);
                     altsHTML += `<div class="alg alt-alg" data-player="player-${i}" data-anim="${alt.anim}" data-esa="${esaFor(alt.yrot)}">${alt.display}</div>`;
                 });
+                const referenceLink = item.reference_path ? `
+                    <div class="alg-section">
+                        <div class="alg-label">Reference</div>
+                        <a class="train-quick-btn" href="${escHTML(item.reference_path)}" target="_blank" rel="noopener">Open Local PDF</a>
+                    </div>
+                ` : '';
 
                 card.innerHTML = `
                     <div class="card-header">
@@ -341,6 +391,7 @@
                             data-default-esa="${defaultEsa}"
                             alg=""
                             experimental-setup-alg="${defaultEsa}"
+                            ${visualMode ? `visualization="${visualMode}"` : ''}
                             background="none"
                             control-panel="none"
                             viewer-link="none">
@@ -369,6 +420,7 @@
                         <div class="alg-label">Main Algorithm</div>
                         <div class="alg main-alg ${hasSavedMain ? 'is-saved-main' : ''}" data-player="player-${i}" data-anim="${mainEntry.anim}" data-esa="${defaultEsa}">${mainEntry.display}</div>
                     </div>
+                    ${referenceLink}
                     ${altsHTML ? `
                     <div class="alg-section">
                         <div class="alg-label">Alternative Algorithms</div>
@@ -550,7 +602,8 @@
             '2x2':      ['2x2 CLL', '2x2 EG-1', '2x2 EG-2', '2x2 Ortega OLL', '2x2 Ortega PBL'],
             '4x4':      ['4x4 OLL Parity', '4x4 PLL Parity'],
             '5x5':      ['5x5 L2C', '5x5 L2E'],
-            'Pyraminx': ['Pyraminx L4E', 'Pyraminx Last Layer']
+            'Pyraminx': ['Pyraminx L4E', 'Pyraminx Last Layer'],
+            'Megaminx': ['Megaminx CO', 'Megaminx EO', 'Megaminx CP', 'Megaminx EP']
         };
         const cubePicker  = document.getElementById('cube-picker');
         const learnCtrls  = document.getElementById('learn-controls');
@@ -576,7 +629,9 @@
             '2x2 Ortega OLL':'2x2 Ortega OLL', '2x2 Ortega PBL':'2x2 Ortega PBL',
             '4x4 OLL Parity':'4x4 OLL Parity', '4x4 PLL Parity':'4x4 PLL Parity',
             '5x5 L2C':'5x5 Last 2 Centers', '5x5 L2E':'5x5 Last 2 Edges',
-            'Pyraminx L4E':'Pyraminx L4E', 'Pyraminx Last Layer':'Pyraminx Last Layer'
+            'Pyraminx L4E':'Pyraminx L4E', 'Pyraminx Last Layer':'Pyraminx Last Layer',
+            'Megaminx CO':'Megaminx CO', 'Megaminx EO':'Megaminx EO',
+            'Megaminx CP':'Megaminx CP', 'Megaminx EP':'Megaminx EP'
         };
         function showCubeAlgs(cube) {
             const allowed = CUBE_CATS[cube] || [];
@@ -3331,11 +3386,7 @@
         }
 
         function trainPuzzleId(category) {
-            if (category.startsWith('2x2'))      return '2x2x2';
-            if (category.startsWith('4x4'))      return '4x4x4';
-            if (category.startsWith('5x5'))      return '5x5x5';
-            if (category.startsWith('Pyraminx')) return 'pyraminx';
-            return '3x3x3';
+            return algCategoryPuzzleId(category);
         }
         function showScramble() {
             if (!trainPool.length) return;
@@ -3343,10 +3394,12 @@
             const scr = genScramble(trainCurrent);
             scrambleEl.textContent = scr || '(already solved)';
             const cat = trainCurrent.category;
-            const isPyra = cat.startsWith('Pyraminx');
+            const isPyraLike = cat.startsWith('Pyraminx') || cat.startsWith('Megaminx');
             const isF2L  = cat === 'F2L' || cat === 'AF2L';
-            const orient = (isF2L || isPyra) ? '' : 'z2';
+            const orient = (isF2L || isPyraLike) ? '' : 'z2';
             trainCube.setAttribute('puzzle', trainPuzzleId(cat));
+            if (useLiteVisuals()) trainCube.setAttribute('visualization', '2D');
+            else trainCube.removeAttribute('visualization');
             trainCube.setAttribute('experimental-setup-alg', (orient ? orient + ' ' : '') + scr);
             trainCube.alg = '';
             revealBox.innerHTML = '';
@@ -3393,6 +3446,10 @@
             const picked = [...trainCaselist.querySelectorAll('input:checked')].map(cb => cb.dataset.case);
             if (!picked.length) { alert('Select at least one case to practice.'); return; }
             trainPool = db.filter(it => picked.includes(it.name));
+            if (trainPool.some(item => item.reference_path)) {
+                alert('Megaminx is available as local PDF reference sheets in this pass, but not as case-by-case trainer scrambles yet.');
+                return;
+            }
             trainTimes = [];
             updateStats();
             trainSetup.style.display = 'none';
@@ -3447,6 +3504,49 @@
         let puzzleStore = null;     // { activeId, sessions: [{ id, name, solves }] }
         let puzzleStarted = false;
         let currentScramble = '';
+        let currentTrainingCase = null;
+        let timerTrainerPrefs = LS.get('timerTrainerPrefs', { enabled: false, categories: [], cases: [] });
+        if (!Array.isArray(timerTrainerPrefs.categories)) timerTrainerPrefs.categories = [];
+        if (!Array.isArray(timerTrainerPrefs.cases)) timerTrainerPrefs.cases = [];
+        function saveTimerTrainerPrefs() { LS.set('timerTrainerPrefs', timerTrainerPrefs); }
+        function availableTimerTrainerCategories() {
+            return [...new Set(db.map(item => item.category))].filter(cat => !isReferenceCategory(cat)).sort((a, b) => a.localeCompare(b));
+        }
+        function timerTrainerItems() {
+            const allowedCats = new Set(timerTrainerPrefs.categories || []);
+            const allowedCases = new Set(timerTrainerPrefs.cases || []);
+            return db.filter(item => allowedCats.has(item.category) && allowedCases.has(item.name) && !isReferenceCategory(item.category));
+        }
+        function timerTrainerEnabled() {
+            return !!timerTrainerPrefs.enabled && timerTrainerItems().length > 0;
+        }
+        function timerTrainerStatusLabel() {
+            if (!timerTrainerEnabled()) return 'Subset Trainer: Off';
+            const items = timerTrainerItems();
+            return `Subset Trainer: ${items.length} case${items.length === 1 ? '' : 's'}`;
+        }
+        function updateTimerTrainerStatus() {
+            const statusEl = document.getElementById('timer-trainer-status');
+            if (statusEl) statusEl.textContent = timerTrainerStatusLabel();
+        }
+        function showTimerTrainerReveal(html = '') {
+            const el = document.getElementById('timer-trainer-reveal');
+            if (!el) return;
+            clearTimeout(showTimerTrainerReveal._t);
+            if (!html) {
+                el.style.display = 'none';
+                el.innerHTML = '';
+                return;
+            }
+            el.innerHTML = html;
+            el.style.display = '';
+            showTimerTrainerReveal._t = setTimeout(() => {
+                if (el.innerHTML === html) {
+                    el.style.display = 'none';
+                    el.innerHTML = '';
+                }
+            }, 2600);
+        }
 
         // Settings (persisted) — timerPrecision is declared in the shared section
         let inspectionEnabled = LS.get('inspection', false);
@@ -3813,7 +3913,30 @@
         }
 
         async function nextPuzzleScramble() {
+            if (timerTrainerEnabled()) {
+                const items = timerTrainerItems();
+                const nextCase = items[Math.floor(Math.random() * items.length)];
+                currentTrainingCase = nextCase || null;
+                const nextPuzzle = algCategoryEventId(nextCase.category);
+                let target = puzzleStore.sessions.find(s => s.puzzle === nextPuzzle);
+                if (!target) {
+                    target = { id: 's' + Date.now(), name: 'Session 1', puzzle: nextPuzzle, solves: [] };
+                    puzzleStore.sessions.push(target);
+                }
+                puzzleStore.activeId = target.id;
+                if (puzzleSelect.value !== nextPuzzle) puzzleSelect.value = nextPuzzle;
+                savePuzzle();
+                renderSessionSelect();
+                refreshPuzzle();
+                currentScramble = genScramble(nextCase);
+                puzzleScrambleEl.textContent = `${nextCase.name} · ${currentScramble}`;
+                resetPuzzleCubeView(currentScramble);
+                applyPuzzleCube();
+                initSolvedSim(currentScramble);
+                return;
+            }
             const ev = puzzleSelect.value;
+            currentTrainingCase = null;
             currentScramble = '';
             puzzleScrambleEl.textContent = 'Generating scramble…';
             let scr = '';
@@ -3846,6 +3969,8 @@
             if (PUZZLE_HAS_CUBE[ev]) {
                 puzzleCubeWrap.dataset.supported = '1';
                 puzzleCube.setAttribute('puzzle', PUZZLE_DISPLAY[ev]);
+                if (useLiteVisuals()) puzzleCube.setAttribute('visualization', '2D');
+                else puzzleCube.removeAttribute('visualization');
                 puzzleCube.setAttribute('experimental-setup-alg', scrambleText || '');
                 puzzleCube.alg = '';
             } else {
@@ -4046,12 +4171,25 @@
             onSolve: (t, pen) => {
                 // Compute PB status BEFORE pushing this solve
                 const prior = curSolves().slice();
-                const newSolve = { t, penalty: pen || 'ok', scramble: currentScramble, date: Date.now() };
+                const newSolve = {
+                    t,
+                    penalty: pen || 'ok',
+                    scramble: currentScramble,
+                    date: Date.now(),
+                    trainingCase: currentTrainingCase ? currentTrainingCase.name : '',
+                    trainingCategory: currentTrainingCase ? currentTrainingCase.category : ''
+                };
                 curSolves().push(newSolve);
                 savePuzzle();
                 refreshPuzzle();
                 // Celebrate PBs
                 maybeShowSolveFeedback(prior, newSolve);
+                if (currentTrainingCase) {
+                    const chosenAlg = mainChoices[currentTrainingCase.name] || cleanAlg(currentTrainingCase.main_alg);
+                    showTimerTrainerReveal(`Solved <b>${esc(currentTrainingCase.name)}</b> from <b>${esc(currentTrainingCase.category)}</b><br>${esc(chosenAlg)}`);
+                } else {
+                    showTimerTrainerReveal('');
+                }
                 nextPuzzleScramble();
             }
         });
@@ -4166,6 +4304,7 @@
             // Picking a new cube switches to (or creates) a session for that cube.
             // The session list itself stays visible regardless of the cube.
             const cube = puzzleSelect.value;
+            if (!timerTrainerEnabled()) showTimerTrainerReveal('');
             // Find an existing session for this cube
             let target = puzzleStore.sessions.find(s => s.puzzle === cube);
             if (!target) {
@@ -4186,6 +4325,7 @@
         });
         document.getElementById('puzzle-skip').addEventListener('click', () => {
             puzzleTimer.reset();
+            if (!timerTrainerEnabled()) showTimerTrainerReveal('');
             nextPuzzleScramble();
         });
         document.getElementById('puzzle-clear').addEventListener('click', () => {
@@ -4403,6 +4543,138 @@
         if (mobileSideOverlay) mobileSideOverlay.addEventListener('click', e => {
             if (e.target === mobileSideOverlay) closeMobileSide();
         });
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 640) closeMobileSide();
+        });
+
+        // ---- Timer subset trainer modal ----
+        const timerTrainerModal = document.getElementById('timer-trainer-modal');
+        const timerTrainerCatsEl = document.getElementById('timer-trainer-categories');
+        const timerTrainerCasesEl = document.getElementById('timer-trainer-cases');
+        const timerTrainerCountEl = document.getElementById('timer-trainer-count');
+        function timerTrainerDraft() {
+            if (!timerTrainerModal._draft) {
+                timerTrainerModal._draft = {
+                    categories: [...(timerTrainerPrefs.categories || [])],
+                    cases: [...(timerTrainerPrefs.cases || [])]
+                };
+            }
+            return timerTrainerModal._draft;
+        }
+        function renderTimerTrainerModal() {
+            if (!timerTrainerModal || !timerTrainerCatsEl || !timerTrainerCasesEl) return;
+            const draft = timerTrainerDraft();
+            const selectedCats = new Set(draft.categories);
+            const selectedCases = new Set(draft.cases);
+            const categories = availableTimerTrainerCategories();
+            timerTrainerCatsEl.innerHTML = categories.map(cat => {
+                const count = db.filter(item => item.category === cat).length;
+                return `<label class="timer-trainer-row">
+                    <input type="checkbox" data-timer-trainer-category="${esc(cat)}" ${selectedCats.has(cat) ? 'checked' : ''}>
+                    <span class="timer-trainer-row-main">
+                        <span class="timer-trainer-row-title">${esc(cat)}</span>
+                        <span class="timer-trainer-row-sub">${count} case${count === 1 ? '' : 's'}</span>
+                    </span>
+                </label>`;
+            }).join('');
+            const cases = db.filter(item => selectedCats.has(item.category) && !isReferenceCategory(item.category));
+            const grouped = cases.reduce((map, item) => {
+                (map[item.category] = map[item.category] || []).push(item);
+                return map;
+            }, {});
+            timerTrainerCasesEl.innerHTML = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(cat => `
+                <div class="timer-trainer-group">
+                    <div class="timer-trainer-group-title">${esc(cat)}</div>
+                    ${grouped[cat].map(item => {
+                        const learned = learnedSet.has(item.name);
+                        const learning = learningSet.has(item.name);
+                        const badge = learned ? 'Learned' : (learning ? 'Learning' : 'Unmarked');
+                        return `<label class="timer-trainer-row">
+                            <input type="checkbox" data-timer-trainer-case="${esc(item.name)}" ${selectedCases.has(item.name) ? 'checked' : ''}>
+                            <span class="timer-trainer-row-main">
+                                <span class="timer-trainer-row-title">${esc(item.name)}</span>
+                                <span class="timer-trainer-row-sub">${badge}</span>
+                            </span>
+                        </label>`;
+                    }).join('')}
+                </div>
+            `).join('') || `<div class="timer-trainer-row-sub">Choose one or more categories first.</div>`;
+            const caseCount = draft.cases.length;
+            if (timerTrainerCountEl) timerTrainerCountEl.textContent = `${caseCount} selected`;
+        }
+        function openTimerTrainerModal() {
+            if (!timerTrainerModal) return;
+            timerTrainerModal._draft = {
+                categories: [...(timerTrainerPrefs.categories || [])],
+                cases: [...(timerTrainerPrefs.cases || [])]
+            };
+            renderTimerTrainerModal();
+            timerTrainerModal.style.display = 'flex';
+        }
+        function closeTimerTrainerModal() {
+            if (!timerTrainerModal) return;
+            timerTrainerModal.style.display = 'none';
+            delete timerTrainerModal._draft;
+        }
+        document.getElementById('open-timer-trainer')?.addEventListener('click', openTimerTrainerModal);
+        document.getElementById('close-timer-trainer')?.addEventListener('click', closeTimerTrainerModal);
+        document.getElementById('timer-trainer-disable')?.addEventListener('click', () => {
+            timerTrainerPrefs.enabled = false;
+            timerTrainerPrefs.categories = [];
+            timerTrainerPrefs.cases = [];
+            saveTimerTrainerPrefs();
+            updateTimerTrainerStatus();
+            showTimerTrainerReveal('');
+            closeTimerTrainerModal();
+            nextPuzzleScramble();
+        });
+        document.getElementById('timer-trainer-save')?.addEventListener('click', () => {
+            const draft = timerTrainerDraft();
+            if (!draft.categories.length || !draft.cases.length) {
+                alert('Pick at least one category and one case.');
+                return;
+            }
+            timerTrainerPrefs = { enabled: true, categories: [...draft.categories], cases: [...draft.cases] };
+            saveTimerTrainerPrefs();
+            updateTimerTrainerStatus();
+            closeTimerTrainerModal();
+            nextPuzzleScramble();
+        });
+        timerTrainerCatsEl?.addEventListener('change', (e) => {
+            const cb = e.target.closest('[data-timer-trainer-category]');
+            if (!cb) return;
+            const draft = timerTrainerDraft();
+            const set = new Set(draft.categories);
+            if (cb.checked) set.add(cb.dataset.timerTrainerCategory);
+            else set.delete(cb.dataset.timerTrainerCategory);
+            draft.categories = [...set];
+            const allowedCaseNames = new Set(db.filter(item => draft.categories.includes(item.category)).map(item => item.name));
+            draft.cases = draft.cases.filter(name => allowedCaseNames.has(name));
+            renderTimerTrainerModal();
+        });
+        timerTrainerCasesEl?.addEventListener('change', (e) => {
+            const cb = e.target.closest('[data-timer-trainer-case]');
+            if (!cb) return;
+            const draft = timerTrainerDraft();
+            const set = new Set(draft.cases);
+            if (cb.checked) set.add(cb.dataset.timerTrainerCase);
+            else set.delete(cb.dataset.timerTrainerCase);
+            draft.cases = [...set];
+            if (timerTrainerCountEl) timerTrainerCountEl.textContent = `${draft.cases.length} selected`;
+        });
+        document.querySelectorAll('[data-timer-trainer-pick]').forEach(btn => btn.addEventListener('click', () => {
+            const draft = timerTrainerDraft();
+            const visibleCases = db.filter(item => draft.categories.includes(item.category) && !isReferenceCategory(item.category));
+            if (btn.dataset.timerTrainerPick === 'all') draft.cases = visibleCases.map(item => item.name);
+            else if (btn.dataset.timerTrainerPick === 'none') draft.cases = [];
+            else if (btn.dataset.timerTrainerPick === 'learning') draft.cases = visibleCases.filter(item => learningSet.has(item.name)).map(item => item.name);
+            else if (btn.dataset.timerTrainerPick === 'learned') draft.cases = visibleCases.filter(item => learnedSet.has(item.name)).map(item => item.name);
+            renderTimerTrainerModal();
+        }));
+        timerTrainerModal?.addEventListener('click', (e) => {
+            if (e.target === timerTrainerModal) closeTimerTrainerModal();
+        });
+        updateTimerTrainerStatus();
 
         // ---- Timer settings modal ----
         const settingsModal = document.getElementById('timer-settings-modal');
@@ -5528,6 +5800,10 @@
             { category: '2x2 EG-2',         label: '2x2 EG-2' },
             { category: 'Pyraminx Last Layer', label: 'Pyraminx LL' },
             { category: 'Pyraminx L4E',     label: 'Pyraminx L4E' },
+            { category: 'Megaminx CO',      label: 'Megaminx CO' },
+            { category: 'Megaminx EO',      label: 'Megaminx EO' },
+            { category: 'Megaminx CP',      label: 'Megaminx CP' },
+            { category: 'Megaminx EP',      label: 'Megaminx EP' },
             { category: '4x4 OLL Parity',   label: '4x4 OLL Parity' },
             { category: '4x4 PLL Parity',   label: '4x4 PLL Parity' },
             { category: '5x5 L2C',          label: '5x5 L2C' },
@@ -5888,6 +6164,7 @@
                 cat.startsWith('4x4 ')      ? '4x4' :
                 cat.startsWith('5x5 ')      ? '5x5' :
                 cat.startsWith('Pyraminx ') ? 'Pyraminx' :
+                cat.startsWith('Megaminx ') ? 'Megaminx' :
                 '3x3';
             const learnTab = document.querySelector('.nav-item[data-mode="learn"]');
             if (learnTab) learnTab.click();
