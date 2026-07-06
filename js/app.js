@@ -456,7 +456,17 @@
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
                 const visualMode = prefer2DForCategory(cat) ? '2D' : '';
-                const mapVisualization = isMegaminxCase ? '2D' : 'experimental-2D-LL';
+                const megaTopClass = megaminxTopFace() === 'black' ? 'is-black' : 'is-gray';
+                const megaTopMapHTML = `<div class="cube-2d-map mega-top-map ${megaTopClass}">
+                    <div class="mega-top-face">
+                        <span class="mega-top-edge edge-a"></span>
+                        <span class="mega-top-edge edge-b"></span>
+                        <span class="mega-top-edge edge-c"></span>
+                        <span class="mega-top-edge edge-d"></span>
+                        <span class="mega-top-edge edge-e"></span>
+                        <span class="mega-top-core"></span>
+                    </div>
+                </div>`;
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
@@ -487,7 +497,7 @@
                             control-panel="none"
                             viewer-link="none">
                         </twisty-player>
-                        ${showMap ? `
+                        ${showMap ? (isMegaminxCase ? megaTopMapHTML : `
                         <div class="cube-2d-map">
                             <twisty-player
                                 id="player-2d-${i}"
@@ -495,13 +505,13 @@
                                 experimental-stickering="${stickering2dVal}"
                                 alg=""
                                 experimental-setup-alg="${defaultEsa}"
-                                visualization="${mapVisualization}"
+                                visualization="experimental-2D-LL"
                                 background="none"
                                 control-panel="none"
                                 viewer-link="none">
                             </twisty-player>
                         </div>
-                        ` : ''}
+                        `) : ''}
                     </div>
                     <div class="alg-section">
                         <div class="alg-label">Setup</div>
