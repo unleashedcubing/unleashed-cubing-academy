@@ -53,7 +53,9 @@
             { category: 'Megaminx EP', name: 'EP 5', setup: '', main_alg: "L R U2 L' U R' L U' R U2 L' U2 R'", alts: [] }
         ];
         MEGAMINX_CASE_ENTRIES.forEach(entry => {
-            if (!db.some(item => item.category === entry.category && item.name === entry.name)) db.push(entry);
+            const idx = db.findIndex(item => item.category === entry.category && item.name === entry.name);
+            if (idx >= 0) db[idx] = entry;
+            else db.push(entry);
         });
 
         const liteVisualMedia = window.matchMedia('(max-width: 640px), (prefers-reduced-motion: reduce)');
@@ -281,12 +283,13 @@
         }
 
         // Invert an algorithm: reverse move order + invert each move direction.
-        // Used to auto-derive `setup` from `main_alg` when the entry has none
-        // (e.g. 2x2 CLL / EG, 4x4 parity, 5x5 L2C/L2E).
-        function inverseAlg(alg) {
+        // `fiveFold` is for Megaminx, where U2 and U2' are different turns.
+        function inverseAlg(alg, opts = {}) {
             if (!alg || typeof alg !== 'string') return '';
             return alg.trim().split(/\s+/).filter(Boolean).reverse().map(tok => {
-                // R2 (or R2') stays the same — half-turn is its own inverse
+                if (opts.fiveFold && /2'?$/i.test(tok)) {
+                    return tok.endsWith("'") ? tok.slice(0, -1) : tok + "'";
+                }
                 if (/2'?$/.test(tok)) return tok.replace("'", '');
                 if (tok.endsWith("'")) return tok.slice(0, -1);
                 return tok + "'";
@@ -412,7 +415,7 @@
 
                 // Apply a saved "main algorithm" choice, if the user picked one
                 let algList = [item.main_alg, ...item.alts];
-                const savedMain = mainChoices[item.name];
+                const savedMain = item.category.startsWith('Megaminx') ? '' : mainChoices[item.name];
                 let hasSavedMain = false;
                 if (savedMain) {
                     const sIdx = algList.findIndex(a => cleanAlg(a) === savedMain);
@@ -430,7 +433,7 @@
                 // all the non-3x3 categories.
                 const effectiveSetup = (item.setup && item.setup.trim())
                     ? item.setup
-                    : inverseAlg(cleanAlg(item.main_alg));
+                    : inverseAlg(cleanAlg(item.main_alg), { fiveFold: item.category.startsWith('Megaminx') });
                 const cat = item.category;
                 const puzzleFor = algCategoryPuzzleId(cat);
                 const caseSetup = baseOrient ? `${baseOrient} ${effectiveSetup}` : effectiveSetup;
@@ -3456,11 +3459,17 @@
         function invertAlg(s) {
             try { return new Alg(s).invert().toString(); } catch (e) { return inverseAlg(s); }
         }
+        function invertCaseAlg(item, algText) {
+            if (item.category && item.category.startsWith('Megaminx')) {
+                return inverseAlg(algText, { fiveFold: true });
+            }
+            return invertAlg(algText);
+        }
         // A scramble that leads to the case, but is not the literal setup:
         // a random inverted solution, plus random AUF for last-layer cases.
         // AUF is skipped for F2L-type cases, where a U turn changes the case.
         function genScramble(item) {
-            const cands = [item.main_alg, ...item.alts].map(invertAlg);
+            const cands = [item.main_alg, ...item.alts].map(algText => invertCaseAlg(item, algText));
             const base = cands[Math.floor(Math.random() * cands.length)];
             const aufOk = item.category === 'OLL' || item.category === 'PLL' || item.category === 'COLL';
             if (!aufOk) return base.trim();
