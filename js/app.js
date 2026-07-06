@@ -66,6 +66,16 @@
         function prefer2DForCategory(category) {
             return category.startsWith('Megaminx') || useLiteVisuals();
         }
+        function megaminxTopFace() {
+            return LS.get('megaminxTopFace', 'gray');
+        }
+        function megaminxViewPrefix() {
+            return megaminxTopFace() === 'black' ? 'x2' : '';
+        }
+        function applyPuzzleViewSetup(puzzleId, setupText = '') {
+            const prefix = puzzleId === 'megaminx' ? megaminxViewPrefix() : '';
+            return [prefix, setupText].filter(Boolean).join(' ').trim();
+        }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
             if (category.startsWith('4x4')) return '4x4x4';
@@ -95,6 +105,10 @@
             { id: 'teal',   label: 'Teal',   main: '#22d3ee', dark: '#0891b2' },
             { id: 'purple', label: 'Purple', main: '#c084fc', dark: '#9333ea' },
             { id: 'pink',   label: 'Pink',   main: '#f472b6', dark: '#ec4899' },
+        ];
+        const MEGAMINX_TOP_FACE_OPTIONS = [
+            { id: 'gray', label: 'Grey', swatch: 'linear-gradient(135deg, #b4bcc8, #6c7380)', desc: 'Default Megaminx top face.' },
+            { id: 'black', label: 'Black', swatch: 'linear-gradient(135deg, #39404a, #050608)', desc: 'Darker Megaminx top face.' }
         ];
         function applyAppColor(id) {
             const c = APP_COLORS.find(x => x.id === id) || APP_COLORS[0];
@@ -132,6 +146,34 @@
                     LS.set('appColor', id);
                     applyAppColor(id);
                     grid.querySelectorAll('.app-color-swatch').forEach(b => b.classList.toggle('on', b.dataset.colorId === id));
+                });
+            });
+        }
+        function buildMegaminxTopFacePicker() {
+            const grid = document.getElementById('megaminx-top-face-grid');
+            if (!grid) return;
+            const active = megaminxTopFace();
+            grid.innerHTML = MEGAMINX_TOP_FACE_OPTIONS.map(opt => `
+                <button type="button" class="app-color-swatch${opt.id === active ? ' on' : ''}" data-top-face-id="${opt.id}">
+                    <div class="app-color-dot" style="background:${opt.swatch}"></div>
+                    <span class="app-color-label">${opt.label}</span>
+                    <span class="top-face-desc">${opt.desc}</span>
+                </button>
+            `).join('');
+            grid.querySelectorAll('[data-top-face-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.topFaceId || 'gray';
+                    LS.set('megaminxTopFace', id);
+                    grid.querySelectorAll('[data-top-face-id]').forEach(other => other.classList.toggle('on', other === btn));
+                    try {
+                        if (document.getElementById('alg-grid')?.style.display !== 'none') renderCards();
+                        if (typeof showScramble === 'function' && trainActive?.style.display !== 'none' && trainCurrent) showScramble();
+                        if (typeof resetPuzzleCubeView === 'function') {
+                            resetPuzzleCubeView(currentScramble);
+                            if (typeof applyPuzzleCube === 'function') applyPuzzleCube();
+                        }
+                        if (typeof renderWidgets === 'function') renderWidgets();
+                    } catch (_) {}
                 });
             });
         }
@@ -389,8 +431,10 @@
                 const effectiveSetup = (item.setup && item.setup.trim())
                     ? item.setup
                     : inverseAlg(cleanAlg(item.main_alg));
+                const cat = item.category;
+                const puzzleFor = algCategoryPuzzleId(cat);
                 const caseSetup = baseOrient ? `${baseOrient} ${effectiveSetup}` : effectiveSetup;
-                const esaFor = (yrot) => yrot ? `${caseSetup} ${yrot}` : caseSetup;
+                const esaFor = (yrot) => applyPuzzleViewSetup(puzzleFor, yrot ? `${caseSetup} ${yrot}` : caseSetup);
 
                 const mainEntry = parseAlgEntry(algList[0]);
                 const viewRot = mainEntry.yrot;
@@ -400,8 +444,6 @@
                 const setupAnim = viewRot ? `${effectiveSetup} ${viewRot}` : effectiveSetup;
 
                 // Choose the puzzle for this case
-                const cat = item.category;
-                const puzzleFor = algCategoryPuzzleId(cat);
                 // Only show the 2D LL map for 3x3 LL subsets
                 const is3x3LL = cat === 'OLL' || cat === 'COLL' || cat === 'PLL';
                 const showMap = is3x3LL;
@@ -456,7 +498,7 @@
                     </div>
                     <div class="alg-section">
                         <div class="alg-label">Setup</div>
-                        <div class="alg setup-alg" data-player="player-${i}" data-anim="${setupAnim}" data-esa="${baseOrient}">${effectiveSetup}</div>
+                        <div class="alg setup-alg" data-player="player-${i}" data-anim="${setupAnim}" data-esa="${applyPuzzleViewSetup(puzzleFor, baseOrient)}">${effectiveSetup}</div>
                     </div>
                     <div class="alg-section">
                         <div class="alg-label">Main Algorithm</div>
@@ -2260,7 +2302,7 @@
                             </div>
                             <div class="profile-appearance-meta">
                                 <div class="profile-appearance-title">Current look</div>
-                                <div class="profile-appearance-sub">Frame: ${escHTML(activeFrameMeta.label)} · Theme: ${escHTML(APP_COLORS.find(c => c.id === activeTheme)?.label || activeTheme)}</div>
+                                <div class="profile-appearance-sub">Frame: ${escHTML(activeFrameMeta.label)} · Theme: ${escHTML(APP_COLORS.find(c => c.id === activeTheme)?.label || activeTheme)} · Megaminx top: ${megaminxTopFace() === 'black' ? 'Black' : 'Grey'}</div>
                                 <div class="app-color-grid profile-color-grid" id="profile-color-grid"></div>
                             </div>
                         </div>
@@ -3442,7 +3484,7 @@
             trainCube.setAttribute('puzzle', trainPuzzleId(cat));
             if (prefer2DForCategory(cat)) trainCube.setAttribute('visualization', '2D');
             else trainCube.removeAttribute('visualization');
-            trainCube.setAttribute('experimental-setup-alg', (orient ? orient + ' ' : '') + scr);
+            trainCube.setAttribute('experimental-setup-alg', applyPuzzleViewSetup(trainPuzzleId(cat), (orient ? orient + ' ' : '') + scr));
             trainCube.alg = '';
             revealBox.innerHTML = '';
         }
@@ -4038,7 +4080,7 @@
                 puzzleCube.setAttribute('puzzle', PUZZLE_DISPLAY[ev]);
                 if (prefer2DForPuzzle(PUZZLE_DISPLAY[ev])) puzzleCube.setAttribute('visualization', '2D');
                 else puzzleCube.removeAttribute('visualization');
-                puzzleCube.setAttribute('experimental-setup-alg', scrambleText || '');
+                puzzleCube.setAttribute('experimental-setup-alg', applyPuzzleViewSetup(PUZZLE_DISPLAY[ev], scrambleText || ''));
                 puzzleCube.alg = '';
             } else {
                 puzzleCubeWrap.dataset.supported = '0';
@@ -5112,7 +5154,10 @@
             document.querySelectorAll('.pe-tab-content').forEach(c => {
                 c.style.display = c.dataset.peContent === tabId ? '' : 'none';
             });
-            if (tabId === 'appearance') buildColorSwatches();
+            if (tabId === 'appearance') {
+                buildColorSwatches();
+                buildMegaminxTopFacePicker();
+            }
         }));
 
         // Avatar file: read & downscale to 256x256 (cap stored size)
@@ -6178,7 +6223,8 @@
             widgets = filled.slice();
             saveWidgets();
             row.querySelectorAll('[data-mini-scramble]').forEach(el => {
-                el.innerHTML = `<twisty-player puzzle="${({'333':'3x3x3','222':'2x2x2','444':'4x4x4','555':'5x5x5','666':'6x6x6','777':'7x7x7','pyram':'pyraminx','skewb':'skewb','minx':'megaminx'}[puzzleSelect.value] || '3x3x3')}" visualization="2D" alg="" experimental-setup-alg="${(currentScramble || '').replace(/"/g, '&quot;')}" background="none" control-panel="none" viewer-link="none" style="width:100%;height:100%;"></twisty-player>`;
+                const puzzleId = ({'333':'3x3x3','222':'2x2x2','444':'4x4x4','555':'5x5x5','666':'6x6x6','777':'7x7x7','pyram':'pyraminx','skewb':'skewb','minx':'megaminx'}[puzzleSelect.value] || '3x3x3');
+                el.innerHTML = `<twisty-player puzzle="${puzzleId}" visualization="2D" alg="" experimental-setup-alg="${applyPuzzleViewSetup(puzzleId, currentScramble || '').replace(/"/g, '&quot;')}" background="none" control-panel="none" viewer-link="none" style="width:100%;height:100%;"></twisty-player>`;
             });
         }
         renderWidgets();
@@ -6292,7 +6338,7 @@
             if (w.type === 'scramble') {
                 const p = ({'333':'3x3x3','222':'2x2x2','444':'4x4x4','555':'5x5x5','666':'6x6x6','777':'7x7x7','pyram':'pyraminx','skewb':'skewb','minx':'megaminx'}[puzzleSelect.value] || '3x3x3');
                 bodyEl.innerHTML = `<div class="widget-expand-scramble">${(currentScramble || '—').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>
-                    <div class="widget-expand-cube"><twisty-player puzzle="${p}" visualization="2D" experimental-setup-alg="${(currentScramble || '').replace(/"/g, '&quot;')}" background="none" control-panel="none" viewer-link="none" style="width:100%;height:280px;"></twisty-player></div>`;
+                    <div class="widget-expand-cube"><twisty-player puzzle="${p}" visualization="2D" experimental-setup-alg="${applyPuzzleViewSetup(p, currentScramble || '').replace(/"/g, '&quot;')}" background="none" control-panel="none" viewer-link="none" style="width:100%;height:280px;"></twisty-player></div>`;
             } else {
                 bodyEl.innerHTML = `<div class="widget-expand-big">${renderWidgetSlot(w)}</div>`;
             }

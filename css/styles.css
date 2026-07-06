@@ -6223,6 +6223,34 @@
             font-family: 'Ubuntu', sans-serif;
         }
         .app-color-swatch.on .app-color-label { color: var(--text-main); }
+        .top-face-grid {
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
+        .top-face-grid .app-color-swatch {
+            align-items: flex-start;
+            text-align: left;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.02);
+        }
+        .top-face-grid .app-color-swatch:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.14);
+        }
+        .top-face-grid .app-color-swatch.on {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.18);
+        }
+        .top-face-grid .app-color-dot {
+            width: 48px;
+            height: 24px;
+            border-radius: 999px;
+        }
+        .top-face-desc {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            line-height: 1.35;
+        }
 
         @media (max-width: 960px) {
             .app-page-shell {
