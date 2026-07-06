@@ -976,6 +976,20 @@
                     return true;
                 }
             } catch (_) {}
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = value;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                ta.style.top = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                const ok = document.execCommand('copy');
+                ta.remove();
+                return !!ok;
+            } catch (_) {}
             return false;
         }
 
@@ -1915,6 +1929,7 @@
                                 <div class="panel-title"><span>Add Friend</span></div>
                                 <div class="social-add-row">
                                     <input type="text" id="social-friend-code" class="pe-input" placeholder="Friend code" value="${escHTML(socialPrefs.friendCodeInput || '')}">
+                                    <button class="train-quick-btn" id="social-paste-code" type="button">Paste</button>
                                     <button class="train-cta" id="social-add-friend">Send</button>
                                 </div>
                             </div>
@@ -2048,19 +2063,51 @@
             document.getElementById('social-copy-code')?.addEventListener('click', async () => {
                 const code = socialHubState.me?.friendCode || '';
                 if (!code) return;
-                try { if (navigator.clipboard) await navigator.clipboard.writeText(code); } catch (_) {}
+                const btn = document.getElementById('social-copy-code');
+                const old = btn?.textContent || 'Copy';
+                const ok = await copyText(code);
+                if (btn) {
+                    btn.textContent = ok ? 'Copied!' : 'Copy failed';
+                    setTimeout(() => { btn.textContent = old; }, 1000);
+                }
             });
-            document.getElementById('social-friend-code')?.addEventListener('input', (e) => {
+            const friendCodeInput = document.getElementById('social-friend-code');
+            friendCodeInput?.addEventListener('input', (e) => {
                 socialPrefs.friendCodeInput = e.target.value;
                 saveSocialPrefs();
+            });
+            friendCodeInput?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('social-add-friend')?.click();
+                }
+            });
+            document.getElementById('social-paste-code')?.addEventListener('click', async () => {
+                const input = document.getElementById('social-friend-code');
+                if (!input) return;
+                try {
+                    const text = await navigator.clipboard?.readText?.();
+                    if (text) {
+                        input.value = text.trim();
+                        socialPrefs.friendCodeInput = input.value;
+                        saveSocialPrefs();
+                    } else {
+                        input.focus();
+                    }
+                } catch (_) {
+                    input.focus();
+                    alert('Paste is blocked by the browser. Tap the box and paste the friend code manually.');
+                }
             });
             document.getElementById('social-add-friend')?.addEventListener('click', async () => {
                 if (socialBusy) return;
                 socialBusy = true;
                 try {
-                    await social.sendFriendRequestByCode(document.getElementById('social-friend-code')?.value || '');
+                    const input = document.getElementById('social-friend-code');
+                    await social.sendFriendRequestByCode(input?.value || '');
                     socialPrefs.friendCodeInput = '';
                     saveSocialPrefs();
+                    if (input) input.value = '';
                     renderSocialPage();
                 } catch (e) {
                     alert(e.message || e);
@@ -2859,37 +2906,12 @@
         if (!plannerData.plans) plannerData.plans = [];
         function savePlanner() { LS.set('planner', plannerData); }
         function genPlanId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-        function ensureProductRoadmapChecklist() {
-            const roadmapId = 'uc-product-roadmap';
-            const existing = plannerData.plans.find(p => p.id === roadmapId);
-            const tasks = [
-                ['Fix assistant model connection', true],
-                ['Rename the assistant to Cubey and mark it Beta', true],
-                ['Clean up technical UI copy and make assistant/social feel friendlier', true],
-                ['Add friend requests, DMs, voice chat, and battle invites', true],
-                ['Add /competition competition-picker cards above the assistant chat box', true],
-                ['Show live battle activity count in the Battles lobby', false],
-                ['Polish linked Google + WCA account messaging and UX', false],
-                ['Expand social into richer multi-chat / group chat support', false],
-                ['Make smart cubes, analog mic timers, and hardware timer flows production-ready', false],
-                ['Add battle mode artwork / hover visuals once assets are provided', false],
-                ['Design paid tier implementation plan without shipping billing code yet', false],
-                ['Plan merch + international shipping workflow', false]
-            ].map(([text, done], idx) => ({ id: `road-${idx}`, text, done }));
-            if (!existing) {
-                plannerData.plans.unshift({
-                    id: roadmapId,
-                    name: 'UC Product Roadmap Checklist',
-                    date: null,
-                    tasks
-                });
-                savePlanner();
-                return;
-            }
-            const byText = new Map((existing.tasks || []).map(task => [task.text, task]));
-            existing.tasks = tasks.map(task => byText.get(task.text) ? { ...task, done: byText.get(task.text).done } : task);
+        function removeSeededProductRoadmapChecklist() {
+            const before = plannerData.plans.length;
+            plannerData.plans = plannerData.plans.filter(p => p.id !== 'uc-product-roadmap');
+            if (plannerData.plans.length !== before) savePlanner();
         }
-        ensureProductRoadmapChecklist();
+        removeSeededProductRoadmapChecklist();
 
         // ---- Alg Goal helpers ----
         function buildAlgGoalSplits(category, totalDays, hasDrillDay) {

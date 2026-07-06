@@ -8,6 +8,42 @@
 
 import { connectSmartPuzzle } from "https://cdn.cubing.net/v0/js/cubing/bluetooth";
 
+const SMART_CUBE_OPTIONAL_SERVICES = [
+    'battery_service',
+    'device_information',
+    '0000fff0-0000-1000-8000-00805f9b34fb',
+    '0000fff6-0000-1000-8000-00805f9b34fb',
+    '0000aadb-0000-1000-8000-00805f9b34fb',
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+    '0000fe59-0000-1000-8000-00805f9b34fb',
+    '0000fe95-0000-1000-8000-00805f9b34fb'
+];
+
+async function connectSelectedDevice(device) {
+    const attempts = [
+        () => connectSmartPuzzle({ bluetoothDevice: device }),
+        () => connectSmartPuzzle({ device }),
+        () => connectSmartPuzzle(device)
+    ];
+    let lastError = null;
+    for (const attempt of attempts) {
+        try {
+            return await attempt();
+        } catch (e) {
+            lastError = e;
+        }
+    }
+    throw lastError || new Error('Could not attach to the selected smart cube.');
+}
+
+async function connectWithBroadPicker() {
+    const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: SMART_CUBE_OPTIONAL_SERVICES
+    });
+    return connectSelectedDevice(device);
+}
+
 export async function connectCube({ onMove, onSolved, onName, onError, onDisconnect } = {}) {
     if (!navigator.bluetooth) {
         const msg = 'Web Bluetooth is not supported in this browser. Use Chrome, Edge, or Opera.';
@@ -19,8 +55,13 @@ export async function connectCube({ onMove, onSolved, onName, onError, onDisconn
     try {
         puzzle = await connectSmartPuzzle();
     } catch (e) {
-        if (onError) onError(e.message || String(e));
-        throw e;
+        try {
+            puzzle = await connectWithBroadPicker();
+        } catch (fallbackError) {
+            const msg = fallbackError?.message || e?.message || String(fallbackError || e);
+            if (onError) onError(msg);
+            throw fallbackError || e;
+        }
     }
 
     const name = (puzzle && (puzzle.name || puzzle.deviceName)) || 'Smart Cube';
