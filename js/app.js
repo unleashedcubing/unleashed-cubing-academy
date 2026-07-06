@@ -80,32 +80,6 @@
             const prefix = puzzleId === 'megaminx' ? megaminxViewPrefix() : '';
             return [prefix, setupText].filter(Boolean).join(' ').trim();
         }
-        function megaminxTopPattern(item) {
-            const family = (item.category || '').replace('Megaminx ', '').toLowerCase();
-            const n = parseInt(String(item.name || '').match(/\d+/)?.[0] || '1', 10);
-            if (family === 'co') {
-                return {
-                    marks: Array.from({ length: 5 }, (_, i) => ((n + i * 2) % 3 === 0 ? 'mark' : 'top')),
-                    edges: Array.from({ length: 5 }, (_, i) => ((n + i) % 2 ? 'edge' : 'top'))
-                };
-            }
-            if (family === 'eo') {
-                return {
-                    marks: Array.from({ length: 5 }, () => 'top'),
-                    edges: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 1) % 5 ? 'edge' : 'top'))
-                };
-            }
-            if (family === 'cp') {
-                return {
-                    marks: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 1) % 5 || i === (n + 3) % 5 ? 'mark' : 'top')),
-                    edges: Array.from({ length: 5 }, () => 'top')
-                };
-            }
-            return {
-                marks: Array.from({ length: 5 }, () => 'top'),
-                edges: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 2) % 5 ? 'edge' : 'top'))
-            };
-        }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
             if (category.startsWith('4x4')) return '4x4x4';
@@ -478,19 +452,11 @@
                 // Only show the 2D LL map for 3x3 LL subsets
                 const is3x3LL = cat === 'OLL' || cat === 'COLL' || cat === 'PLL';
                 const isMegaminxCase = cat.startsWith('Megaminx');
-                const showMap = is3x3LL || isMegaminxCase;
+                const showMap = is3x3LL;
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
                 const visualMode = prefer2DForCategory(cat) ? '2D' : '';
-                const megaTopClass = megaminxTopFace() === 'black' ? 'is-black' : 'is-gray';
-                const megaPattern = isMegaminxCase ? megaminxTopPattern(item) : null;
-                const megaTopMapHTML = `<div class="cube-2d-map mega-top-map ${megaTopClass}">
-                    <div class="mega-top-face">
-                        ${megaPattern ? megaPattern.edges.map((state, idx) => `<span class="mega-top-edge edge-${idx + 1} ${state}"></span>`).join('') : ''}
-                        ${megaPattern ? megaPattern.marks.map((state, idx) => `<span class="mega-top-sticker sticker-${idx + 1} ${state}"></span>`).join('') : ''}
-                        <span class="mega-top-core"></span>
-                    </div>
-                </div>`;
+                const megaSetupState = isMegaminxCase ? applyPuzzleViewSetup(puzzleFor, setupAnim) : '';
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
@@ -514,6 +480,7 @@
                             id="player-${i}"
                             puzzle="${puzzleFor}"
                             data-default-esa="${defaultEsa}"
+                            ${isMegaminxCase ? `data-default-mega-setup="${escHTML(megaSetupState)}"` : ''}
                             alg=""
                             experimental-setup-alg="${defaultEsa}"
                             ${visualMode ? `visualization="${visualMode}"` : ''}
@@ -521,7 +488,7 @@
                             control-panel="none"
                             viewer-link="none">
                         </twisty-player>
-                        ${showMap ? (isMegaminxCase ? megaTopMapHTML : `
+                        ${showMap ? `
                         <div class="cube-2d-map">
                             <twisty-player
                                 id="player-2d-${i}"
@@ -535,7 +502,7 @@
                                 viewer-link="none">
                             </twisty-player>
                         </div>
-                        `) : ''}
+                        ` : ''}
                     </div>
                     <div class="alg-section">
                         <div class="alg-label">Setup</div>
@@ -558,6 +525,7 @@
             }
 
             grid.appendChild(fragment);
+            applyDefaultStates(renderIndex, end);
             attachInteractions(renderIndex, end);
             renderIndex = end;
 
@@ -655,6 +623,33 @@
             document.getElementById('cat-make-goal')?.addEventListener('click', () => openAlgGoalModal(cat));
         }
 
+        function applyDefaultPlayerState(player) {
+            const megaSetup = player.getAttribute('data-default-mega-setup') || '';
+            if (megaSetup) {
+                player.setAttribute('experimental-setup-alg', '');
+                player.pause?.();
+                player.alg = megaSetup;
+                player.timestamp = 1e9;
+                requestAnimationFrame(() => {
+                    try {
+                        player.pause?.();
+                        player.timestamp = 1e9;
+                    } catch (_) {}
+                });
+                return;
+            }
+            player.setAttribute('experimental-setup-alg', player.getAttribute('data-default-esa') || '');
+            player.alg = '';
+            player.timestamp = 0;
+        }
+
+        function applyDefaultStates(startIndex, endIndex) {
+            for (let i = startIndex; i < endIndex; i++) {
+                const player = document.getElementById(`player-${i}`);
+                if (player) applyDefaultPlayerState(player);
+            }
+        }
+
         function attachInteractions(startIndex, endIndex) {
             for(let i = startIndex; i < endIndex; i++) {
                 const allAlgs = document.querySelectorAll(`.alg.main-alg[data-player="player-${i}"], .alg.alt-alg[data-player="player-${i}"], .alg.setup-alg[data-player="player-${i}"]`);
@@ -678,8 +673,7 @@
                         if (!player) return;
                         player.pause();
                         player.timestamp = 0;
-                        player.setAttribute('experimental-setup-alg', player.getAttribute('data-default-esa') || '');
-                        player.alg = '';
+                        applyDefaultPlayerState(player);
                     });
 
                     algDiv.addEventListener('click', (e) => {
@@ -703,9 +697,10 @@
                         // The new main algorithm defines the card's default orientation
                         card.querySelectorAll('twisty-player').forEach(player => {
                             player.setAttribute('data-default-esa', cEsa);
-                            player.setAttribute('experimental-setup-alg', cEsa);
-                            player.alg = '';
-                            player.timestamp = 0;
+                            if (player.hasAttribute('data-default-mega-setup')) {
+                                player.setAttribute('data-default-mega-setup', cEsa || '');
+                            }
+                            applyDefaultPlayerState(player);
                         });
 
                         // Persist the chosen main algorithm for this case
