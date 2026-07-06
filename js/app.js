@@ -80,6 +80,32 @@
             const prefix = puzzleId === 'megaminx' ? megaminxViewPrefix() : '';
             return [prefix, setupText].filter(Boolean).join(' ').trim();
         }
+        function megaminxTopPattern(item) {
+            const family = (item.category || '').replace('Megaminx ', '').toLowerCase();
+            const n = parseInt(String(item.name || '').match(/\d+/)?.[0] || '1', 10);
+            if (family === 'co') {
+                return {
+                    marks: Array.from({ length: 5 }, (_, i) => ((n + i * 2) % 3 === 0 ? 'mark' : 'top')),
+                    edges: Array.from({ length: 5 }, (_, i) => ((n + i) % 2 ? 'edge' : 'top'))
+                };
+            }
+            if (family === 'eo') {
+                return {
+                    marks: Array.from({ length: 5 }, () => 'top'),
+                    edges: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 1) % 5 ? 'edge' : 'top'))
+                };
+            }
+            if (family === 'cp') {
+                return {
+                    marks: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 1) % 5 || i === (n + 3) % 5 ? 'mark' : 'top')),
+                    edges: Array.from({ length: 5 }, () => 'top')
+                };
+            }
+            return {
+                marks: Array.from({ length: 5 }, () => 'top'),
+                edges: Array.from({ length: 5 }, (_, i) => (i === (n - 1) % 5 || i === (n + 2) % 5 ? 'edge' : 'top'))
+            };
+        }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
             if (category.startsWith('4x4')) return '4x4x4';
@@ -457,13 +483,11 @@
                                         cat === 'COLL' ? 'COLL' : 'full';
                 const visualMode = prefer2DForCategory(cat) ? '2D' : '';
                 const megaTopClass = megaminxTopFace() === 'black' ? 'is-black' : 'is-gray';
+                const megaPattern = isMegaminxCase ? megaminxTopPattern(item) : null;
                 const megaTopMapHTML = `<div class="cube-2d-map mega-top-map ${megaTopClass}">
                     <div class="mega-top-face">
-                        <span class="mega-top-edge edge-a"></span>
-                        <span class="mega-top-edge edge-b"></span>
-                        <span class="mega-top-edge edge-c"></span>
-                        <span class="mega-top-edge edge-d"></span>
-                        <span class="mega-top-edge edge-e"></span>
+                        ${megaPattern ? megaPattern.edges.map((state, idx) => `<span class="mega-top-edge edge-${idx + 1} ${state}"></span>`).join('') : ''}
+                        ${megaPattern ? megaPattern.marks.map((state, idx) => `<span class="mega-top-sticker sticker-${idx + 1} ${state}"></span>`).join('') : ''}
                         <span class="mega-top-core"></span>
                     </div>
                 </div>`;
