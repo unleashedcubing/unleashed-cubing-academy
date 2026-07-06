@@ -63,9 +63,11 @@
             return !!liteVisualMedia.matches;
         }
         function prefer2DForPuzzle(puzzleId) {
+            if (puzzleId === 'megaminx') return false;
             return useLiteVisuals();
         }
         function prefer2DForCategory(category) {
+            if (category.startsWith('Megaminx')) return false;
             return useLiteVisuals();
         }
         function megaminxTopFace() {

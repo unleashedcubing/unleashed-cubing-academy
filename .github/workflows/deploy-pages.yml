@@ -36,12 +36,11 @@ jobs:
           cp -R css _site/css
           cp -R js _site/js
           cp -R Cube_Clipart _site/Cube_Clipart
-          cp -R 2x2 _site/2x2
-          cp -R 3x3 _site/3x3
-          cp -R 4x4 _site/4x4
-          cp -R 5x5 _site/5x5
-          cp -R Pyraminx _site/Pyraminx
-          cp -R Megaminx _site/Megaminx
+          for dir in 2x2 3x3 4x4 5x5 Pyraminx Megaminx; do
+            if [ -d "$dir" ]; then
+              cp -R "$dir" "_site/$dir"
+            fi
+          done
           touch _site/.nojekyll
 
       - name: Upload Pages artifact
