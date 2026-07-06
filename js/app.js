@@ -77,8 +77,10 @@
             return megaminxTopFace() === 'black' ? 'z' : 'x2';
         }
         function applyPuzzleViewSetup(puzzleId, setupText = '') {
-            const prefix = puzzleId === 'megaminx' ? megaminxViewPrefix() : '';
-            return [prefix, setupText].filter(Boolean).join(' ').trim();
+            // Match the working trainer/timer previews: Megaminx setup algs must be
+            // passed directly, because cube rotations like x2/z can make Twisty skip
+            // the whole setup string for Megaminx.
+            return String(setupText || '').trim();
         }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
@@ -624,14 +626,15 @@
 
         function applyDefaultPlayerState(player) {
             const setupState = player.getAttribute('data-default-setup-state') || player.getAttribute('data-default-esa') || '';
-            player.setAttribute('experimental-setup-alg', '');
+            player.setAttribute('experimental-setup-alg', setupState);
             player.pause?.();
-            player.alg = setupState;
-            player.timestamp = 1e9;
+            player.alg = '';
+            player.timestamp = 0;
             requestAnimationFrame(() => {
                 try {
                     player.pause?.();
-                    player.timestamp = 1e9;
+                    player.alg = '';
+                    player.timestamp = 0;
                 } catch (_) {}
             });
         }
