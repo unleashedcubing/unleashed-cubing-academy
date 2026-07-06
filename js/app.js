@@ -451,12 +451,11 @@
                 // Choose the puzzle for this case
                 // Only show the 2D LL map for 3x3 LL subsets
                 const is3x3LL = cat === 'OLL' || cat === 'COLL' || cat === 'PLL';
-                const isMegaminxCase = cat.startsWith('Megaminx');
                 const showMap = is3x3LL;
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
                 const visualMode = prefer2DForCategory(cat) ? '2D' : '';
-                const megaSetupState = isMegaminxCase ? applyPuzzleViewSetup(puzzleFor, setupAnim) : '';
+                const defaultSetupState = defaultEsa;
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
@@ -480,7 +479,7 @@
                             id="player-${i}"
                             puzzle="${puzzleFor}"
                             data-default-esa="${defaultEsa}"
-                            ${isMegaminxCase ? `data-default-mega-setup="${escHTML(megaSetupState)}"` : ''}
+                            data-default-setup-state="${escHTML(defaultSetupState)}"
                             alg=""
                             experimental-setup-alg="${defaultEsa}"
                             ${visualMode ? `visualization="${visualMode}"` : ''}
@@ -624,23 +623,17 @@
         }
 
         function applyDefaultPlayerState(player) {
-            const megaSetup = player.getAttribute('data-default-mega-setup') || '';
-            if (megaSetup) {
-                player.setAttribute('experimental-setup-alg', '');
-                player.pause?.();
-                player.alg = megaSetup;
-                player.timestamp = 1e9;
-                requestAnimationFrame(() => {
-                    try {
-                        player.pause?.();
-                        player.timestamp = 1e9;
-                    } catch (_) {}
-                });
-                return;
-            }
-            player.setAttribute('experimental-setup-alg', player.getAttribute('data-default-esa') || '');
-            player.alg = '';
-            player.timestamp = 0;
+            const setupState = player.getAttribute('data-default-setup-state') || player.getAttribute('data-default-esa') || '';
+            player.setAttribute('experimental-setup-alg', '');
+            player.pause?.();
+            player.alg = setupState;
+            player.timestamp = 1e9;
+            requestAnimationFrame(() => {
+                try {
+                    player.pause?.();
+                    player.timestamp = 1e9;
+                } catch (_) {}
+            });
         }
 
         function applyDefaultStates(startIndex, endIndex) {
@@ -695,12 +688,16 @@
                         t.innerText = mTxt;
 
                         // The new main algorithm defines the card's default orientation
-                        card.querySelectorAll('twisty-player').forEach(player => {
-                            player.setAttribute('data-default-esa', cEsa);
-                            if (player.hasAttribute('data-default-mega-setup')) {
-                                player.setAttribute('data-default-mega-setup', cEsa || '');
-                            }
-                            applyDefaultPlayerState(player);
+                        const mainPlayer = document.getElementById(mainDiv.getAttribute('data-player'));
+                        if (mainPlayer) {
+                            mainPlayer.setAttribute('data-default-esa', cEsa);
+                            mainPlayer.setAttribute('data-default-setup-state', cEsa || '');
+                            applyDefaultPlayerState(mainPlayer);
+                        }
+                        card.querySelectorAll('.cube-2d-map twisty-player').forEach(player => {
+                            player.setAttribute('experimental-setup-alg', cEsa || '');
+                            player.alg = '';
+                            player.timestamp = 0;
                         });
 
                         // Persist the chosen main algorithm for this case
