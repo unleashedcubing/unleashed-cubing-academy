@@ -18,7 +18,7 @@
             { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U R' U2' R U' R'", alts: ["y2' R2' DR' R U2 R' DR R U2' R"] },
             { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R' U' R'"] },
             { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
-            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "R U R'", alts: ["F R' F' U' R' F R U R U' R' F'", "y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
+            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "F R' F' U' R' F R U R U' R' F'", alts: ["y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
             { category: 'Megaminx CO', name: 'CO 5', setup: '', main_alg: "R U R' U R U2' R'", alts: ["y2 L U' R' U L' U' R U"] },
             { category: 'Megaminx CO', name: 'CO 6', setup: '', main_alg: "R' U' R U' R' U2 R", alts: ["y2 L' U' L U' L' U2 L"] },
             { category: 'Megaminx CO', name: 'CO 7', setup: '', main_alg: "R U2 R' U' R U' R'", alts: ["y' R' F R F' L F R' F' R L'"] },
@@ -63,16 +63,16 @@
             return !!liteVisualMedia.matches;
         }
         function prefer2DForPuzzle(puzzleId) {
-            return puzzleId === 'megaminx' || useLiteVisuals();
+            return useLiteVisuals();
         }
         function prefer2DForCategory(category) {
-            return category.startsWith('Megaminx') || useLiteVisuals();
+            return useLiteVisuals();
         }
         function megaminxTopFace() {
             return LS.get('megaminxTopFace', 'gray');
         }
         function megaminxViewPrefix() {
-            return megaminxTopFace() === 'black' ? 'x2' : '';
+            return megaminxTopFace() === 'black' ? 'z' : 'x2';
         }
         function applyPuzzleViewSetup(puzzleId, setupText = '') {
             const prefix = puzzleId === 'megaminx' ? megaminxViewPrefix() : '';
@@ -449,10 +449,12 @@
                 // Choose the puzzle for this case
                 // Only show the 2D LL map for 3x3 LL subsets
                 const is3x3LL = cat === 'OLL' || cat === 'COLL' || cat === 'PLL';
-                const showMap = is3x3LL;
+                const isMegaminxCase = cat.startsWith('Megaminx');
+                const showMap = is3x3LL || isMegaminxCase;
                 const stickering2dVal = cat === 'OLL' ? 'OLL' :
                                         cat === 'COLL' ? 'COLL' : 'full';
                 const visualMode = prefer2DForCategory(cat) ? '2D' : '';
+                const mapVisualization = isMegaminxCase ? '2D' : 'experimental-2D-LL';
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
@@ -491,7 +493,7 @@
                                 experimental-stickering="${stickering2dVal}"
                                 alg=""
                                 experimental-setup-alg="${defaultEsa}"
-                                visualization="experimental-2D-LL"
+                                visualization="${mapVisualization}"
                                 background="none"
                                 control-panel="none"
                                 viewer-link="none">
