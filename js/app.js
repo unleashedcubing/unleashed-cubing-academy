@@ -888,11 +888,9 @@
 
         // Sidebar collapse toggle (persisted)
         const appSidebar = document.getElementById('app-sidebar');
-        if (LS.get('sidebarCollapsed', false)) appSidebar?.classList.add('collapsed');
-        document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-            const collapsed = appSidebar.classList.toggle('collapsed');
-            LS.set('sidebarCollapsed', collapsed);
-        });
+        // Keep navigation stationary and fully readable while pages scroll.
+        appSidebar?.classList.remove('collapsed');
+        try { localStorage.removeItem('uc_sidebarCollapsed'); } catch (_) {}
 
         // ---- Stats page (personal records, distribution, algorithm progress) ----
         const PUZZLES_FOR_STATS = ['222', '333', '444', '555', '666', '777', 'pyram', 'skewb', 'minx', 'sq1', 'clock'];
@@ -900,11 +898,38 @@
             '222': '2x2', '333': '3x3', '444': '4x4', '555': '5x5', '666': '6x6', '777': '7x7',
             'pyram': 'Pyraminx', 'skewb': 'Skewb', 'minx': 'Megaminx', 'sq1': 'Square-1', 'clock': 'Clock'
         };
-        const ALG_CATS = [
-            { id: 'PLL', label: 'PLL' }, { id: 'OLL', label: 'OLL' }, { id: 'COLL', label: 'COLL' },
-            { id: 'F2L', label: 'F2L' }, { id: 'AF2L', label: 'Advanced F2L' },
-            { id: 'Winter Variation', label: 'Winter Variation' }, { id: 'Summer Variation', label: 'Summer Variation' }
-        ];
+        const ALG_MASTERY_ORDER = ['333', '222', '444', '555', 'pyram', 'minx'];
+        function algMasteryGroups(cube = 'all') {
+            const categories = [...new Set(db.map(item => item.category).filter(Boolean))];
+            return categories.map(category => {
+                const items = db.filter(item => item.category === category);
+                const event = algCategoryEventId(category);
+                const learned = items.filter(item => learnedSet.has(item.name)).length;
+                const learning = items.filter(item => learningSet.has(item.name)).length;
+                return {
+                    id: category,
+                    label: category,
+                    event,
+                    cubeLabel: PUZZLE_LABEL[event] || eventLabel(event),
+                    learned,
+                    learning,
+                    total: items.length,
+                    pct: items.length ? learned / items.length * 100 : 0
+                };
+            }).filter(group => cube === 'all' || group.event === cube)
+                .sort((a, b) => {
+                    const eventDelta = ALG_MASTERY_ORDER.indexOf(a.event) - ALG_MASTERY_ORDER.indexOf(b.event);
+                    return eventDelta || a.label.localeCompare(b.label);
+                });
+        }
+        function algMasteryCubeOptions() {
+            const seen = new Set();
+            return algMasteryGroups().filter(group => {
+                if (seen.has(group.event)) return false;
+                seen.add(group.event);
+                return true;
+            }).map(group => ({ id: group.event, label: group.cubeLabel }));
+        }
         // Distinct colors for puzzle donut segments
         const PUZZLE_COLORS = ['#FF9F0A', '#FF6A00', '#5fe08c', '#5ab0ff', '#c084fc', '#f472b6', '#facc15', '#22d3ee', '#fb923c', '#a78bfa', '#34d399'];
 
@@ -1005,6 +1030,7 @@
         }
 
         let statsFilter = statsFilterDefault();   // 'all' | one of PUZZLES_FOR_STATS
+        let algMasteryCube = LS.get('algMasteryCube', 'all');
 
         // ============================================================
         //   XP + Level system
@@ -2309,14 +2335,13 @@
             }
             const totalSolves = perPuzzle.reduce((a, p) => a + p.count, 0);
 
-            // --- Algorithm progress: learned / total per category ---
-            const algProg = ALG_CATS.map(c => {
-                const items = db.filter(it => it.category === c.id);
-                const learned = items.filter(it => learnedSet.has(it.name)).length;
-                return { ...c, learned, total: items.length, pct: items.length ? learned / items.length * 100 : 0 };
-            });
-            const totalLearned = algProg.reduce((a, c) => a + c.learned, 0);
-            const totalAlgs = algProg.reduce((a, c) => a + c.total, 0);
+            // --- Algorithm mastery: all cube libraries, optionally narrowed by cube ---
+            const allAlgProg = algMasteryGroups();
+            const algProg = algMasteryGroups(algMasteryCube);
+            const totalLearned = allAlgProg.reduce((a, c) => a + c.learned, 0);
+            const totalAlgs = allAlgProg.reduce((a, c) => a + c.total, 0);
+            const shownLearned = algProg.reduce((a, c) => a + c.learned, 0);
+            const shownTotal = algProg.reduce((a, c) => a + c.total, 0);
 
             // --- Practice distribution: TWO donuts (by cube, by session) ---
             // Donut A: by cube
@@ -2326,13 +2351,9 @@
             }));
             // Donut B: by session name (combined across puzzles)
             const bySessionName = {};
-            PUZZLES_FOR_STATS.forEach(pid => {
-                const store = LS.get('sess_' + pid, null);
-                if (!store || !store.sessions) return;
-                store.sessions.forEach(sess => {
-                    const name = sess.name || 'Unnamed';
-                    bySessionName[name] = (bySessionName[name] || 0) + ((sess.solves && sess.solves.length) || 0);
-                });
+            getAllCurrentSessions().forEach(sess => {
+                const name = sess.name || 'Unnamed';
+                bySessionName[name] = (bySessionName[name] || 0) + ((sess.solves && sess.solves.length) || 0);
             });
             const sessionSegs = Object.entries(bySessionName)
                 .filter(([_, c]) => c > 0)
@@ -2530,14 +2551,20 @@
                     </div>
 
                     <div class="train-panel stats-progress stats-fullwidth">
-                        <div class="panel-title">Algorithm Progress
-                            <span class="alg-progress-total">${totalLearned} / ${totalAlgs} learned</span>
+                        <div class="panel-title alg-progress-title"><span>Algorithm Mastery</span>
+                            <div class="alg-progress-controls">
+                                <span class="alg-progress-total">${shownLearned} / ${shownTotal} learned</span>
+                                <select id="stats-alg-mastery-cube" class="stats-filter-select" aria-label="Algorithm mastery cube">
+                                    <option value="all" ${algMasteryCube === 'all' ? 'selected' : ''}>All cubes</option>
+                                    ${algMasteryCubeOptions().map(option => `<option value="${escHTML(option.id)}" ${algMasteryCube === option.id ? 'selected' : ''}>${escHTML(option.label)}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                         <div class="prog-list">
                             ${algProg.map(c => `
                                 <div class="prog-row">
                                     <div class="prog-row-head">
-                                        <span>${c.label}</span>
+                                        <span>${algMasteryCube === 'all' ? `${escHTML(c.cubeLabel)} · ` : ''}${escHTML(c.label)}</span>
                                         <span class="prog-count">${c.learned} / ${c.total}</span>
                                     </div>
                                     <div class="prog-bar"><div class="prog-bar-fill" style="width:${c.pct.toFixed(1)}%"></div></div>
@@ -2556,6 +2583,14 @@
                 filterSel.addEventListener('change', () => {
                     statsFilter = filterSel.value;
                     LS.set('statsFilter', statsFilter);
+                    renderStats();
+                });
+            }
+            const masteryCubeSel = document.getElementById('stats-alg-mastery-cube');
+            if (masteryCubeSel) {
+                masteryCubeSel.addEventListener('change', () => {
+                    algMasteryCube = masteryCubeSel.value || 'all';
+                    LS.set('algMasteryCube', algMasteryCube);
                     renderStats();
                 });
             }
@@ -2746,12 +2781,9 @@
             const goalInfo = plannerSummary();
             const comp = currentCompetitionChoice();
             const recentSolves = recentSolveSummary(150);
-            const algProgress = ALG_CATS.map(c => {
-                const items = db.filter(it => it.category === c.id);
-                const learned = items.filter(it => learnedSet.has(it.name)).length;
-                const learning = items.filter(it => learningSet.has(it.name)).length;
-                return `${c.label}: ${learned}/${items.length} learned, ${learning} marked learning`;
-            });
+            const algProgress = algMasteryGroups().map(group =>
+                `${group.cubeLabel} ${group.label}: ${group.learned}/${group.total} learned, ${group.learning} marked learning`
+            );
             const wcaRecords = Object.entries(profile.wca_records || {})
                 .map(([ev, rec]) => `${eventLabel(ev)} | single: ${rec.single != null ? fmtTime(rec.single) : '—'} | average: ${rec.average != null ? fmtTime(rec.average) : '—'}`);
             const mode = userPrompt.trim().startsWith('/competition') ? 'competition' : 'general';
@@ -3719,9 +3751,17 @@
         let puzzleStarted = false;
         let currentScramble = '';
         let currentTrainingCase = null;
-        let timerTrainerPrefs = LS.get('timerTrainerPrefs', { enabled: false, categories: [], cases: [] });
+        let timerTrainerPrefs = LS.get('timerTrainerPrefs', { enabled: false, categories: [], cases: [], cubeFilter: 'all' });
         if (!Array.isArray(timerTrainerPrefs.categories)) timerTrainerPrefs.categories = [];
         if (!Array.isArray(timerTrainerPrefs.cases)) timerTrainerPrefs.cases = [];
+        if (!timerTrainerPrefs.cubeFilter) timerTrainerPrefs.cubeFilter = 'all';
+        function timerTrainerCaseId(item) { return `${item.category}::${item.name}`; }
+        // Older builds stored bare case names. Expand them once so same-named cases
+        // from different cubes can be selected independently going forward.
+        if (timerTrainerPrefs.cases.some(value => !String(value).includes('::'))) {
+            const oldNames = new Set(timerTrainerPrefs.cases);
+            timerTrainerPrefs.cases = db.filter(item => oldNames.has(item.name)).map(timerTrainerCaseId);
+        }
         function saveTimerTrainerPrefs() { LS.set('timerTrainerPrefs', timerTrainerPrefs); }
         function availableTimerTrainerCategories() {
             return [...new Set(db.map(item => item.category))].filter(cat => !isReferenceCategory(cat)).sort((a, b) => a.localeCompare(b));
@@ -3729,7 +3769,7 @@
         function timerTrainerItems() {
             const allowedCats = new Set(timerTrainerPrefs.categories || []);
             const allowedCases = new Set(timerTrainerPrefs.cases || []);
-            return db.filter(item => allowedCats.has(item.category) && allowedCases.has(item.name) && !isReferenceCategory(item.category));
+            return db.filter(item => allowedCats.has(item.category) && allowedCases.has(timerTrainerCaseId(item)) && !isReferenceCategory(item.category));
         }
         function timerTrainerEnabled() {
             return !!timerTrainerPrefs.enabled && timerTrainerItems().length > 0;
@@ -4737,8 +4777,35 @@
             const b = e.target.closest('[data-auth]');
             if (!b) return;
             if (b.dataset.auth === 'signin')  openSigninModal();
-            if (b.dataset.auth === 'signout') fbSync.signOut();
+            if (b.dataset.auth === 'signout') {
+                clearSignedOutUserCache();
+                fbSync.signOut();
+            }
         });
+
+        function clearSignedOutUserCache() {
+            const personalKeys = new Set([
+                'profile', 'learned', 'learning', 'mainChoices', 'planner',
+                'statsFilter', 'algMasteryCube', 'timerTrainerPrefs', 'inputMode',
+                'inspection', 'focusMode', 'holdDelay', 'precision', 'groupMode',
+                'trainCube', 'puzzleCube'
+            ]);
+            try {
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (!key) continue;
+                    const localKey = key.startsWith('uc_') ? key.slice(3) : '';
+                    if (key === 'uc_sessions_global' || localKey.startsWith('sess_') ||
+                        localKey.startsWith('ptimes_') || personalKeys.has(localKey)) {
+                        localStorage.removeItem(key);
+                    }
+                }
+            } catch (_) {}
+            puzzleStarted = false;
+            puzzleStore = null;
+            if (puzzleSolvesEl) puzzleSolvesEl.innerHTML = '<span class="solve-list-empty">Sign in again to load your synced solves.</span>';
+            if (puzzleStatsGrid) puzzleStatsGrid.innerHTML = '';
+        }
 
         // When auth state changes, reload state from (newly synced) localStorage and refresh UI.
         fbSync.onUserChange((user) => {
@@ -4754,6 +4821,7 @@
             focusMode         = LS.get('focusMode', false);
             holdDelayMs       = LS.get('holdDelay', 0);
             timerPrecision    = LS.get('precision', 2);
+            algMasteryCube    = LS.get('algMasteryCube', 'all');
             sessionRailLayout = LS.get('sessionRailLayout', 'side');
             groupMode         = LS.get('groupMode', 'name');
             showTrainCube     = LS.get('trainCube', true);
@@ -4803,11 +4871,13 @@
         const timerTrainerCatsEl = document.getElementById('timer-trainer-categories');
         const timerTrainerCasesEl = document.getElementById('timer-trainer-cases');
         const timerTrainerCountEl = document.getElementById('timer-trainer-count');
+        const timerTrainerCubeFilterEl = document.getElementById('timer-trainer-cube-filter');
         function timerTrainerDraft() {
             if (!timerTrainerModal._draft) {
                 timerTrainerModal._draft = {
                     categories: [...(timerTrainerPrefs.categories || [])],
-                    cases: [...(timerTrainerPrefs.cases || [])]
+                    cases: [...(timerTrainerPrefs.cases || [])],
+                    cubeFilter: timerTrainerPrefs.cubeFilter || 'all'
                 };
             }
             return timerTrainerModal._draft;
@@ -4817,7 +4887,17 @@
             const draft = timerTrainerDraft();
             const selectedCats = new Set(draft.categories);
             const selectedCases = new Set(draft.cases);
-            const categories = availableTimerTrainerCategories();
+            const cubeFilter = draft.cubeFilter || 'all';
+            const categories = availableTimerTrainerCategories().filter(category =>
+                cubeFilter === 'all' || algCategoryEventId(category) === cubeFilter
+            );
+            if (timerTrainerCubeFilterEl) {
+                const options = algMasteryCubeOptions();
+                timerTrainerCubeFilterEl.innerHTML = `<option value="all">All cubes</option>${options.map(option =>
+                    `<option value="${esc(option.id)}">${esc(option.label)}</option>`
+                ).join('')}`;
+                timerTrainerCubeFilterEl.value = cubeFilter;
+            }
             timerTrainerCatsEl.innerHTML = categories.map(cat => {
                 const count = db.filter(item => item.category === cat).length;
                 return `<label class="timer-trainer-row">
@@ -4840,8 +4920,9 @@
                         const learned = learnedSet.has(item.name);
                         const learning = learningSet.has(item.name);
                         const badge = learned ? 'Learned' : (learning ? 'Learning' : 'Unmarked');
+                        const caseId = timerTrainerCaseId(item);
                         return `<label class="timer-trainer-row">
-                            <input type="checkbox" data-timer-trainer-case="${esc(item.name)}" ${selectedCases.has(item.name) ? 'checked' : ''}>
+                            <input type="checkbox" data-timer-trainer-case="${esc(caseId)}" ${selectedCases.has(caseId) ? 'checked' : ''}>
                             <span class="timer-trainer-row-main">
                                 <span class="timer-trainer-row-title">${esc(item.name)}</span>
                                 <span class="timer-trainer-row-sub">${badge}</span>
@@ -4857,7 +4938,8 @@
             if (!timerTrainerModal) return;
             timerTrainerModal._draft = {
                 categories: [...(timerTrainerPrefs.categories || [])],
-                cases: [...(timerTrainerPrefs.cases || [])]
+                cases: [...(timerTrainerPrefs.cases || [])],
+                cubeFilter: timerTrainerPrefs.cubeFilter || 'all'
             };
             renderTimerTrainerModal();
             timerTrainerModal.style.display = 'flex';
@@ -4885,7 +4967,12 @@
                 alert('Pick at least one category and one case.');
                 return;
             }
-            timerTrainerPrefs = { enabled: true, categories: [...draft.categories], cases: [...draft.cases] };
+            timerTrainerPrefs = {
+                enabled: true,
+                categories: [...draft.categories],
+                cases: [...draft.cases],
+                cubeFilter: draft.cubeFilter || 'all'
+            };
             saveTimerTrainerPrefs();
             updateTimerTrainerStatus();
             closeTimerTrainerModal();
@@ -4899,8 +4986,13 @@
             if (cb.checked) set.add(cb.dataset.timerTrainerCategory);
             else set.delete(cb.dataset.timerTrainerCategory);
             draft.categories = [...set];
-            const allowedCaseNames = new Set(db.filter(item => draft.categories.includes(item.category)).map(item => item.name));
-            draft.cases = draft.cases.filter(name => allowedCaseNames.has(name));
+            const allowedCaseIds = new Set(db.filter(item => draft.categories.includes(item.category)).map(timerTrainerCaseId));
+            draft.cases = draft.cases.filter(caseId => allowedCaseIds.has(caseId));
+            renderTimerTrainerModal();
+        });
+        timerTrainerCubeFilterEl?.addEventListener('change', (e) => {
+            const draft = timerTrainerDraft();
+            draft.cubeFilter = e.target.value || 'all';
             renderTimerTrainerModal();
         });
         timerTrainerCasesEl?.addEventListener('change', (e) => {
@@ -4916,10 +5008,10 @@
         document.querySelectorAll('[data-timer-trainer-pick]').forEach(btn => btn.addEventListener('click', () => {
             const draft = timerTrainerDraft();
             const visibleCases = db.filter(item => draft.categories.includes(item.category) && !isReferenceCategory(item.category));
-            if (btn.dataset.timerTrainerPick === 'all') draft.cases = visibleCases.map(item => item.name);
+            if (btn.dataset.timerTrainerPick === 'all') draft.cases = visibleCases.map(timerTrainerCaseId);
             else if (btn.dataset.timerTrainerPick === 'none') draft.cases = [];
-            else if (btn.dataset.timerTrainerPick === 'learning') draft.cases = visibleCases.filter(item => learningSet.has(item.name)).map(item => item.name);
-            else if (btn.dataset.timerTrainerPick === 'learned') draft.cases = visibleCases.filter(item => learnedSet.has(item.name)).map(item => item.name);
+            else if (btn.dataset.timerTrainerPick === 'learning') draft.cases = visibleCases.filter(item => learningSet.has(item.name)).map(timerTrainerCaseId);
+            else if (btn.dataset.timerTrainerPick === 'learned') draft.cases = visibleCases.filter(item => learnedSet.has(item.name)).map(timerTrainerCaseId);
             renderTimerTrainerModal();
         }));
         timerTrainerModal?.addEventListener('click', (e) => {

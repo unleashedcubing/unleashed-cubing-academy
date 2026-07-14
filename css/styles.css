@@ -6850,3 +6850,118 @@
         }
         .social-add-feedback.success { color: #5ce39a; }
         .social-add-feedback.error { color: #ff938d; }
+
+        /* Final layout pass: keep the desktop navigation fixed and predictable. */
+        @media (min-width: 821px) {
+            .app-shell { align-items: stretch; }
+            .sidebar,
+            .sidebar.collapsed {
+                position: sticky !important;
+                top: 0;
+                align-self: flex-start;
+                width: 244px !important;
+                height: 100vh;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                transition: none !important;
+            }
+            .sidebar-toggle { display: none !important; }
+            .sidebar.collapsed .brand-text,
+            .sidebar.collapsed .nav-item span,
+            .sidebar.collapsed .sidebar-foot-note { display: block !important; }
+            .sidebar.collapsed .nav-item {
+                justify-content: flex-start;
+                padding: 12px 14px;
+            }
+            .sidebar.collapsed .sidebar-brand { justify-content: flex-start; }
+        }
+
+        /* Friend codes stay legible even in the narrow Social column. */
+        .social-me-card {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+        .social-me-code code { white-space: nowrap; }
+        .social-add-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: stretch;
+        }
+        .social-add-row input {
+            width: 100%;
+            max-width: none;
+            min-width: 0;
+        }
+        .social-add-row #social-add-friend {
+            grid-column: 1 / -1;
+            width: 100%;
+        }
+
+        /* The battle lobby uses one rhythm for the hero, cards, and help panel. */
+        #battles-view {
+            max-width: 1040px;
+            padding: 0 2px;
+        }
+        .battles-lobby {
+            display: grid;
+            gap: 18px;
+        }
+        .battles-actions {
+            margin: 0;
+            align-items: stretch;
+        }
+        .battles-hero,
+        .battles-card,
+        .battles-rules,
+        .battles-signin-prompt {
+            box-sizing: border-box;
+            padding: 28px;
+        }
+        .battles-card .settings-row {
+            align-items: end;
+        }
+        .battles-signin-prompt {
+            text-align: center;
+        }
+
+        /* Keep the leaderboard filters in document flow so rows never slide beneath them. */
+        .stats-leaderboard .leaderboard-toolbar {
+            position: static;
+            top: auto;
+            margin: 0 0 18px;
+        }
+
+        /* Keep account sign-in choices comfortably inside their dialog. */
+        .signin-panel {
+            width: min(440px, calc(100vw - 28px));
+            overflow: hidden;
+        }
+        .signin-panel .modal-head { padding: 22px 24px; }
+        .signin-panel .modal-title { font-size: clamp(1.35rem, 4vw, 1.85rem); }
+        .signin-body { padding: 24px !important; }
+        .signin-sub { margin-bottom: 18px; }
+        .signin-wca-note { margin: 4px 8px 14px; }
+        .signin-skip-btn { padding: 10px 6px 2px; }
+
+        .alg-progress-title,
+        .alg-progress-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alg-progress-controls { margin-left: auto; }
+        .alg-progress-controls select { min-width: 130px; }
+        .timer-trainer-cube-filter {
+            min-width: 132px;
+            padding: 8px 30px 8px 11px;
+            font-size: 0.84rem;
+            border-radius: 11px;
+        }
+        @media (max-width: 720px) {
+            .social-me-card { grid-template-columns: auto minmax(0, 1fr); }
+            .social-me-card #social-copy-code { grid-column: 1 / -1; width: 100%; }
+            .social-add-row { grid-template-columns: minmax(0, 1fr) auto; }
+            .alg-progress-title { align-items: flex-start; flex-direction: column; }
+            .alg-progress-controls { margin-left: 0; width: 100%; justify-content: space-between; }
+            .timer-trainer-head { align-items: flex-start; flex-direction: column; }
+        }
