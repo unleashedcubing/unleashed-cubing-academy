@@ -107,24 +107,21 @@ export async function sendFriendRequestByCode(rawCode) {
         ]);
         return { alreadyFriends: true, target: match };
     }
-    const reverseId = `${match.uid}_${user.uid}`;
-    const reverse = await fs.getDoc(fs.doc(db, 'friendRequests', reverseId));
-    if (reverse.exists() && reverse.data()?.status === 'pending') {
-        await acceptFriendRequest(reverseId);
-        return { autoAccepted: true, target: match };
-    }
     const reqId = `${user.uid}_${match.uid}`;
-    const current = await fs.getDoc(fs.doc(db, 'friendRequests', reqId));
-    if (current.exists() && current.data()?.status === 'pending') {
-        throw new Error('That friend request is already waiting for a response.');
+    try {
+        await fs.setDoc(fs.doc(db, 'friendRequests', reqId), {
+            fromUid: user.uid,
+            toUid: match.uid,
+            status: 'pending',
+            createdAt: fs.serverTimestamp(),
+            createdAtMs: nowMs()
+        }, { merge: true });
+    } catch (error) {
+        if (error && /permission|denied/i.test(error.message || error.code || '')) {
+            throw new Error('That request is already pending, or your Firestore rules need to be published.');
+        }
+        throw error;
     }
-    await fs.setDoc(fs.doc(db, 'friendRequests', reqId), {
-        fromUid: user.uid,
-        toUid: match.uid,
-        status: 'pending',
-        createdAt: fs.serverTimestamp(),
-        createdAtMs: nowMs()
-    }, { merge: true });
     return { target: match };
 }
 

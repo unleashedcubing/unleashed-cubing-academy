@@ -80,6 +80,11 @@ async function pushLocalToCloud(uid) {
         }
     });
     const sessions = {};
+    const globalSessions = localStorage.getItem('uc_sessions_global');
+    if (globalSessions !== null) {
+        try { sessions.puzzle_sessions_global = JSON.parse(globalSessions); }
+        catch (e) {}
+    }
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (k && k.startsWith('uc_sess_')) {
@@ -91,6 +96,111 @@ async function pushLocalToCloud(uid) {
     if (Object.keys(profile).length)  tasks.push(setDoc(doc(db, 'users', uid, 'data', 'profile'),  profile,  { merge: true }));
     if (Object.keys(sessions).length) tasks.push(setDoc(doc(db, 'users', uid, 'data', 'sessions'), sessions, { merge: true }));
     await Promise.all(tasks);
+}
+
+function readLocalJson(key, fallback = null) {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function guestSessionStore() {
+    const globalStore = readLocalJson('uc_guest_sessions_global');
+    if (globalStore && Array.isArray(globalStore.sessions)) return globalStore;
+
+    // Support guest data produced by earlier session-per-puzzle builds.
+    const sessions = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith('uc_guest_sess_')) continue;
+        const puzzle = key.slice('uc_guest_sess_'.length);
+        const store = readLocalJson(key);
+        if (!store || !Array.isArray(store.sessions)) continue;
+        store.sessions.forEach(session => sessions.push({
+            ...session,
+            id: session.id || `guest-${Date.now()}-${sessions.length}`,
+            puzzle: session.puzzle || puzzle,
+            solves: Array.isArray(session.solves) ? session.solves : []
+        }));
+    }
+    return sessions.length ? { activeId: sessions[0].id, sessions } : null;
+}
+
+function solveFingerprint(solve) {
+    return [
+        solve && solve.t,
+        solve && solve.penalty,
+        solve && solve.date,
+        solve && solve.scramble,
+        solve && solve.note
+    ].join('|');
+}
+
+function mergeSessionStores(accountStore, guestStore) {
+    const merged = accountStore && Array.isArray(accountStore.sessions)
+        ? clone(accountStore)
+        : { activeId: '', sessions: [] };
+    const byId = new Map(merged.sessions.map(session => [session.id, session]));
+
+    guestStore.sessions.forEach((guestSession, index) => {
+        if (!guestSession) return;
+        let target = byId.get(guestSession.id);
+        if (!target) {
+            target = clone(guestSession);
+            target.id = target.id || `guest-${Date.now()}-${index}`;
+            target.solves = Array.isArray(target.solves) ? target.solves : [];
+            merged.sessions.push(target);
+            byId.set(target.id, target);
+            return;
+        }
+
+        const seen = new Set((target.solves || []).map(solveFingerprint));
+        (guestSession.solves || []).forEach(solve => {
+            if (!solve) return;
+            const fingerprint = solveFingerprint(solve);
+            if (!seen.has(fingerprint)) {
+                target.solves.push(clone(solve));
+                seen.add(fingerprint);
+            }
+        });
+    });
+
+    if (!merged.activeId || !byId.has(merged.activeId)) {
+        merged.activeId = merged.sessions[0] ? merged.sessions[0].id : '';
+    }
+    return merged;
+}
+
+function clearGuestSessionCache() {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key === 'uc_guest_sessions_global' || (key && key.startsWith('uc_guest_sess_'))) {
+            localStorage.removeItem(key);
+        }
+    }
+}
+
+async function mergeGuestSessionsIntoCloud(uid, cloud) {
+    const guestStore = guestSessionStore();
+    if (!guestStore || !guestStore.sessions.length) return cloud;
+
+    const accountStore = cloud.sessions && cloud.sessions.puzzle_sessions_global;
+    const mergedStore = mergeSessionStores(accountStore, guestStore);
+    await setDoc(doc(db, 'users', uid, 'data', 'sessions'), {
+        puzzle_sessions_global: mergedStore
+    }, { merge: true });
+    clearGuestSessionCache();
+    return {
+        ...cloud,
+        sessions: { ...(cloud.sessions || {}), puzzle_sessions_global: mergedStore }
+    };
 }
 
 function applyCloudToLocal(cloud) {
@@ -149,7 +259,8 @@ async function initializeFirebase() {
             currentUser = user;
             if (user) {
                 try {
-                    const cloud = await pullCloud(user.uid);
+                    let cloud = await pullCloud(user.uid);
+                    cloud = await mergeGuestSessionsIntoCloud(user.uid, cloud);
                     if (!cloud.profile && !cloud.sessions) {
                         await pushLocalToCloud(user.uid);
                     } else {

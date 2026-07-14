@@ -203,9 +203,10 @@
 
         // ---- Persistent user data (localStorage + optional cloud sync) ----
         const LS = {
-            get(k, d) { try { const v = localStorage.getItem('uc_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+            key(k) { return 'uc_' + (fbSync.getUser() ? '' : 'guest_') + k; },
+            get(k, d) { try { const v = localStorage.getItem(this.key(k)); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
             set(k, v) {
-                try { localStorage.setItem('uc_' + k, JSON.stringify(v)); } catch (e) {}
+                try { localStorage.setItem(this.key(k), JSON.stringify(v)); } catch (e) {}
                 fbSync.noteLSWrite(k, v);
             }
         };
