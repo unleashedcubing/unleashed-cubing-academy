@@ -1865,6 +1865,10 @@
             if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
             return `${Math.round(diff / 86400000)}d ago`;
         }
+        function formatFriendCode(value) {
+            const code = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return code.match(/.{1,4}/g)?.join('-') || '';
+        }
         function stopSocialHubListener() {
             if (socialHubUnsub) { try { socialHubUnsub(); } catch (_) {} socialHubUnsub = null; }
         }
@@ -1949,17 +1953,18 @@
                                 ${socialAvatarMarkup(socialHubState.me || { displayName: user.displayName || 'You', photoURL: user.photoURL || '', isOnline: true }, 'lg')}
                                 <div class="social-me-meta">
                                     <div class="social-me-name">${escHTML(socialHubState.me?.displayName || user.displayName || user.email || 'You')}</div>
-                                    <div class="social-me-code">Friend code: <code>${escHTML(socialHubState.me?.friendCode || '')}</code></div>
+                                    <div class="social-me-code">Friend code: <code>${escHTML(formatFriendCode(socialHubState.me?.friendCode || ''))}</code></div>
                                 </div>
-                                <button class="train-quick-btn" id="social-copy-code">Copy</button>
+                                <button class="train-quick-btn" id="social-copy-code" type="button">Copy code</button>
                             </div>
                             <div class="social-add-card">
-                                <div class="panel-title"><span>Add Friend</span></div>
+                                <div class="panel-title"><span>Add Friend</span><span class="social-add-hint">Paste a code, then send</span></div>
                                 <div class="social-add-row">
-                                    <input type="text" id="social-friend-code" class="pe-input" placeholder="Friend code" value="${escHTML(socialPrefs.friendCodeInput || '')}">
+                                    <input type="text" id="social-friend-code" class="pe-input social-code-input" placeholder="ABCD-EFGH" value="${escHTML(formatFriendCode(socialPrefs.friendCodeInput || ''))}" maxlength="15" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Friend code">
                                     <button class="train-quick-btn" id="social-paste-code" type="button">Paste</button>
-                                    <button class="train-cta" id="social-add-friend">Send</button>
+                                    <button class="train-cta" id="social-add-friend" type="button" ${socialBusy ? 'disabled' : ''}>${socialBusy ? 'Sending...' : 'Send request'}</button>
                                 </div>
+                                <div class="social-add-feedback ${socialActionNotice.tone || ''}" id="social-add-feedback" role="status">${escHTML(socialActionNotice.message || 'Your friend can find their code in this same card.')}</div>
                             </div>
                             <div class="social-left-section">
                                 <div class="panel-title"><span>Requests</span><span class="assistant-model-pill">${(socialHubState.incoming || []).length}</span></div>
@@ -2092,8 +2097,11 @@
                 const code = socialHubState.me?.friendCode || '';
                 if (!code) return;
                 const btn = document.getElementById('social-copy-code');
-                const old = btn?.textContent || 'Copy';
-                const ok = await copyText(code);
+                const old = btn?.textContent || 'Copy code';
+                const ok = await copyText(formatFriendCode(code));
+                socialActionNotice = ok
+                    ? { message: 'Friend code copied. Send it to a cuber you want to add.', tone: 'success' }
+                    : { message: 'Copy is blocked here. Select the code above and copy it manually.', tone: 'error' };
                 if (btn) {
                     btn.textContent = ok ? 'Copied!' : 'Copy failed';
                     setTimeout(() => { btn.textContent = old; }, 1000);
@@ -2101,6 +2109,7 @@
             });
             const friendCodeInput = document.getElementById('social-friend-code');
             friendCodeInput?.addEventListener('input', (e) => {
+                e.target.value = formatFriendCode(e.target.value);
                 socialPrefs.friendCodeInput = e.target.value;
                 saveSocialPrefs();
             });
@@ -2116,29 +2125,51 @@
                 try {
                     const text = await navigator.clipboard?.readText?.();
                     if (text) {
-                        input.value = text.trim();
+                        input.value = formatFriendCode(text);
                         socialPrefs.friendCodeInput = input.value;
                         saveSocialPrefs();
+                        socialActionNotice = { message: 'Code pasted. Send the request when you are ready.', tone: 'success' };
                     } else {
                         input.focus();
                     }
                 } catch (_) {
                     input.focus();
-                    alert('Paste is blocked by the browser. Tap the box and paste the friend code manually.');
+                    socialActionNotice = { message: 'Paste is blocked by this browser. Tap the code field and paste normally.', tone: 'error' };
+                    const feedback = document.getElementById('social-add-feedback');
+                    if (feedback) {
+                        feedback.textContent = socialActionNotice.message;
+                        feedback.className = 'social-add-feedback error';
+                    }
                 }
             });
             document.getElementById('social-add-friend')?.addEventListener('click', async () => {
                 if (socialBusy) return;
                 socialBusy = true;
+                const submit = document.getElementById('social-add-friend');
+                if (submit) {
+                    submit.disabled = true;
+                    submit.textContent = 'Sending...';
+                }
                 try {
                     const input = document.getElementById('social-friend-code');
-                    await social.sendFriendRequestByCode(input?.value || '');
+                    const result = await social.sendFriendRequestByCode(input?.value || '');
                     socialPrefs.friendCodeInput = '';
                     saveSocialPrefs();
                     if (input) input.value = '';
+                    socialActionNotice = {
+                        message: result.autoAccepted
+                            ? `You and ${result.target.displayName || 'your friend'} are now friends.`
+                            : result.alreadyFriends
+                                ? `You are already friends with ${result.target.displayName || 'this cuber'}. Your chat is ready.`
+                                : `Request sent to ${result.target.displayName || 'your friend'}.`,
+                        tone: 'success'
+                    };
+                    socialBusy = false;
                     renderSocialPage();
                 } catch (e) {
-                    alert(e.message || e);
+                    socialActionNotice = { message: e.message || String(e), tone: 'error' };
+                    socialBusy = false;
+                    renderSocialPage();
                 } finally {
                     socialBusy = false;
                 }
@@ -2614,6 +2645,7 @@
         let socialHubUnsub = null;
         let socialChatUnsub = null;
         let socialBusy = false;
+        let socialActionNotice = { message: '', tone: '' };
         let leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '' });
         if (!leaderboardPrefs || typeof leaderboardPrefs !== 'object') leaderboardPrefs = { event: '333', type: 'single', country: '' };
         if ('gender' in leaderboardPrefs) delete leaderboardPrefs.gender;

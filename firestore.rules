@@ -8,7 +8,31 @@ service cloud.firestore {
     }
 
     match /users/{uid}/friends/{friendUid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && (
+        request.auth.uid == uid ||
+        (
+          request.auth.uid == friendUid &&
+          (
+            (exists(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)) &&
+             get(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)).data.status == 'accepted') ||
+            (exists(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)) &&
+             get(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)).data.status == 'accepted')
+          )
+        )
+      );
+      allow delete: if request.auth != null && (
+        request.auth.uid == uid ||
+        (
+          request.auth.uid == friendUid &&
+          (
+            (exists(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)) &&
+             get(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)).data.status == 'accepted') ||
+            (exists(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)) &&
+             get(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)).data.status == 'accepted')
+          )
+        )
+      );
     }
 
     match /socialUsers/{uid} {
@@ -21,8 +45,7 @@ service cloud.firestore {
         && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
       allow create: if request.auth != null
         && request.resource.data.fromUid == request.auth.uid;
-      allow update: if request.auth != null
-        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow update: if request.auth != null && resource.data.toUid == request.auth.uid;
     }
 
     match /battleInvites/{inviteId} {

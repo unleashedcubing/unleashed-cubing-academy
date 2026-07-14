@@ -33,10 +33,13 @@ function dmChatId(a, b) {
 async function ensureMySocialProfile() {
     const { user, db, fs } = requireDb();
     const ref = fs.doc(db, 'socialUsers', user.uid);
+    // Keep a previously shared code stable if the user changes their Google name.
+    const existing = await fs.getDoc(ref);
+    const savedCode = existing.exists() ? normalizeCode(existing.data()?.friendCode) : '';
     const payload = {
         displayName: user.displayName || user.email || 'Cubing Friend',
         photoURL: user.photoURL || '',
-        friendCode: friendCodeFromUid(user.uid),
+        friendCode: savedCode || friendCodeFromUid(user.uid),
         lowerName: String(user.displayName || user.email || 'Cubing Friend').toLowerCase(),
         isOnline: true,
         lastSeenAt: nowMs(),
@@ -91,10 +94,19 @@ export async function sendFriendRequestByCode(rawCode) {
     await ensureMySocialProfile();
     const q = fs.query(fs.collection(db, 'socialUsers'), fs.where('friendCode', '==', code));
     const snap = await fs.getDocs(q);
-    const match = snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })).find(item => item.uid !== user.uid);
-    if (!match) throw new Error('Friend code not found.');
+    const matches = snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+    if (matches.some(item => item.uid === user.uid)) throw new Error("That's your own friend code.");
+    const match = matches[0];
+    if (!match) throw new Error('Friend code not found. Ask your friend to sign in once and copy their code from Social.');
     const existingFriend = await fs.getDoc(fs.doc(db, 'users', user.uid, 'friends', match.uid));
-    if (existingFriend.exists()) throw new Error('You are already friends.');
+    if (existingFriend.exists()) {
+        // Repair friendships created while older rules only permitted one side to write.
+        await Promise.all([
+            fs.setDoc(fs.doc(db, 'users', match.uid, 'friends', user.uid), { uid: user.uid, since: fs.serverTimestamp(), sinceMs: nowMs() }, { merge: true }).catch(() => {}),
+            ensureDirectChat(match.uid).catch(() => {})
+        ]);
+        return { alreadyFriends: true, target: match };
+    }
     const reverseId = `${match.uid}_${user.uid}`;
     const reverse = await fs.getDoc(fs.doc(db, 'friendRequests', reverseId));
     if (reverse.exists() && reverse.data()?.status === 'pending') {
@@ -102,6 +114,10 @@ export async function sendFriendRequestByCode(rawCode) {
         return { autoAccepted: true, target: match };
     }
     const reqId = `${user.uid}_${match.uid}`;
+    const current = await fs.getDoc(fs.doc(db, 'friendRequests', reqId));
+    if (current.exists() && current.data()?.status === 'pending') {
+        throw new Error('That friend request is already waiting for a response.');
+    }
     await fs.setDoc(fs.doc(db, 'friendRequests', reqId), {
         fromUid: user.uid,
         toUid: match.uid,
@@ -120,10 +136,12 @@ export async function acceptFriendRequest(requestId) {
     const req = snap.data();
     if (req.toUid !== user.uid && req.fromUid !== user.uid) throw new Error('Not allowed.');
     const otherUid = req.fromUid === user.uid ? req.toUid : req.fromUid;
+    // Mark the request first. Firestore rules use this accepted record to permit
+    // the matching reciprocal friend entry without granting broad cross-user writes.
+    await fs.setDoc(ref, { status: 'accepted', acceptedAt: fs.serverTimestamp(), acceptedAtMs: nowMs() }, { merge: true });
     await Promise.all([
         fs.setDoc(fs.doc(db, 'users', user.uid, 'friends', otherUid), { uid: otherUid, since: fs.serverTimestamp(), sinceMs: nowMs() }, { merge: true }),
         fs.setDoc(fs.doc(db, 'users', otherUid, 'friends', user.uid), { uid: user.uid, since: fs.serverTimestamp(), sinceMs: nowMs() }, { merge: true }),
-        fs.setDoc(ref, { status: 'accepted', acceptedAt: fs.serverTimestamp(), acceptedAtMs: nowMs() }, { merge: true }),
         ensureDirectChat(otherUid)
     ]);
     return otherUid;
