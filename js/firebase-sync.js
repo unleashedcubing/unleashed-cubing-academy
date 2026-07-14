@@ -10,14 +10,6 @@ const PROFILE_KEYS = [
     'profile', 'statsFilter', 'trainGroupMode', 'inputMode', 'planner'
 ];
 
-let firebaseConfig = null;
-try {
-    const mod = await import('../firebase-config.js');
-    firebaseConfig = mod.firebaseConfig || null;
-} catch (e) {
-    console.warn('firebase-config.js missing — cloud sync disabled.', e);
-}
-
 function configIsRealistic(cfg) {
     return cfg && cfg.apiKey && !cfg.apiKey.startsWith('PASTE_') && cfg.projectId;
 }
@@ -32,27 +24,6 @@ let initialAuthResolved = false;
 let doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp;
 let GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged;
 let firestoreModule = null;
-
-if (configIsRealistic(firebaseConfig)) {
-    try {
-        const appMod  = await import(APP_URL);
-        const authMod = await import(AUTH_URL);
-        const fsMod   = await import(FIRESTORE_URL);
-
-        app  = appMod.initializeApp(firebaseConfig);
-        auth = authMod.getAuth(app);
-        db   = fsMod.getFirestore(app);
-
-        ({ doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp } = fsMod);
-        ({ GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = authMod);
-        firestoreModule = fsMod;
-
-        enabled = true;
-    } catch (e) {
-        console.error('Firebase init failed:', e);
-        enabled = false;
-    }
-}
 
 // ---- Pending write batching ----
 let pendingProfile = {};
@@ -142,27 +113,69 @@ function notify(user) {
     });
 }
 
-if (enabled) {
-    onAuthStateChanged(auth, async (user) => {
-        currentUser = user;
-        if (user) {
-            try {
-                const cloud = await pullCloud(user.uid);
-                if (!cloud.profile && !cloud.sessions) {
-                    await pushLocalToCloud(user.uid);
-                } else {
-                    applyCloudToLocal(cloud);
-                }
-            } catch (e) {
-                console.error('Cloud pull failed:', e);
-            }
-        }
+async function initializeFirebase() {
+    let firebaseConfig = null;
+    try {
+        const mod = await import('../firebase-config.js');
+        firebaseConfig = mod.firebaseConfig || null;
+    } catch (e) {
+        console.warn('firebase-config.js missing — cloud sync disabled.', e);
+    }
+
+    if (!configIsRealistic(firebaseConfig)) {
+        enabled = false;
         initialAuthResolved = true;
-        notify(user);
-    });
+        notify(null);
+        return false;
+    }
+
+    try {
+        const [appMod, authMod, fsMod] = await Promise.all([
+            import(APP_URL),
+            import(AUTH_URL),
+            import(FIRESTORE_URL)
+        ]);
+
+        app  = appMod.initializeApp(firebaseConfig);
+        auth = authMod.getAuth(app);
+        db   = fsMod.getFirestore(app);
+
+        ({ doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp } = fsMod);
+        ({ GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = authMod);
+        firestoreModule = fsMod;
+        enabled = true;
+
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (user) {
+                try {
+                    const cloud = await pullCloud(user.uid);
+                    if (!cloud.profile && !cloud.sessions) {
+                        await pushLocalToCloud(user.uid);
+                    } else {
+                        applyCloudToLocal(cloud);
+                    }
+                } catch (e) {
+                    console.error('Cloud pull failed:', e);
+                }
+            }
+            initialAuthResolved = true;
+            notify(user);
+        });
+        return true;
+    } catch (e) {
+        console.error('Firebase init failed:', e);
+        enabled = false;
+        initialAuthResolved = true;
+        notify(null);
+        return false;
+    }
 }
 
+const firebaseReady = initializeFirebase();
+
 async function doSignIn() {
+    await firebaseReady;
     if (!enabled) {
         alert('Cloud sync is not configured.\n\nEdit firebase-config.js and add your Firebase project credentials, then reload.');
         return;
@@ -175,19 +188,24 @@ async function doSignIn() {
     }
 }
 async function doSignOut() {
+    await firebaseReady;
     if (!enabled) return;
     try { await signOut(auth); }
     catch (e) { console.error('Sign-out failed:', e); }
 }
 
 export const fbSync = {
-    enabled,
+    get enabled() { return enabled; },
     getUser:       () => currentUser,
-    onUserChange:  (fn) => { userChangeListeners.push(fn); },
+    onUserChange:  (fn) => {
+        userChangeListeners.push(fn);
+        if (initialAuthResolved) setTimeout(() => fn(currentUser), 0);
+    },
     signIn:        doSignIn,
     signOut:       doSignOut,
     noteLSWrite,
     isInitialAuthResolved: () => initialAuthResolved,
+    ready:         () => firebaseReady,
     // Firestore primitives exposed for additional features (battles, etc.)
     db: () => db,
     fs: () => firestoreModule

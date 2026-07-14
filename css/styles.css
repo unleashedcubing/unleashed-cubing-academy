@@ -1232,6 +1232,19 @@
             color: var(--text-main);
             white-space: normal;
         }
+        .assistant-msg-body strong {
+            color: #fff;
+            font-weight: 800;
+        }
+        .assistant-msg-body code {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 7px;
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-family: 'Ubuntu Mono', monospace;
+            font-size: 0.92em;
+        }
         .assistant-compose {
             display: flex;
             flex-direction: column;
@@ -1262,8 +1275,50 @@
             gap: 14px;
             flex-wrap: wrap;
         }
+        .assistant-hero-card {
+            padding: 18px;
+            border-radius: 28px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background:
+                radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--orange) 24%, transparent), transparent 34%),
+                linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.018));
+            box-shadow: 0 24px 70px rgba(0,0,0,0.22);
+        }
+        .assistant-hero-main {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: min(100%, 520px);
+        }
+        .assistant-hero-orb {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            font-size: 1.2rem;
+        }
+        .assistant-hero-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(92px, 1fr));
+            gap: 8px;
+            flex: 1;
+            min-width: min(100%, 360px);
+        }
+        .assistant-hero-stats span {
+            padding: 10px 12px;
+            border-radius: 16px;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.78rem;
+        }
+        .assistant-hero-stats b {
+            display: block;
+            color: var(--text-main);
+            font-size: 1.05rem;
+            margin-bottom: 2px;
+        }
         .assistant-chat-title {
-            font-size: 1rem;
+            font-size: 1.28rem;
             font-weight: 700;
             color: var(--text-main);
         }
@@ -1474,9 +1529,36 @@
         .social-page-shell {
             min-height: 78vh;
         }
+        .social-status-strip {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .social-status-card {
+            padding: 14px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.07);
+            background:
+                radial-gradient(circle at top left, color-mix(in srgb, var(--orange) 14%, transparent), transparent 48%),
+                rgba(255,255,255,0.035);
+        }
+        .social-status-card span {
+            display: block;
+            color: var(--text-main);
+            font-weight: 900;
+            font-size: 1.35rem;
+            line-height: 1;
+        }
+        .social-status-card label {
+            display: block;
+            margin-top: 6px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
         .social-shell {
             display: grid;
-            grid-template-columns: 300px minmax(0, 1fr) 320px;
+            grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 330px);
             gap: 16px;
             min-height: 72vh;
         }
@@ -1525,6 +1607,24 @@
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+        .social-me-card {
+            padding: 14px;
+            border-radius: 22px;
+            background:
+                linear-gradient(135deg, color-mix(in srgb, var(--orange) 12%, transparent), rgba(255,255,255,0.035));
+            border: 1px solid color-mix(in srgb, var(--orange) 24%, rgba(255,255,255,0.06));
+        }
+        .social-me-meta {
+            min-width: 0;
+            flex: 1;
+        }
+        .social-me-code code {
+            color: var(--text-main);
+            background: rgba(0,0,0,0.22);
+            border-radius: 8px;
+            padding: 2px 6px;
+            font-family: 'Ubuntu Mono', monospace;
         }
         .social-avatar {
             position: relative;
@@ -1628,6 +1728,12 @@
             align-items: center;
             gap: 12px;
             cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+        }
+        .social-friend-row:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255,255,255,0.13);
+            background: rgba(255,255,255,0.055);
         }
         .social-friend-row.active {
             border-color: rgba(255,159,10,0.32);
@@ -1703,12 +1809,14 @@
             max-width: min(720px, 85%);
             background: rgba(255,255,255,0.04);
             border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 18px;
-            padding: 12px 14px;
+            border-radius: 20px 20px 20px 8px;
+            padding: 13px 15px;
+            box-shadow: 0 14px 38px rgba(0,0,0,0.16);
         }
         .social-message-row.me .social-message-bubble {
             background: rgba(255,159,10,0.09);
             border-color: rgba(255,159,10,0.22);
+            border-radius: 20px 20px 8px 20px;
         }
         .social-message-meta {
             font-size: 0.74rem;
@@ -6495,6 +6603,13 @@
             .assistant-chat-shell {
                 min-height: auto;
                 gap: 12px;
+            }
+            .assistant-hero-stats,
+            .social-status-strip {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .assistant-hero-main {
+                align-items: flex-start;
             }
             .assistant-chat-panel {
                 border-radius: 22px;

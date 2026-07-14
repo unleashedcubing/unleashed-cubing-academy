@@ -1,9 +1,21 @@
-        import { Alg } from "https://cdn.cubing.net/v0/js/cubing/alg";
-        import { randomScrambleForEvent } from "https://cdn.cubing.net/v0/js/cubing/scramble";
         import { db } from './data.js';
         import { fbSync } from './firebase-sync.js';
         import * as social from './social.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
+
+        let Alg = null;
+        let randomScrambleForEvent = null;
+        const cubingAlgReady = import("https://cdn.cubing.net/v0/js/cubing/alg")
+            .then(mod => { Alg = mod.Alg; return Alg; })
+            .catch(err => { console.warn('cubing/alg failed to load; using fallback alg helpers where possible.', err); return null; });
+        const cubingScrambleReady = import("https://cdn.cubing.net/v0/js/cubing/scramble")
+            .then(mod => { randomScrambleForEvent = mod.randomScrambleForEvent; return randomScrambleForEvent; })
+            .catch(err => { console.warn('cubing/scramble failed to load.', err); return null; });
+        async function getRandomScrambleForEvent(eventId) {
+            if (!randomScrambleForEvent) await cubingScrambleReady;
+            if (!randomScrambleForEvent) throw new Error('Scramble generator is still loading. Try again.');
+            return randomScrambleForEvent(eventId);
+        }
 
         let openRouterConfig = { apiKey: '' };
         try {
@@ -826,53 +838,52 @@
         const socialView  = document.getElementById('social-view');
         const planView    = document.getElementById('plan-view');
         const questsView  = document.getElementById('quests-view');
-        document.querySelectorAll('.nav-item').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                const mode = tab.dataset.mode;
-                const views = {
-                    learn: learnView,
-                    train: trainView,
-                    timer: timerView,
-                    battles: battlesView,
-                    plan: planView,
-                    stats: statsView,
-                    leaderboard: leaderboardView,
-                    assistant: assistantView,
-                    social: socialView,
-                    quests: questsView
-                };
-                Object.entries(views).forEach(([k, v]) => {
-                    const showing = (k === mode);
-                    if (showing) {
-                        v.style.display = '';
-                        // Retrigger fade-in animation
-                        v.style.animation = 'none';
-                        // Force reflow then re-add
-                        void v.offsetWidth;
-                        v.style.animation = '';
-                    } else {
-                        v.style.display = 'none';
-                    }
-                });
-                if (mode === 'train' && !trainCaselist.children.length) buildCaselist();
-                if (mode === 'timer' && !puzzleStarted) startPuzzle();
-                if (mode === 'stats') renderStats();
-                if (mode === 'leaderboard') renderLeaderboardPage();
-                if (mode === 'assistant') renderAssistantPage();
-                if (mode === 'social') renderSocialPage();
-                if (mode === 'quests') renderQuests();
-                if (mode === 'battles') showBattlesLobby();
-                if (mode === 'plan') renderPlanner();
-                // Mobile FAB: only visible on timer page; close side sheet if leaving timer
-                const fab = document.getElementById('mobile-side-fab');
-                if (fab) fab.style.display = (mode === 'timer') ? '' : 'none';
-                if (mode !== 'timer') {
-                    document.querySelector('.timer-side')?.classList.remove('mobile-open');
-                    document.getElementById('mobile-side-overlay')?.style && (document.getElementById('mobile-side-overlay').style.display = 'none');
+        function activateMode(mode = 'timer') {
+            const tab = document.querySelector(`.nav-item[data-mode="${mode}"]`) || document.querySelector('.nav-item[data-mode="timer"]');
+            if (!tab) return;
+            document.querySelectorAll('.nav-item').forEach(t => t.classList.toggle('active', t === tab));
+            mode = tab.dataset.mode;
+            const views = {
+                learn: learnView,
+                train: trainView,
+                timer: timerView,
+                battles: battlesView,
+                plan: planView,
+                stats: statsView,
+                leaderboard: leaderboardView,
+                assistant: assistantView,
+                social: socialView,
+                quests: questsView
+            };
+            Object.entries(views).forEach(([k, v]) => {
+                const showing = (k === mode);
+                if (showing) {
+                    v.style.display = '';
+                    v.style.animation = 'none';
+                    void v.offsetWidth;
+                    v.style.animation = '';
+                } else {
+                    v.style.display = 'none';
                 }
             });
+            if (mode === 'train' && !trainCaselist.children.length) buildCaselist();
+            if (mode === 'timer' && !puzzleStarted) startPuzzle();
+            if (mode === 'stats') renderStats();
+            if (mode === 'leaderboard') renderLeaderboardPage();
+            if (mode === 'assistant') renderAssistantPage();
+            if (mode === 'social') renderSocialPage();
+            if (mode === 'quests') renderQuests();
+            if (mode === 'battles') showBattlesLobby();
+            if (mode === 'plan') renderPlanner();
+            const fab = document.getElementById('mobile-side-fab');
+            if (fab) fab.style.display = (mode === 'timer') ? '' : 'none';
+            if (mode !== 'timer') {
+                document.querySelector('.timer-side')?.classList.remove('mobile-open');
+                document.getElementById('mobile-side-overlay')?.style && (document.getElementById('mobile-side-overlay').style.display = 'none');
+            }
+        }
+        document.querySelectorAll('.nav-item').forEach(tab => {
+            tab.addEventListener('click', () => activateMode(tab.dataset.mode));
         });
 
         // Sidebar collapse toggle (persisted)
@@ -1780,15 +1791,25 @@
             loadWcaLeaderboard();
         }
         function renderAssistantPage() {
+            const recentSolveCount = recentSolveSummary(150).length;
+            const learnedCount = learnedSet.size;
+            const activeGoalCount = (plannerData.algGoals || []).length + (plannerData.plans || []).length;
             assistantView.innerHTML = `
                 <div class="app-page-shell assistant-page-shell">
                     <div class="assistant-chat-shell">
-                        <div class="assistant-chat-head">
-                            <div>
-                                <div class="assistant-chat-title">Cubey <span class="assistant-beta-badge">Beta</span></div>
-                                <div class="assistant-chat-sub">Your cubing coach for training blocks, comp prep, nerves, packing, and progress reviews.</div>
+                        <div class="assistant-chat-head assistant-hero-card">
+                            <div class="assistant-hero-main">
+                                <div class="assistant-empty-mark assistant-hero-orb">C</div>
+                                <div>
+                                    <div class="assistant-chat-title">Cubey <span class="assistant-beta-badge">Beta</span></div>
+                                    <div class="assistant-chat-sub">Ask for solve reviews, comp prep, nerves help, packing lists, and practice plans built from your cubing data.</div>
+                                </div>
                             </div>
-                            <span class="assistant-model-pill">AI Coach</span>
+                            <div class="assistant-hero-stats">
+                                <span><b>${recentSolveCount}</b> recent solves</span>
+                                <span><b>${learnedCount}</b> algs learned</span>
+                                <span><b>${activeGoalCount}</b> active goals</span>
+                            </div>
                         </div>
                         <div class="assistant-toolbar assistant-chat-toolbar">
                             <select id="assistant-comp-select" class="stats-filter-select">
@@ -1912,14 +1933,21 @@
             const selectedFriendUid = socialSelectedFriendUid();
             const selectedFriend = socialHubState.friends.find(item => item.id === selectedFriendUid)?.profile || socialChatState.friend;
             const msgs = socialChatState.messages || [];
+            const onlineCount = (socialHubState.friends || []).filter(item => item.profile?.isOnline).length;
             socialView.innerHTML = `
                 <div class="app-page-shell social-page-shell">
                     ${appPageHeading('Social', 'Build your cube squad with friend requests, DMs, voice rooms, and one-click battle invites.')}
+                    <div class="social-status-strip">
+                        <div class="social-status-card"><span>${(socialHubState.friends || []).length}</span><label>Friends</label></div>
+                        <div class="social-status-card"><span>${onlineCount}</span><label>Online</label></div>
+                        <div class="social-status-card"><span>${(socialHubState.incoming || []).length}</span><label>Requests</label></div>
+                        <div class="social-status-card"><span>${(socialHubState.invites || []).length}</span><label>Battle invites</label></div>
+                    </div>
                     <div class="social-shell">
                         <aside class="train-panel social-left">
                             <div class="social-me-card">
                                 ${socialAvatarMarkup(socialHubState.me || { displayName: user.displayName || 'You', photoURL: user.photoURL || '', isOnline: true }, 'lg')}
-                                <div>
+                                <div class="social-me-meta">
                                     <div class="social-me-name">${escHTML(socialHubState.me?.displayName || user.displayName || user.email || 'You')}</div>
                                     <div class="social-me-code">Friend code: <code>${escHTML(socialHubState.me?.friendCode || '')}</code></div>
                                 </div>
@@ -2005,7 +2033,7 @@
                             `}
                         </section>
                         <aside class="train-panel social-right">
-                            <div class="panel-title"><span>Battle Invite</span></div>
+                            <div class="panel-title"><span>Battle Invite</span><span class="assistant-model-pill">1v1</span></div>
                             ${selectedFriend ? `
                                 <div class="social-battle-form">
                                     <select id="social-battle-event" class="stats-filter-select">
@@ -2790,6 +2818,12 @@
             }
             throw new Error(assistantErrorMessage(lastError));
         }
+        function formatAssistantMessage(text) {
+            return escHTML(text || '')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
         function renderAssistantHistory() {
             const body = document.getElementById('cubing-assistant-history');
             if (!body) return;
@@ -2817,7 +2851,7 @@
                     <div class="assistant-avatar">${row.role === 'user' ? 'Y' : 'C'}</div>
                     <div class="assistant-msg assistant-${row.role}">
                         <div class="assistant-msg-role">${row.role === 'user' ? 'You' : 'Cubey'}</div>
-                        <div class="assistant-msg-body">${escHTML(row.content).replace(/\n/g, '<br>')}</div>
+                        <div class="assistant-msg-body">${formatAssistantMessage(row.content)}</div>
                     </div>
                 </div>
             `).join('');
@@ -4115,7 +4149,7 @@
             let scr = '';
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
-                    scr = (await randomScrambleForEvent(ev)).toString();
+                    scr = (await getRandomScrambleForEvent(ev)).toString();
                     break;
                 } catch (err) {
                     if (attempt < 2) {
@@ -5413,6 +5447,8 @@
             if (pid !== '333' && pid !== '222') return;   // only the cubes cubing.js fully solves
             try {
                 const pmod = await import("https://cdn.cubing.net/v0/js/cubing/puzzles");
+                if (!Alg) await cubingAlgReady;
+                if (!Alg) return;
                 const puzzle = pid === '333' ? pmod.cube3x3x3 : pmod.cube2x2x2;
                 const kp = await puzzle.kpuzzle();
                 let state = kp.startState();
@@ -6850,3 +6886,4 @@
 
         // Initialization — only render if a cube was previously selected
         if (LS.get('selectedCube', '')) renderCards();
+        activateMode('timer');
