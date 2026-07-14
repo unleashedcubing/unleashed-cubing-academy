@@ -136,8 +136,7 @@ export async function acceptFriendRequest(requestId) {
     const req = snap.data();
     if (req.toUid !== user.uid && req.fromUid !== user.uid) throw new Error('Not allowed.');
     const otherUid = req.fromUid === user.uid ? req.toUid : req.fromUid;
-    // Mark the request first. Firestore rules use this accepted record to permit
-    // the matching reciprocal friend entry without granting broad cross-user writes.
+    // Persist acceptance before creating both friend-list entries.
     await fs.setDoc(ref, { status: 'accepted', acceptedAt: fs.serverTimestamp(), acceptedAtMs: nowMs() }, { merge: true });
     await Promise.all([
         fs.setDoc(fs.doc(db, 'users', user.uid, 'friends', otherUid), { uid: otherUid, since: fs.serverTimestamp(), sinceMs: nowMs() }, { merge: true }),

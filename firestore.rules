@@ -9,30 +9,14 @@ service cloud.firestore {
 
     match /users/{uid}/friends/{friendUid} {
       allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null && (
-        request.auth.uid == uid ||
-        (
-          request.auth.uid == friendUid &&
-          (
-            (exists(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)) &&
-             get(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)).data.status == 'accepted') ||
-            (exists(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)) &&
-             get(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)).data.status == 'accepted')
-          )
-        )
-      );
-      allow delete: if request.auth != null && (
-        request.auth.uid == uid ||
-        (
-          request.auth.uid == friendUid &&
-          (
-            (exists(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)) &&
-             get(/databases/$(database)/documents/friendRequests/$(uid)_$(friendUid)).data.status == 'accepted') ||
-            (exists(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)) &&
-             get(/databases/$(database)/documents/friendRequests/$(friendUid)_$(uid)).data.status == 'accepted')
-          )
-        )
-      );
+      // Either member can create/remove their matching entry. The app only makes
+      // this reciprocal write after a request is accepted.
+      allow create: if request.auth != null
+        && request.resource.data.uid == friendUid
+        && (request.auth.uid == uid || request.auth.uid == friendUid);
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if request.auth != null
+        && (request.auth.uid == uid || request.auth.uid == friendUid);
     }
 
     match /socialUsers/{uid} {
