@@ -269,6 +269,7 @@ export function listenDirectChat(friendUid, onUpdate) {
     let messages = [];
     let call = null;
     let unsubCall = null;
+    let attachedCallId = null;
 
     const emit = async () => onUpdate({
         chatId,
@@ -280,30 +281,41 @@ export function listenDirectChat(friendUid, onUpdate) {
     });
 
     const attachCall = (callId) => {
+        if ((callId || null) === attachedCallId) return;
         if (unsubCall) { try { unsubCall(); } catch (_) {} }
         unsubCall = null;
+        attachedCallId = callId || null;
         call = null;
         if (!callId) {
             emit().catch(() => {});
             return;
         }
-        unsubCall = fs.onSnapshot(fs.doc(db, 'chats', chatId, 'calls', callId), (snap) => {
-            call = snap.exists() ? { id: callId, ...snap.data() } : null;
-            emit().catch(() => {});
-        });
+        unsubCall = fs.onSnapshot(
+            fs.doc(db, 'chats', chatId, 'calls', callId),
+            (snap) => {
+                call = snap.exists() ? { id: callId, ...snap.data() } : null;
+                emit().catch(() => {});
+            },
+            (error) => console.error('Voice call listener failed:', error)
+        );
     };
 
-    const unsubChat = fs.onSnapshot(fs.doc(db, 'chats', chatId), (snap) => {
-        chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds: [user.uid, friendUid] };
-        attachCall(chat.currentCallId || null);
-        emit().catch(() => {});
-    });
+    const unsubChat = fs.onSnapshot(
+        fs.doc(db, 'chats', chatId),
+        (snap) => {
+            chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds: [user.uid, friendUid] };
+            attachCall(chat.currentCallId || null);
+            emit().catch(() => {});
+        },
+        (error) => console.error('Direct chat listener failed:', error)
+    );
     const unsubMsgs = fs.onSnapshot(
         fs.query(fs.collection(db, 'chats', chatId, 'messages'), fs.orderBy('createdAtMs', 'asc'), fs.limitToLast(80)),
         (snap) => {
             messages = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             emit().catch(() => {});
-        }
+        },
+        (error) => console.error('Message listener failed:', error)
     );
 
     emit().catch(() => {});
@@ -371,7 +383,8 @@ async function buildPeerConnection(chatId, callId, isCaller) {
     const answerCandidates = fs.collection(db, 'chats', chatId, 'calls', callId, 'answerCandidates');
     pc.onicecandidate = (event) => {
         if (!event.candidate) return;
-        fs.setDoc(fs.doc(isCaller ? offerCandidates : answerCandidates), event.candidate.toJSON()).catch(() => {});
+        fs.setDoc(fs.doc(isCaller ? offerCandidates : answerCandidates), event.candidate.toJSON())
+            .catch((error) => console.error('ICE candidate write failed:', error));
     };
 
     activeCall = {

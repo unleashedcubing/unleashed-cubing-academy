@@ -7850,3 +7850,112 @@
         .app-color-dot {
             box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 7px 18px color-mix(in srgb, var(--brand-accent) 16%, transparent);
         }
+
+        /* App-native dialogs replace browser alerts, confirms, and prompts. */
+        .uc-dialog-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(2,4,8,.76);
+            backdrop-filter: blur(14px) saturate(.8);
+            opacity: 0;
+            transition: opacity .18s ease;
+        }
+        .uc-dialog-backdrop[hidden] { display: none; }
+        .uc-dialog-backdrop.is-open { opacity: 1; }
+        .uc-dialog-card {
+            position: relative;
+            width: min(440px, 100%);
+            overflow: hidden;
+            padding: 25px;
+            border: 1px solid color-mix(in srgb, var(--brand-accent) 32%, rgba(255,255,255,.08));
+            border-radius: 22px;
+            background: linear-gradient(145deg, rgba(22,26,34,.98), rgba(10,13,18,.98));
+            box-shadow: 0 30px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+            transform: translateY(14px) scale(.97);
+            transition: transform .22s cubic-bezier(.2,.8,.2,1);
+        }
+        .uc-dialog-backdrop.is-open .uc-dialog-card { transform: none; }
+        .uc-dialog-glow {
+            position: absolute;
+            width: 170px;
+            height: 170px;
+            right: -90px;
+            top: -100px;
+            border-radius: 50%;
+            background: var(--brand-accent);
+            filter: blur(55px);
+            opacity: .2;
+            pointer-events: none;
+        }
+        .uc-dialog-icon {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            margin-bottom: 17px;
+            border: 1px solid color-mix(in srgb, var(--brand-accent) 40%, transparent);
+            border-radius: 13px;
+            color: var(--brand-accent-light);
+            background: color-mix(in srgb, var(--brand-accent) 13%, transparent);
+            font: 800 1rem 'Inter', sans-serif;
+        }
+        .uc-dialog-copy h2 {
+            margin: 0;
+            color: #f7f8fa;
+            font: 750 1.25rem 'Inter', sans-serif !important;
+            letter-spacing: -.025em;
+        }
+        .uc-dialog-copy p {
+            margin: 9px 0 0;
+            color: #a5acb8;
+            font: 450 .92rem/1.55 'Inter', sans-serif !important;
+            white-space: pre-line;
+        }
+        .uc-dialog-input {
+            width: 100%;
+            margin-top: 18px;
+            padding: 13px 14px;
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 12px;
+            outline: none;
+            color: #fff;
+            background: rgba(0,0,0,.26);
+            font-family: 'Inter', sans-serif !important;
+        }
+        .uc-dialog-input:focus { border-color: var(--brand-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 14%, transparent); }
+        .uc-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+        .uc-dialog-actions button {
+            min-width: 104px;
+            padding: 11px 16px;
+            border-radius: 11px;
+            cursor: pointer;
+            font: 700 .82rem 'Inter', sans-serif !important;
+        }
+        .uc-dialog-secondary { border: 1px solid rgba(255,255,255,.1); color: #aeb5bf; background: rgba(255,255,255,.04); }
+        .uc-dialog-primary { border: 0; color: #090b10; background: linear-gradient(135deg, var(--brand-accent-light), var(--brand-accent), var(--brand-accent-dark)); }
+        .uc-dialog-backdrop[data-tone="danger"] .uc-dialog-icon { color: #ff9393; border-color: rgba(255,85,85,.38); background: rgba(255,85,85,.11); }
+
+        .social-friend-row.is-close {
+            border-color: color-mix(in srgb, var(--brand-accent) 30%, rgba(255,255,255,.06));
+            background: linear-gradient(110deg, color-mix(in srgb, var(--brand-accent) 10%, transparent), rgba(255,255,255,.025));
+        }
+        .social-close-badge {
+            display: inline-flex;
+            margin-left: 6px;
+            padding: 3px 7px;
+            border: 1px solid color-mix(in srgb, var(--brand-accent) 28%, transparent);
+            border-radius: 999px;
+            color: var(--brand-accent-light);
+            background: color-mix(in srgb, var(--brand-accent) 10%, transparent);
+            font: 700 .64rem 'Inter', sans-serif;
+            vertical-align: middle;
+        }
+        .social-close-toggle.active {
+            border-color: color-mix(in srgb, var(--brand-accent) 42%, transparent);
+            color: var(--brand-accent-light);
+            background: color-mix(in srgb, var(--brand-accent) 13%, transparent);
+        }

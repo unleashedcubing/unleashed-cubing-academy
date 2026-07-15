@@ -1,4 +1,4 @@
-const FIREBASE_V = "11.0.2";
+const FIREBASE_V = "12.15.0";
 const APP_URL       = `https://www.gstatic.com/firebasejs/${FIREBASE_V}/firebase-app.js`;
 const AUTH_URL      = `https://www.gstatic.com/firebasejs/${FIREBASE_V}/firebase-auth.js`;
 const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_V}/firebase-firestore.js`;

@@ -594,8 +594,8 @@
             // Wire Learn-all
             const learnAllBtn = document.getElementById('cat-learn-all');
             if (learnAllBtn) {
-                learnAllBtn.addEventListener('click', () => {
-                    if (!confirm(`Mark all ${total} ${cat} cases as Learned?`)) return;
+                learnAllBtn.addEventListener('click', async () => {
+                    if (!await window.ucConfirm(`Mark all ${total} ${cat} cases as Learned?`)) return;
                     for (const it of allCases) {
                         learningSet.delete(it.name);
                         learnedSet.add(it.name);
@@ -1733,9 +1733,9 @@
                 assistantPrefs.competitionId = e.target.value;
                 saveAssistantPrefs();
             });
-            document.getElementById('assistant-set-key')?.addEventListener('click', () => {
+            document.getElementById('assistant-set-key')?.addEventListener('click', async () => {
                 const current = getAssistantApiKey() || openRouterConfig?.apiKey || '';
-                const next = window.prompt('Paste your OpenRouter API key. It will be stored locally in this browser unless you use openrouter-config.js.', current || '');
+                const next = await window.ucPrompt('Paste your OpenRouter API key. It will be stored locally in this browser unless you use openrouter-config.js.', current || '', { title: 'OpenRouter API key', secret: true, confirmLabel: 'Save key' });
                 if (next == null) return;
                 setAssistantApiKey(next);
                 renderFn();
@@ -1969,6 +1969,8 @@
             ensureSocialChatListener();
             const selectedFriendUid = socialSelectedFriendUid();
             const selectedFriend = socialHubState.friends.find(item => item.id === selectedFriendUid)?.profile || socialChatState.friend;
+            const closeFriendUids = new Set(Array.isArray(socialPrefs.closeFriendUids) ? socialPrefs.closeFriendUids : []);
+            const sortedFriends = [...(socialHubState.friends || [])].sort((a, b) => Number(closeFriendUids.has(b.id)) - Number(closeFriendUids.has(a.id)));
             const msgs = socialChatState.messages || [];
             const onlineCount = (socialHubState.friends || []).filter(item => item.profile?.isOnline).length;
             socialView.innerHTML = `
@@ -2021,11 +2023,11 @@
                             <div class="social-left-section">
                                 <div class="panel-title"><span>Chats</span><span class="assistant-model-pill">${(socialHubState.friends || []).length}</span></div>
                                 <div class="social-friend-list">
-                                    ${(socialHubState.friends || []).length ? socialHubState.friends.map(item => `
-                                        <button class="social-friend-row ${item.id === selectedFriendUid ? 'active' : ''}" data-friend-uid="${escHTML(item.id)}">
+                                    ${sortedFriends.length ? sortedFriends.map(item => `
+                                        <button class="social-friend-row ${item.id === selectedFriendUid ? 'active' : ''} ${closeFriendUids.has(item.id) ? 'is-close' : ''}" data-friend-uid="${escHTML(item.id)}">
                                             ${socialAvatarMarkup(item.profile)}
                                             <div class="social-friend-meta">
-                                                <div class="social-friend-name">${escHTML(item.profile?.displayName || 'Friend')}</div>
+                                                <div class="social-friend-name">${escHTML(item.profile?.displayName || 'Friend')} ${closeFriendUids.has(item.id) ? '<span class="social-close-badge">★ Close</span>' : ''}</div>
                                                 <div class="social-friend-status">${item.profile?.isOnline ? 'Online' : `Last seen ${escHTML(socialFriendlyTime(item.profile?.lastSeenAt))}`}</div>
                                             </div>
                                         </button>
@@ -2045,6 +2047,7 @@
                                     </div>
                                     <div class="social-chat-head-actions">
                                         <button class="train-quick-btn" id="social-start-call">VC</button>
+                                        <button class="train-quick-btn social-close-toggle ${closeFriendUids.has(selectedFriendUid) ? 'active' : ''}" id="social-toggle-close">${closeFriendUids.has(selectedFriendUid) ? '★ Close Friend' : '☆ Add Close Friend'}</button>
                                         <button class="train-quick-btn" id="social-remove-friend">Remove Friend</button>
                                     </div>
                                 </div>
@@ -2221,12 +2224,21 @@
             }));
             document.getElementById('social-remove-friend')?.addEventListener('click', async () => {
                 if (!selectedFriendUid) return;
-                if (!window.confirm(`Remove ${selectedFriend?.displayName || 'this friend'} from your friends list?`)) return;
+                if (!await window.ucConfirm(`Remove ${selectedFriend?.displayName || 'this friend'} from your friends list?`, { title: 'Remove friend?', confirmLabel: 'Remove', danger: true })) return;
                 try {
                     await social.removeFriend(selectedFriendUid);
                     if (socialPrefs.selectedFriendUid === selectedFriendUid) socialPrefs.selectedFriendUid = '';
+                    socialPrefs.closeFriendUids = (socialPrefs.closeFriendUids || []).filter(uid => uid !== selectedFriendUid);
                     saveSocialPrefs();
                 } catch (e) { alert(e.message || e); }
+            });
+            document.getElementById('social-toggle-close')?.addEventListener('click', () => {
+                const closeIds = new Set(Array.isArray(socialPrefs.closeFriendUids) ? socialPrefs.closeFriendUids : []);
+                if (closeIds.has(selectedFriendUid)) closeIds.delete(selectedFriendUid);
+                else closeIds.add(selectedFriendUid);
+                socialPrefs.closeFriendUids = [...closeIds];
+                saveSocialPrefs();
+                renderSocialPage();
             });
             document.getElementById('social-send-message')?.addEventListener('click', async () => {
                 const input = document.getElementById('social-message-input');
@@ -2679,8 +2691,9 @@
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
-        let socialPrefs = LS.get('socialPrefs', { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3 });
-        if (!socialPrefs || typeof socialPrefs !== 'object') socialPrefs = { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3 };
+        let socialPrefs = LS.get('socialPrefs', { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] });
+        if (!socialPrefs || typeof socialPrefs !== 'object') socialPrefs = { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] };
+        if (!Array.isArray(socialPrefs.closeFriendUids)) socialPrefs.closeFriendUids = [];
         function saveSocialPrefs() { LS.set('socialPrefs', socialPrefs); }
         let socialHubState = { me: null, friends: [], incoming: [], outgoing: [], invites: [] };
         let socialChatState = { friend: null, me: null, chatId: null, chat: null, messages: [], call: null };
@@ -3177,7 +3190,7 @@
             document.getElementById('plan-open-alg-goal')?.addEventListener('click', () => openAlgGoalModal());
         }
 
-        function plannerClickHandler(e) {
+        async function plannerClickHandler(e) {
             const action = e.target.dataset.action || e.target.closest('[data-action]')?.dataset.action;
             const el = action ? (e.target.dataset.action ? e.target : e.target.closest('[data-action]')) : null;
             if (!el) return;
@@ -3193,7 +3206,7 @@
             } else if (action === 'delete-task') {
                 if (plan) { plan.tasks = plan.tasks.filter(t => t.id !== taskId); savePlanner(); renderPlanner(); }
             } else if (action === 'delete-plan') {
-                if (confirm(`Delete "${plan?.name}"? This cannot be undone.`)) {
+                if (await window.ucConfirm(`Delete "${plan?.name}"? This cannot be undone.`, { title: 'Delete checklist?', confirmLabel: 'Delete', danger: true })) {
                     plannerData.plans = plannerData.plans.filter(p => p.id !== planId);
                     savePlanner(); renderPlanner();
                 }
@@ -3239,7 +3252,7 @@
                     if (countEl && !goal.splits.find(s => s.dayNum === dayNum)?.isDrill) countEl.textContent = `${split.checked.length}/${split.algs.length}`;
                 }
             } else if (action === 'delete-goal') {
-                if (confirm(`Delete this goal? This cannot be undone.`)) {
+                if (await window.ucConfirm(`Delete this goal? This cannot be undone.`, { title: 'Delete goal?', confirmLabel: 'Delete', danger: true })) {
                     plannerData.algGoals = plannerData.algGoals.filter(g => g.id !== goalId);
                     savePlanner(); renderPlanner();
                 }
@@ -4526,9 +4539,9 @@
             activateSessionById(sid);
         });
         document.getElementById('session-new').addEventListener('click', () => openSessionEditor('new'));
-        document.getElementById('session-delete').addEventListener('click', () => {
+        document.getElementById('session-delete').addEventListener('click', async () => {
             if (puzzleStore.sessions.length <= 1) { alert('You need at least one session.'); return; }
-            if (!confirm('Delete session "' + curSession().name + '" and all its solves?')) return;
+            if (!await window.ucConfirm('Delete session "' + curSession().name + '" and all its solves?', { title: 'Delete session?', confirmLabel: 'Delete', danger: true })) return;
             puzzleStore.sessions = puzzleStore.sessions.filter(s => s.id !== puzzleStore.activeId);
             puzzleStore.activeId = puzzleStore.sessions[0].id;
             savePuzzle();
@@ -4614,9 +4627,9 @@
             if (!timerTrainerEnabled()) showTimerTrainerReveal('');
             nextPuzzleScramble();
         });
-        document.getElementById('puzzle-clear').addEventListener('click', () => {
+        document.getElementById('puzzle-clear').addEventListener('click', async () => {
             if (!curSolves().length) return;
-            if (!confirm('Clear all solves in this session?')) return;
+            if (!await window.ucConfirm('Clear all solves in this session?', { title: 'Clear solves?', confirmLabel: 'Clear', danger: true })) return;
             curSession().solves = [];
             savePuzzle();
             refreshPuzzle();
@@ -6668,10 +6681,10 @@
             });
         });
         document.querySelectorAll('#streak-thresholds button').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 let th = btn.dataset.streak;
                 if (th === 'custom') {
-                    const v = prompt('Sub-X threshold in seconds:', '15');
+                    const v = await window.ucPrompt('Sub-X threshold in seconds:', '15', { title: 'Custom streak' });
                     if (v == null) return;
                     const n = parseFloat(v);
                     if (isNaN(n) || n <= 0) return;
