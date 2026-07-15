@@ -1089,18 +1089,18 @@
         // Award daily quest XP (call from renderQuests). Idempotent per day-questId pair.
         function awardDailyQuests(quests) {
             const today = new Date().toISOString().slice(0, 10);
-            let changed = false;
+            const awarded = [];
             if (!profile.dailyQuestLog) profile.dailyQuestLog = {};
             quests.forEach(quest => {
                 const done = quest.have >= quest.need;
                 const key = today + '-' + quest.id;
                 if (done && !profile.dailyQuestLog[key]) {
                     profile.dailyQuestLog[key] = quest.xp;
-                    changed = true;
+                    awarded.push(quest);
                 }
             });
-            if (changed) saveProfile();
-            return changed;
+            if (awarded.length) saveProfile();
+            return awarded;
         }
 
         // ============================================================
@@ -1165,15 +1165,31 @@
             if (left <= Math.max(5, Math.ceil(q.need * 0.15))) return 'Near completion';
             return `${left} left to clear`;
         }
+        function questIcon(q, done) {
+            if (done) return '✓';
+            if (q.tier === 'legendary') return '✦';
+            if (q.tier === 'rainbow') return '◈';
+            if (q.tier === 'gold') return '★';
+            if (q.tier === 'silver') return '◆';
+            if (q.tier === 'bronze') return '●';
+            if (q.id?.includes('battle')) return '⚔';
+            if (q.id?.includes('alg')) return '⌁';
+            return '⚡';
+        }
         function questCard(q) {
             const done = (q.extraDone !== undefined) ? q.extraDone : (q.have >= q.need);
             const pct = Math.min(100, Math.max(0, (q.have / q.need) * 100));
             const haveDisplay = (q.need === 1) ? (done ? '✓' : '–') : `${Math.min(q.have, q.need)} / ${q.need}`;
-            return `<div class="quest-card ${done ? 'is-done' : ''}">
+            const rarity = questRarityLabel(q).toLowerCase();
+            return `<div class="quest-card quest-${rarity} ${done ? 'is-done' : ''}" style="--quest-progress:${pct.toFixed(1)}%">
+                <div class="quest-card-aura" aria-hidden="true"></div>
                 <div class="quest-card-head">
-                    <div>
+                    <div class="quest-card-identity">
+                        <span class="quest-card-icon" aria-hidden="true">${questIcon(q, done)}</span>
+                        <div>
                         <div class="quest-rarity">${questRarityLabel(q)}</div>
                         <span class="quest-title">${q.title}</span>
+                        </div>
                     </div>
                     <span class="quest-reward">+${q.xp} XP</span>
                 </div>
@@ -1234,8 +1250,25 @@
                         <h1 class="page-title">Quests</h1>
                         <p class="page-sub">Chase streaks, clear challenge tiers, and make your training feel worth logging into.</p>
                     </div>
-                <div class="quests-grid-outer">
+                <div class="quests-grid-outer ${newAwards.length ? 'has-new-awards' : ''}">
+                    <div class="quest-particles" aria-hidden="true">
+                        ${Array.from({length: 14}, (_, i) => `<i style="--i:${i}"></i>`).join('')}
+                    </div>
                     <div class="train-panel quest-hero">
+                        <div class="quest-cubey-stage" aria-hidden="true">
+                            <div class="quest-cubey-orbit"><i></i><i></i><i></i></div>
+                            <div class="quest-cubey">
+                                <span class="qc-crown">✦</span>
+                                <div class="qc-head">
+                                    <i class="qc-tile q1"></i><i class="qc-tile q2"></i><i class="qc-tile q3"></i>
+                                    <i class="qc-tile q4"></i><i class="qc-tile q5"></i><i class="qc-tile q6"></i>
+                                    <span class="qc-eye left"></span><span class="qc-eye right"></span><span class="qc-mouth"></span>
+                                </div>
+                                <span class="qc-arm left"></span><span class="qc-arm right"></span>
+                                <span class="qc-leg left"></span><span class="qc-leg right"></span>
+                            </div>
+                            <div class="quest-cubey-callout"><b>Quest mode!</b><span>${newAwards.length ? `+${newAwards.reduce((sum, quest) => sum + quest.xp, 0)} XP claimed` : 'Keep the combo moving'}</span></div>
+                        </div>
                         <div class="quest-hero-head">
                             <div>
                                 <div class="quest-hero-eyebrow">Your Progress</div>
