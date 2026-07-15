@@ -83,7 +83,7 @@
             return useLiteVisuals();
         }
         function megaminxTopFace() {
-            return LS.get('megaminxTopFace', 'gray');
+            return 'gray';
         }
         function megaminxViewPrefix() {
             return megaminxTopFace() === 'black' ? 'z' : 'x2';
@@ -116,17 +116,13 @@
 
         // ---- App accent colour theme ----
         const APP_COLORS = [
-            { id: 'orange', label: 'Orange', main: '#FF9F0A', dark: '#FF6A00' },
-            { id: 'red',    label: 'Red',    main: '#ff4e4e', dark: '#d62828' },
-            { id: 'blue',   label: 'Blue',   main: '#5ab0ff', dark: '#2563EB' },
-            { id: 'green',  label: 'Green',  main: '#5fe08c', dark: '#16a34a' },
-            { id: 'teal',   label: 'Teal',   main: '#22d3ee', dark: '#0891b2' },
-            { id: 'purple', label: 'Purple', main: '#c084fc', dark: '#9333ea' },
-            { id: 'pink',   label: 'Pink',   main: '#f472b6', dark: '#ec4899' },
-        ];
-        const MEGAMINX_TOP_FACE_OPTIONS = [
-            { id: 'gray', label: 'Grey', swatch: 'linear-gradient(135deg, #b4bcc8, #6c7380)', desc: 'Default Megaminx top face.' },
-            { id: 'black', label: 'Black', swatch: 'linear-gradient(135deg, #39404a, #050608)', desc: 'Darker Megaminx top face.' }
+            { id: 'orange', label: 'Orange', light: '#FFD08A', main: '#FF9F0A', dark: '#D94F00' },
+            { id: 'red',    label: 'Red',    light: '#FFAAAA', main: '#ff4e4e', dark: '#A91525' },
+            { id: 'blue',   label: 'Blue',   light: '#A9D8FF', main: '#5ab0ff', dark: '#1746B3' },
+            { id: 'green',  label: 'Green',  light: '#B5F3C9', main: '#5fe08c', dark: '#087A3C' },
+            { id: 'teal',   label: 'Teal',   light: '#A5F3FC', main: '#22d3ee', dark: '#0E7490' },
+            { id: 'purple', label: 'Purple', light: '#E4C7FF', main: '#c084fc', dark: '#7020B8' },
+            { id: 'pink',   label: 'Pink',   light: '#FFD0E7', main: '#f472b6', dark: '#B51F68' },
         ];
         function applyAppColor(id) {
             const c = APP_COLORS.find(x => x.id === id) || APP_COLORS[0];
@@ -134,6 +130,7 @@
             document.documentElement.style.setProperty('--orange-dark', c.dark);
             document.documentElement.style.setProperty('--brand-accent', c.main);
             document.documentElement.style.setProperty('--brand-accent-dark', c.dark);
+            document.documentElement.style.setProperty('--brand-accent-light', c.light);
             document.documentElement.dataset.appColor = c.id;
         }
         applyAppColor((() => { try { const v = localStorage.getItem('uc_appColor'); return v ? JSON.parse(v) : 'orange'; } catch(e) { return 'orange'; } })());
@@ -158,7 +155,7 @@
             const active = LS.get('appColor', 'orange');
             grid.innerHTML = APP_COLORS.map(c => `
                 <button type="button" class="app-color-swatch${c.id === active ? ' on' : ''}" data-color-id="${c.id}">
-                    <div class="app-color-dot" style="background:linear-gradient(135deg,${c.main},${c.dark})"></div>
+                    <div class="app-color-dot" style="background:linear-gradient(135deg,${c.light} 0%,${c.main} 52%,${c.dark} 100%)"></div>
                     <span class="app-color-label">${c.label}</span>
                 </button>`).join('');
             grid.querySelectorAll('.app-color-swatch').forEach(btn => {
@@ -167,34 +164,6 @@
                     LS.set('appColor', id);
                     applyAppColor(id);
                     grid.querySelectorAll('.app-color-swatch').forEach(b => b.classList.toggle('on', b.dataset.colorId === id));
-                });
-            });
-        }
-        function buildMegaminxTopFacePicker() {
-            const grid = document.getElementById('megaminx-top-face-grid');
-            if (!grid) return;
-            const active = megaminxTopFace();
-            grid.innerHTML = MEGAMINX_TOP_FACE_OPTIONS.map(opt => `
-                <button type="button" class="app-color-swatch${opt.id === active ? ' on' : ''}" data-top-face-id="${opt.id}">
-                    <div class="app-color-dot" style="background:${opt.swatch}"></div>
-                    <span class="app-color-label">${opt.label}</span>
-                    <span class="top-face-desc">${opt.desc}</span>
-                </button>
-            `).join('');
-            grid.querySelectorAll('[data-top-face-id]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.dataset.topFaceId || 'gray';
-                    LS.set('megaminxTopFace', id);
-                    grid.querySelectorAll('[data-top-face-id]').forEach(other => other.classList.toggle('on', other === btn));
-                    try {
-                        if (document.getElementById('alg-grid')?.style.display !== 'none') renderCards();
-                        if (typeof showScramble === 'function' && trainActive?.style.display !== 'none' && trainCurrent) showScramble();
-                        if (typeof resetPuzzleCubeView === 'function') {
-                            resetPuzzleCubeView(currentScramble);
-                            if (typeof applyPuzzleCube === 'function') applyPuzzleCube();
-                        }
-                        if (typeof renderWidgets === 'function') renderWidgets();
-                    } catch (_) {}
                 });
             });
         }
@@ -847,6 +816,7 @@
             if (!tab) return;
             document.querySelectorAll('.nav-item').forEach(t => t.classList.toggle('active', t === tab));
             mode = tab.dataset.mode;
+            document.body.dataset.activeMode = mode;
             const views = {
                 learn: learnView,
                 train: trainView,
@@ -2502,7 +2472,7 @@
                             </div>
                             <div class="profile-appearance-meta">
                                 <div class="profile-appearance-title">Current look</div>
-                                <div class="profile-appearance-sub">Frame: ${escHTML(activeFrameMeta.label)} · Theme: ${escHTML(APP_COLORS.find(c => c.id === activeTheme)?.label || activeTheme)} · Megaminx top: ${megaminxTopFace() === 'black' ? 'Black' : 'Grey'}</div>
+                                <div class="profile-appearance-sub">Frame: ${escHTML(activeFrameMeta.label)} · Theme: ${escHTML(APP_COLORS.find(c => c.id === activeTheme)?.label || activeTheme)}</div>
                                 <div class="app-color-grid profile-color-grid" id="profile-color-grid"></div>
                             </div>
                         </div>
@@ -5415,7 +5385,6 @@
             });
             if (tabId === 'appearance') {
                 buildColorSwatches();
-                buildMegaminxTopFacePicker();
             }
         }));
 
