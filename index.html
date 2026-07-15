@@ -7,7 +7,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@1&family=Inter:wght@900&family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@1&family=Inter:wght@700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
 
     <link rel="icon" href="uc_logo.jpg">
 
@@ -26,6 +26,20 @@
                 <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>
                 </button>
+            </div>
+            <div class="academy-rank-card" aria-label="Academy rank">
+                <div class="mini-cubey" aria-hidden="true">
+                    <span class="mini-cubey-face"><i></i><i></i><i></i><i></i></span>
+                    <span class="mini-cubey-eye eye-left"></span>
+                    <span class="mini-cubey-eye eye-right"></span>
+                    <span class="mini-cubey-smile"></span>
+                </div>
+                <div class="academy-rank-copy">
+                    <span>Academy rank</span>
+                    <strong>Rising Solver</strong>
+                    <small>Keep the streak alive</small>
+                </div>
+                <span class="academy-rank-level">12</span>
             </div>
             <nav class="sidebar-nav">
                 <button class="nav-item" data-mode="learn" title="Algorithms">
@@ -241,6 +255,17 @@
             </div>
 
             <div id="timer-view">
+                <section class="arena-intro" aria-label="Timer arena introduction">
+                    <div>
+                        <span class="arena-kicker"><i></i> Live training room</span>
+                        <h1>Beat your last solve.</h1>
+                        <p>Cubey is tracking your session. Stay loose, trust recognition, and send it.</p>
+                    </div>
+                    <div class="arena-streak">
+                        <span>Current streak</span>
+                        <strong>🔥 <b id="arena-streak-count">3</b> days</strong>
+                    </div>
+                </section>
                 <div class="timer-layout">
                     <div class="timer-main-col">
                         <!-- Visible controls bar above the scramble: cube selector + timer settings -->
@@ -276,6 +301,25 @@
 
                         <!-- Center stack: scramble → timer (with feedback beside) → widgets -->
                         <div class="timer-center-stack">
+                            <div class="cubey-coach" aria-label="Cubey, your training coach">
+                                <div class="cubey-speech">
+                                    <span class="cubey-status-dot"></span>
+                                    <strong>Coach Cubey</strong>
+                                    <p>Fast hands. Calm eyes.</p>
+                                </div>
+                                <div class="cubey-character" aria-hidden="true">
+                                    <span class="cubey-ear cubey-ear-left"></span>
+                                    <span class="cubey-ear cubey-ear-right"></span>
+                                    <div class="cubey-head">
+                                        <span class="cubey-tile t1"></span><span class="cubey-tile t2"></span><span class="cubey-tile t3"></span>
+                                        <span class="cubey-tile t4"></span><span class="cubey-tile t5"></span><span class="cubey-tile t6"></span>
+                                        <span class="cubey-eye cubey-eye-left"></span><span class="cubey-eye cubey-eye-right"></span>
+                                        <span class="cubey-mouth"></span>
+                                    </div>
+                                    <span class="cubey-arm arm-left"></span><span class="cubey-arm arm-right"></span>
+                                    <span class="cubey-leg leg-left"></span><span class="cubey-leg leg-right"></span>
+                                </div>
+                            </div>
                             <div id="puzzle-scramble" class="uc-scramble">—</div>
                             <div class="timer-with-feedback">
                                 <div id="puzzle-timer" class="uc-bigtimer">0.00</div>
