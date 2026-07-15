@@ -27,7 +27,7 @@ function friendCodeFromUid(uid) {
 }
 
 function dmChatId(a, b) {
-    return ['dm2', a, b].sort().join('_');
+    return `dm3_${[a, b].sort().join('_')}`;
 }
 
 async function ensureMySocialProfile() {
@@ -164,10 +164,11 @@ export async function removeFriend(friendUid) {
 export async function ensureDirectChat(friendUid) {
     const { user, db, fs } = requireDb();
     const chatId = dmChatId(user.uid, friendUid);
+    const memberIds = [user.uid, friendUid].sort();
     const ref = fs.doc(db, 'chats', chatId);
     await fs.setDoc(ref, {
         type: 'dm',
-        memberIds: [user.uid, friendUid]
+        memberIds
     }, { merge: true });
     return chatId;
 }
@@ -255,7 +256,8 @@ export function listenSocialHub(onUpdate) {
 export function listenDirectChat(friendUid, onUpdate) {
     const { user, db, fs } = requireDb();
     const chatId = dmChatId(user.uid, friendUid);
-    let chat = { id: chatId, memberIds: [user.uid, friendUid] };
+    const memberIds = [user.uid, friendUid].sort();
+    let chat = { id: chatId, memberIds };
     let messages = [];
     let call = null;
     let unsubChat = null;
@@ -298,7 +300,7 @@ export function listenDirectChat(friendUid, onUpdate) {
         unsubChat = fs.onSnapshot(
             fs.doc(db, 'chats', chatId),
             (snap) => {
-                chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds: [user.uid, friendUid] };
+                chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds };
                 attachCall(chat.currentCallId || null);
                 emit().catch(() => {});
             },
