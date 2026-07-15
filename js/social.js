@@ -1,6 +1,8 @@
 import { fbSync } from './firebase-sync.js';
 
 const STUN_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const PRESENCE_CHECK_MS = 60_000;
+const PRESENCE_STALE_MS = 130_000;
 const remoteAudio = typeof Audio !== 'undefined' ? new Audio() : null;
 if (remoteAudio) {
     remoteAudio.autoplay = true;
@@ -71,6 +73,9 @@ if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
         setPresence(false).catch(() => {});
     });
+    window.setInterval(() => {
+        if (document.visibilityState === 'visible') setPresence(true).catch(() => {});
+    }, PRESENCE_CHECK_MS);
 }
 
 fbSync.onUserChange((user) => {
@@ -80,7 +85,10 @@ fbSync.onUserChange((user) => {
 async function getSocialProfile(uid) {
     const { db, fs } = requireDb();
     const snap = await fs.getDoc(fs.doc(db, 'socialUsers', uid));
-    return snap.exists() ? { uid, ...snap.data() } : { uid, displayName: 'Cubing Friend', photoURL: '', friendCode: friendCodeFromUid(uid), isOnline: false };
+    if (!snap.exists()) return { uid, displayName: 'Cubing Friend', photoURL: '', friendCode: friendCodeFromUid(uid), isOnline: false };
+    const profile = snap.data();
+    const recentlySeen = nowMs() - Number(profile.lastSeenAt || 0) <= PRESENCE_STALE_MS;
+    return { uid, ...profile, isOnline: profile.isOnline === true && recentlySeen };
 }
 
 async function getProfiles(uids) {
@@ -249,8 +257,12 @@ export function listenSocialHub(onUpdate) {
             emit().catch(() => {});
         })
     ];
+    const presenceRefresh = setInterval(() => emit().catch(() => {}), PRESENCE_CHECK_MS);
     emit().catch(() => {});
-    return () => unsubs.forEach(unsub => { try { unsub(); } catch (_) {} });
+    return () => {
+        clearInterval(presenceRefresh);
+        unsubs.forEach(unsub => { try { unsub(); } catch (_) {} });
+    };
 }
 
 export function listenDirectChat(friendUid, onUpdate) {
@@ -265,6 +277,7 @@ export function listenDirectChat(friendUid, onUpdate) {
     let unsubCall = null;
     let attachedCallId = null;
     let stopped = false;
+    const presenceRefresh = setInterval(() => emit().catch(() => {}), PRESENCE_CHECK_MS);
 
     const emit = async () => onUpdate({
         chatId,
@@ -319,6 +332,7 @@ export function listenDirectChat(friendUid, onUpdate) {
     emit().catch(() => {});
     return () => {
         stopped = true;
+        clearInterval(presenceRefresh);
         if (unsubChat) try { unsubChat(); } catch (_) {}
         if (unsubMsgs) try { unsubMsgs(); } catch (_) {}
         if (unsubCall) try { unsubCall(); } catch (_) {}
