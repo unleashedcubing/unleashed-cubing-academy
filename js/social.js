@@ -27,7 +27,7 @@ function friendCodeFromUid(uid) {
 }
 
 function dmChatId(a, b) {
-    return ['dm', a, b].sort().join('_');
+    return ['dm2', a, b].sort().join('_');
 }
 
 async function ensureMySocialProfile() {
@@ -165,20 +165,10 @@ export async function ensureDirectChat(friendUid) {
     const { user, db, fs } = requireDb();
     const chatId = dmChatId(user.uid, friendUid);
     const ref = fs.doc(db, 'chats', chatId);
-    const snap = await fs.getDoc(ref);
-    if (!snap.exists()) {
-        await fs.setDoc(ref, {
-            type: 'dm',
-            memberIds: [user.uid, friendUid],
-            createdAt: fs.serverTimestamp(),
-            createdAtMs: nowMs(),
-            lastMessage: '',
-            lastMessageAtMs: 0,
-            currentCallId: null,
-            currentCallState: null,
-            currentCallFromUid: null
-        });
-    }
+    await fs.setDoc(ref, {
+        type: 'dm',
+        memberIds: [user.uid, friendUid]
+    }, { merge: true });
     return chatId;
 }
 
@@ -268,8 +258,11 @@ export function listenDirectChat(friendUid, onUpdate) {
     let chat = { id: chatId, memberIds: [user.uid, friendUid] };
     let messages = [];
     let call = null;
+    let unsubChat = null;
+    let unsubMsgs = null;
     let unsubCall = null;
     let attachedCallId = null;
+    let stopped = false;
 
     const emit = async () => onUpdate({
         chatId,
@@ -300,28 +293,32 @@ export function listenDirectChat(friendUid, onUpdate) {
         );
     };
 
-    const unsubChat = fs.onSnapshot(
-        fs.doc(db, 'chats', chatId),
-        (snap) => {
-            chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds: [user.uid, friendUid] };
-            attachCall(chat.currentCallId || null);
-            emit().catch(() => {});
-        },
-        (error) => console.error('Direct chat listener failed:', error)
-    );
-    const unsubMsgs = fs.onSnapshot(
-        fs.query(fs.collection(db, 'chats', chatId, 'messages'), fs.orderBy('createdAtMs', 'asc'), fs.limitToLast(80)),
-        (snap) => {
-            messages = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            emit().catch(() => {});
-        },
-        (error) => console.error('Message listener failed:', error)
-    );
+    ensureDirectChat(friendUid).then(() => {
+        if (stopped) return;
+        unsubChat = fs.onSnapshot(
+            fs.doc(db, 'chats', chatId),
+            (snap) => {
+                chat = snap.exists() ? { id: chatId, ...snap.data() } : { id: chatId, memberIds: [user.uid, friendUid] };
+                attachCall(chat.currentCallId || null);
+                emit().catch(() => {});
+            },
+            (error) => console.error('Direct chat listener failed:', error)
+        );
+        unsubMsgs = fs.onSnapshot(
+            fs.query(fs.collection(db, 'chats', chatId, 'messages'), fs.orderBy('createdAtMs', 'asc'), fs.limitToLast(80)),
+            (snap) => {
+                messages = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                emit().catch(() => {});
+            },
+            (error) => console.error('Message listener failed:', error)
+        );
+    }).catch((error) => console.error('Direct chat setup failed:', error));
 
     emit().catch(() => {});
     return () => {
-        try { unsubChat(); } catch (_) {}
-        try { unsubMsgs(); } catch (_) {}
+        stopped = true;
+        if (unsubChat) try { unsubChat(); } catch (_) {}
+        if (unsubMsgs) try { unsubMsgs(); } catch (_) {}
         if (unsubCall) try { unsubCall(); } catch (_) {}
     };
 }

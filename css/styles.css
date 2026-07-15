@@ -7959,3 +7959,93 @@
             color: var(--brand-accent-light);
             background: color-mix(in srgb, var(--brand-accent) 13%, transparent);
         }
+
+        /* Goal-linked algorithm cues */
+        .card.goal-today {
+            position: relative;
+            border-color: var(--brand-accent) !important;
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-accent) 16%, transparent), 0 14px 34px color-mix(in srgb, var(--brand-accent) 12%, transparent);
+        }
+        .card.goal-today::before {
+            content: attr(data-goal-label);
+            position: absolute;
+            z-index: 4;
+            top: 10px;
+            right: 10px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            color: #080a0d;
+            background: linear-gradient(135deg, var(--brand-accent-light), var(--brand-accent));
+            font: 800 .64rem 'Inter', sans-serif;
+        }
+        .today-training-panel { margin-bottom: 18px; }
+        .today-training-count { color: var(--brand-accent-light); font-size: .76rem; }
+        .today-training-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 9px; margin-top: 12px; }
+        .today-training-alg {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2px 9px;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid color-mix(in srgb, var(--brand-accent) 25%, rgba(255,255,255,.06));
+            border-radius: 13px;
+            color: var(--text-main);
+            background: color-mix(in srgb, var(--brand-accent) 7%, rgba(255,255,255,.02));
+            text-align: left;
+            cursor: pointer;
+        }
+        .today-training-alg > span { grid-row: 1 / 3; color: var(--brand-accent); font-weight: 900; }
+        .today-training-alg b { font-size: .82rem; }
+        .today-training-alg small { color: var(--text-muted); }
+        .today-training-alg.is-done { opacity: .5; }
+
+        /* Megaminx keeps its recognizable yellow landing card. */
+        .cube-tile[data-cube="Megaminx"] {
+            --c: #ffd84d;
+            border-color: rgba(255,216,77,.32);
+            background: linear-gradient(135deg, rgba(255,216,77,.25), rgba(93,68,0,.18) 52%, rgba(20,20,22,.62));
+        }
+
+        /* Configurable timer analytics */
+        .timer-chart-controls { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
+        .timer-chart-controls label { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: .68rem; }
+        .timer-chart-controls select {
+            padding: 5px 24px 5px 8px;
+            border: 1px solid color-mix(in srgb, var(--session-accent, var(--brand-accent)) 24%, rgba(255,255,255,.08));
+            border-radius: 8px;
+            color: var(--text-main);
+            background: color-mix(in srgb, var(--session-accent, var(--brand-accent)) 7%, #11151b);
+            font: 650 .68rem 'Inter', sans-serif;
+        }
+        #timer-view .timer-graph-panel { border-color: color-mix(in srgb, var(--session-accent, var(--brand-accent)) 16%, rgba(255,255,255,.06)); }
+        #timer-view .graph-legend i.lg-time { background: var(--session-accent, var(--brand-accent)) !important; }
+        #timer-view .graph-legend i.lg-pb { background: var(--brand-accent-light) !important; }
+
+        /* Quest progress where people actually solve and battle. */
+        .compact-quest-panel {
+            border-color: color-mix(in srgb, var(--brand-accent) 24%, rgba(255,255,255,.06));
+            background: linear-gradient(145deg, color-mix(in srgb, var(--brand-accent) 10%, rgba(16,19,25,.96)), rgba(10,13,18,.96));
+        }
+        #timer-view .compact-quest-panel {
+            --brand-accent: var(--session-accent, var(--orange));
+            --brand-accent-light: color-mix(in srgb, var(--session-accent, var(--orange)) 45%, white 55%);
+        }
+        .compact-quest-head, .compact-quest-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .compact-quest-head { color: var(--brand-accent-light); font-size: .7rem; font-weight: 800; }
+        .compact-quest-open { border: 0; padding: 0; color: var(--brand-accent-light); background: none; font: 700 .68rem 'Inter', sans-serif; cursor: pointer; }
+        .compact-quest-title { margin-top: 11px; color: var(--text-main); font-size: .88rem; font-weight: 750; }
+        .compact-quest-meta { margin-top: 7px; color: var(--text-muted); font-size: .7rem; }
+        .compact-quest-bar { height: 7px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.06); }
+        .compact-quest-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand-accent-dark), var(--brand-accent), var(--brand-accent-light)); }
+        .compact-quest-tip { margin-top: 8px; color: var(--text-muted); font-size: .68rem; line-height: 1.45; }
+        .battle-quest-panel { margin-top: 12px; }
+
+        /* Quest rarity is expressed through the chosen appearance color. */
+        .quest-card.quest-daily,
+        .quest-card.quest-starter,
+        .quest-card.quest-rare,
+        .quest-card.quest-epic,
+        .quest-card.quest-mythic,
+        .quest-card.quest-legendary { --quest-glow: var(--brand-accent); }
+        .quest-card .quest-bar-fill { background: linear-gradient(90deg, var(--brand-accent-dark), var(--brand-accent), var(--brand-accent-light)); }
+        .quest-card.is-done .quest-card-icon { background: var(--brand-accent); border-color: var(--brand-accent); }

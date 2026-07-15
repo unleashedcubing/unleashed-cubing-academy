@@ -255,17 +255,6 @@
             </div>
 
             <div id="timer-view">
-                <section class="arena-intro" aria-label="Timer arena introduction">
-                    <div>
-                        <span class="arena-kicker"><i></i> Live training room</span>
-                        <h1>Beat your last solve.</h1>
-                        <p>Cubey is tracking your session. Stay loose, trust recognition, and send it.</p>
-                    </div>
-                    <div class="arena-streak">
-                        <span>Current streak</span>
-                        <strong>🔥 <b id="arena-streak-count">3</b> days</strong>
-                    </div>
-                </section>
                 <div class="timer-layout">
                     <div class="timer-main-col">
                         <!-- Visible controls bar above the scramble: cube selector + timer settings -->
@@ -350,10 +339,16 @@
                         <div class="timer-graphs-row">
                             <div class="train-panel timer-graph-panel">
                                 <div class="panel-title">Progress <span class="graph-legend"><i class="lg-time"></i>time <i class="lg-pb"></i>PB</span></div>
+                                <div class="timer-chart-controls">
+                                    <label>Window <select id="progress-chart-window"><option value="25">Last 25</option><option value="50">Last 50</option><option value="100">Last 100</option><option value="all">All solves</option></select></label>
+                                </div>
                                 <svg id="puzzle-graph" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
                             </div>
                             <div class="train-panel timer-graph-panel">
                                 <div class="panel-title">Time Distribution</div>
+                                <div class="timer-chart-controls">
+                                    <label>Bucket <select id="distribution-bucket"><option value="auto">Auto</option><option value="0.25">0.25s</option><option value="0.5">0.5s</option><option value="1">1s</option><option value="2">2s</option><option value="5">5s</option></select></label>
+                                </div>
                                 <svg id="puzzle-hist" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
                             </div>
                         </div>
@@ -373,6 +368,7 @@
                             </div>
                             <div class="stats-grid" id="puzzle-stats-grid"></div>
                         </div>
+                        <div class="train-panel compact-quest-panel" id="timer-quest-panel"></div>
                         <div class="train-panel time-list-panel">
                             <div class="panel-title">
                                 <span><span class="panel-title-icon">⏱</span> Time List</span>
@@ -420,8 +416,9 @@
                     <div class="train-panel battles-hero">
                         <div class="battles-hero-title">⚔ 1v1 Battles</div>
                         <div class="battles-hero-sub">Race another cuber in real time with Ao5, sets, or infinite battles.</div>
-                        <div class="battles-live-count" id="battles-live-count">Live matches: —</div>
+                        <div class="battles-live-count" id="battles-live-count">Live matches: 0</div>
                     </div>
+                    <div class="train-panel compact-quest-panel battle-quest-panel" id="battle-quest-panel"></div>
                     <div class="train-panel battles-signin-prompt" id="battles-signin-prompt" style="display:none;">
                         <div style="text-align:center; padding: 12px 0;">
                             <div style="font-size:1.1rem; font-weight:700; margin-bottom:8px;">Sign in to start battling</div>

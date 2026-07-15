@@ -228,7 +228,7 @@
         // Avatar frame tiers — Discord-Nitro-style animated borders unlocked by activity
         // Each tier has: id, label, condition (returns bool given stats)
         const FRAME_TIERS = [
-            { id: 'legendary', label: 'Legendary', minSolves: 5000, minLearned: 150 },
+            { id: 'legendary', label: 'Legendary', minSolves: 5000, minLearned: 0 },
             { id: 'rainbow',   label: 'Rainbow',   minSolves: 1000, minLearned: 0   },
             { id: 'gold',      label: 'Gold',      minSolves: 500,  minLearned: 0   },
             { id: 'silver',    label: 'Silver',    minSolves: 100,  minLearned: 0   },
@@ -367,6 +367,8 @@
         let lastRenderedGroup = null;
 
         let currentRenderList = [];
+        let currentTodayAlgNames = new Set();
+        let plannerData = null;
         let renderIndex = 0;
         const BATCH_SIZE = 12;
         let isRendering = false;
@@ -399,8 +401,10 @@
                 const card = document.createElement('div');
                 const state = algState(item.name);   // 'unknown' | 'learning' | 'learned'
                 const isLearned = state === 'learned';
-                card.className = `card state-${state}` + (isLearned ? ' learned' : '');
+                const isTodayGoal = currentTodayAlgNames.has(item.name);
+                card.className = `card state-${state}` + (isLearned ? ' learned' : '') + (isTodayGoal ? ' goal-today' : '');
                 card.dataset.case = item.name;
+                if (isTodayGoal) card.dataset.goalLabel = 'Train today';
 
                 // Apply a saved "main algorithm" choice, if the user picked one
                 let algList = [item.main_alg, ...item.alts];
@@ -546,6 +550,7 @@
                 });
             }
             currentRenderList = list;
+            currentTodayAlgNames = todaysAlgGoalNames();
             lastRenderedGroup = null;
             renderCatProgress();   // category header + progress bar
             renderBatch();
@@ -1009,19 +1014,21 @@
         // ============================================================
         //   XP + Level system
         //   XP comes from:
-        //     • Activity: 3 XP per solve, 12 XP per learned alg, 4 XP per alg in-learning
+        //     • Timer activity: solve XP scales from 1x to 3x as totals grow
         //     • Quest completion: XP shown on each quest card
         //       - Permanent quests (borders/milestones): computed live from conditions
         //       - Daily quests: awarded once per day, stored in profile.dailyQuestLog
         //   Level thresholds scale upward so later levels take more work.
         // ============================================================
+        function solveActivityXp(totalSolves) {
+            const firstBand = Math.min(totalSolves, 500);
+            const secondBand = Math.min(Math.max(totalSolves - 500, 0), 1500);
+            const finalBand = Math.max(totalSolves - 2000, 0);
+            return firstBand + secondBand * 2 + finalBand * 3;
+        }
         function computeXp() {
             const q = questDef();
-            const learningXp = [...learningSet].filter(name => !learnedSet.has(name)).length * 4;
-            const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
-                acc + getPuzzleAllSolves(pid).length, 0) * 3
-                + learnedSet.size * 12
-                + learningXp;
+            const actXp = solveActivityXp(totalSolvesAll());
             // Permanent quest XP (battles unlock + border milestones) — deterministic
             const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
                 const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
@@ -1036,7 +1043,7 @@
             if (n <= 1) return 0;
             let total = 0;
             for (let level = 1; level < n; level++) {
-                total += 90 + ((level - 1) * 35);
+                total += 180 + ((level - 1) * 10);
             }
             return total;
         }
@@ -1053,12 +1060,19 @@
             const pct = ((xp - base) / (next - base)) * 100;
             return { xp, level: lvl, base, next, pct, into: xp - base, span: next - base };
         }
-        const LEVEL_NAMES = [
-            '', 'Novice', 'Learner', 'Solver', 'Practitioner',
-            'Competitor', 'Speedcuber', 'Sharpshooter', 'Expert',
-            'Elite', 'Master', 'Champion', 'Legend'
-        ];
-        function levelName(n) { return LEVEL_NAMES[Math.min(n, LEVEL_NAMES.length - 1)] || `Level ${n}`; }
+        function levelName(n) {
+            if (n >= 50) return 'Absurd';
+            if (n >= 45) return 'Legend';
+            if (n >= 40) return 'Champion';
+            if (n >= 35) return 'Master';
+            if (n >= 30) return 'Elite';
+            if (n >= 25) return 'Expert';
+            if (n >= 20) return 'Sharpshooter';
+            if (n >= 15) return 'Speedcuber';
+            if (n >= 10) return 'Competitor';
+            if (n >= 5) return 'Solver';
+            return 'Rookie';
+        }
         // Award daily quest XP (call from renderQuests). Idempotent per day-questId pair.
         function awardDailyQuests(quests) {
             const today = new Date().toISOString().slice(0, 10);
@@ -1090,21 +1104,20 @@
         }
         function questDef() {
             const totalSolves = totalSolvesAll();
-            const totalLearned = totalLearnedAll();
             const today = todaysSolvesAcrossPuzzles();
             const wcaOk = !!(profile && profile.wca_verified);
             const hasMain = !!(profile && profile.main_event);
             const battlesWon = (profile && profile.battlesWon) || 0;
             return {
                 daily: [
-                    { id:'d-solve-20',   title:'Solve 20 times today',   have: today, need: 20, xp: 30 },
-                    { id:'d-solve-50',   title:'Solve 50 times today',   have: today, need: 50, xp: 75 },
-                    { id:'d-learn-1',    title:'Learn a new algorithm',  have: totalLearned, need: totalLearned + 1, xp: 20, action:'open-train' }
+                    { id:'d-solve-5',    title:'Warm up with 5 solves', have: today, need: 5, xp: 10 },
+                    { id:'d-solve-12',   title:'Complete 12 solves',    have: today, need: 12, xp: 25 },
+                    { id:'d-solve-25',   title:'Push to 25 solves',     have: today, need: 25, xp: 45 }
                 ],
                 battles: [
                     { id:'q-solves-150', title:'Reach 150 total solves',         have: totalSolves, need: 150, xp: 100,
                       desc:'Unlocks the Battles arena.' },
-                    { id:'q-algs-25',    title:'Learn 25 algorithms',            have: totalLearned, need: 25, xp: 50 },
+                    { id:'q-solves-50',  title:'Build a 50-solve foundation',    have: totalSolves, need: 50, xp: 40 },
                     { id:'q-wca-link',   title:'Link your WCA profile',          have: wcaOk ? 1 : 0, need: 1, xp: 40 },
                     { id:'q-main-event', title:'Set your main event in Profile', have: hasMain ? 1 : 0, need: 1, xp: 20 }
                 ],
@@ -1114,7 +1127,7 @@
                     { id:'b-gold',      title:'Unlock the Gold border',       have: totalSolves, need: 500,  xp: 150,  tier:'gold' },
                     { id:'b-rainbow',   title:'Unlock the Rainbow border',    have: totalSolves, need: 1000, xp: 300,  tier:'rainbow' },
                     { id:'b-legendary', title:'Unlock the Legendary border',  have: totalSolves, need: 5000, xp: 750,  tier:'legendary',
-                      desc:'Requires 5000+ solves & 150+ algs learned.', extraDone: totalSolves >= 5000 && totalLearned >= 150 },
+                      desc:'Earned through 5000 timed solves.', extraDone: totalSolves >= 5000 },
                     { id:'b-win-battle',title:'Win your first battle',        have: battlesWon, need: 1, xp: 50, tier:'battle-champ' }
                 ]
             };
@@ -1177,6 +1190,34 @@
                 </div>
             </div>`;
         }
+        function renderCompactQuestPanels() {
+            const q = questDef();
+            awardDailyQuests(q.daily);
+            const level = levelProgress();
+            const active = q.daily.find(quest => quest.have < quest.need) || q.daily[q.daily.length - 1];
+            const percent = active ? Math.min(100, (active.have / active.need) * 100) : 100;
+            const markup = (context) => `<div class="compact-quest-head"><span>Level ${level.level} · ${levelName(level.level)}</span><button type="button" class="compact-quest-open" data-open-quests>All quests</button></div>
+                <div class="compact-quest-title">${active ? escHTML(active.title) : 'Daily quests cleared'}</div>
+                <div class="compact-quest-meta"><span>${active ? `${Math.min(active.have, active.need)} / ${active.need}` : '✓'}</span><span>${active ? `+${active.xp} XP` : `${level.into}/${level.span} XP`}</span></div>
+                <div class="compact-quest-bar"><i style="width:${percent.toFixed(1)}%"></i></div>
+                <div class="compact-quest-tip">${context === 'battle' ? 'Timer solves level you up and unlock the arena.' : 'Every solve moves your level forward.'}</div>`;
+            const timerPanel = document.getElementById('timer-quest-panel');
+            const battlePanel = document.getElementById('battle-quest-panel');
+            if (timerPanel) timerPanel.innerHTML = markup('timer');
+            if (battlePanel) battlePanel.innerHTML = markup('battle');
+            const rankCard = document.querySelector('.academy-rank-card');
+            if (rankCard) {
+                const rankName = rankCard.querySelector('.academy-rank-copy strong');
+                const rankNote = rankCard.querySelector('.academy-rank-copy small');
+                const rankLevel = rankCard.querySelector('.academy-rank-level');
+                if (rankName) rankName.textContent = levelName(level.level);
+                if (rankNote) rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Level ${level.level + 1} at ${level.next} XP`;
+                if (rankLevel) rankLevel.textContent = level.level;
+            }
+            document.querySelectorAll('[data-open-quests]').forEach(button => {
+                button.onclick = () => activateMode('quests');
+            });
+        }
         function renderQuests() {
             const q = questDef();
             // Award any newly-completed daily quests before computing XP
@@ -1185,10 +1226,7 @@
             const nextName = levelName(lp.level + 1);
 
             // XP breakdown for tooltip/display
-            const actXp = PUZZLES_FOR_STATS.reduce((acc, pid) =>
-                acc + getPuzzleAllSolves(pid).length, 0) * 3
-                + learnedSet.size * 12
-                + [...learningSet].filter(name => !learnedSet.has(name)).length * 4;
+            const actXp = solveActivityXp(totalSolvesAll());
             const permanentXp = [...q.battles, ...q.borders].reduce((sum, quest) => {
                 const done = (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need);
                 return sum + (done ? quest.xp : 0);
@@ -1259,7 +1297,7 @@
                         <div class="quest-hero-foot">
                             <span>${lp.into} / ${lp.span} XP to <b>${nextName}</b></span>
                             <span class="quest-xp-breakdown">
-                                <span title="1 XP per solve, 2 per alg learned">Activity: ${actXp}</span>
+                                <span title="Solve XP increases after 500 and 2000 total solves">Timer activity: ${actXp}</span>
                                 <span title="XP from completed quests">Quests: ${permanentXp + dailyXpTotal}</span>
                             </span>
                         </div>
@@ -1304,6 +1342,7 @@
                 </div>
                 </div>
             `;
+            renderCompactQuestPanels();
         }
 
         // ---- Solve frequency heatmap (last 12 months, GitHub-style grid) ----
@@ -3019,7 +3058,7 @@
         }
 
         // ---- Training Planner ----
-        let plannerData = LS.get('planner', { plans: [], algGoals: [] });
+        plannerData = LS.get('planner', { plans: [], algGoals: [] });
         if (!plannerData.algGoals) plannerData.algGoals = [];
         if (!plannerData.plans) plannerData.plans = [];
         function savePlanner() { LS.set('planner', plannerData); }
@@ -3057,6 +3096,25 @@
             const diff = Math.round((today - start) / 86400000) + 1;
             return (diff >= 1 && diff <= goal.totalDays) ? diff : null;
         }
+        function todaysAlgGoalEntries() {
+            return (plannerData?.algGoals || []).flatMap(goal => {
+                const day = algGoalCurrentDay(goal);
+                const split = goal.splits.find(item => item.dayNum === day && !item.isDrill);
+                if (!split) return [];
+                return split.algs.map(name => ({
+                    name,
+                    category: goal.category,
+                    checked: split.checked.includes(name),
+                    goalName: goal.name
+                }));
+            });
+        }
+        function todaysAlgGoalNames() {
+            return new Set(todaysAlgGoalEntries().filter(item => !item.checked).map(item => item.name));
+        }
+        function cubeForAlgCategory(category) {
+            return Object.keys(CUBE_CATS).find(cube => CUBE_CATS[cube].includes(category)) || '3x3';
+        }
         // Track which day rows are expanded: 'goalId-dayNum'
         const expandedDayKeys = new Set();
 
@@ -3064,6 +3122,7 @@
         function renderPlanner() {
             const plans = plannerData.plans || [];
             const algGoals = plannerData.algGoals || [];
+            const todayAlgs = todaysAlgGoalEntries();
             const now = new Date();
 
             function dateBadge(dateStr) {
@@ -3176,6 +3235,10 @@
                     <button class="plan-new-cta" id="plan-open-new">+ Checklist</button>
                 `)}
                 <div class="plan-outer">
+                ${todayAlgs.length ? `<div class="train-panel today-training-panel">
+                    <div class="panel-title"><span>Training Now</span><span class="today-training-count">${todayAlgs.filter(item => !item.checked).length} left today</span></div>
+                    <div class="today-training-list">${todayAlgs.map(item => `<button class="today-training-alg ${item.checked ? 'is-done' : ''}" data-today-category="${escHTML(item.category)}" data-today-alg="${escHTML(item.name)}"><span>${item.checked ? '✓' : '→'}</span><b>${escHTML(item.name)}</b><small>${escHTML(item.category)}</small></button>`).join('')}</div>
+                </div>` : ''}
                 ${algGoals.length ? `<div class="goals-section-label">Alg Learning Goals</div>${algGoals.map(algGoalHTML).join('')}` : ''}
                 ${plans.length ? `<div class="goals-section-label">Checklists</div>${plans.map(planHTML).join('')}` : ''}
                 ${!hasAnything ? `<div class="plan-empty-state">
@@ -3188,6 +3251,14 @@
 
             document.getElementById('plan-open-new')?.addEventListener('click', openNewPlanModal);
             document.getElementById('plan-open-alg-goal')?.addEventListener('click', () => openAlgGoalModal());
+            planView.querySelectorAll('.today-training-alg').forEach(button => button.addEventListener('click', () => {
+                const category = button.dataset.todayCategory;
+                activateMode('learn');
+                showCubeAlgs(cubeForAlgCategory(category));
+                categoryFilter.value = category;
+                searchInput.value = button.dataset.todayAlg || '';
+                renderCards();
+            }));
         }
 
         async function plannerClickHandler(e) {
@@ -3748,6 +3819,21 @@
         const puzzleGraph = document.getElementById('puzzle-graph');
         const puzzleHist = document.getElementById('puzzle-hist');
         const puzzleStatsGrid = document.getElementById('puzzle-stats-grid');
+        const progressChartWindow = document.getElementById('progress-chart-window');
+        const distributionBucket = document.getElementById('distribution-bucket');
+        let timerChartPrefs = LS.get('timerChartPrefs', { window: '50', bucket: 'auto' });
+        if (progressChartWindow) progressChartWindow.value = timerChartPrefs.window || '50';
+        if (distributionBucket) distributionBucket.value = timerChartPrefs.bucket || 'auto';
+        progressChartWindow?.addEventListener('change', (event) => {
+            timerChartPrefs.window = event.target.value;
+            LS.set('timerChartPrefs', timerChartPrefs);
+            renderGraph();
+        });
+        distributionBucket?.addEventListener('change', (event) => {
+            timerChartPrefs.bucket = event.target.value;
+            LS.set('timerChartPrefs', timerChartPrefs);
+            renderHistogram();
+        });
 
         // Time List search wiring
         document.getElementById('time-list-search-btn')?.addEventListener('click', () => {
@@ -4020,7 +4106,9 @@
         }
         function renderGraph() {
             puzzleGraph._gdata = null;
-            const seq = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
+            const allTimes = curSolves().filter(s => s.penalty !== 'dnf').map(effTime);
+            const windowSize = timerChartPrefs.window === 'all' ? allTimes.length : parseInt(timerChartPrefs.window, 10) || 50;
+            const seq = allTimes.slice(-windowSize);
             if (seq.length < 2) {
                 puzzleGraph.innerHTML = `<text x="300" y="100" fill="#888" font-size="14" text-anchor="middle">Not enough solves yet</text>`;
                 return;
@@ -4039,8 +4127,8 @@
             const gridFirst = Math.ceil(min / step) * step;
 
             let svg = `<defs><linearGradient id="gAreaGrad" x1="0" y1="0" x2="0" y2="1">` +
-                `<stop offset="0%" stop-color="#FF9F0A" stop-opacity="0.22"/>` +
-                `<stop offset="100%" stop-color="#FF9F0A" stop-opacity="0.02"/>` +
+                `<stop offset="0%" stop-color="var(--session-accent, var(--brand-accent))" stop-opacity="0.28"/>` +
+                `<stop offset="100%" stop-color="var(--session-accent, var(--brand-accent))" stop-opacity="0.02"/>` +
                 `</linearGradient></defs>`;
 
             // Horizontal grid lines + Y-axis labels
@@ -4064,15 +4152,15 @@
             // PB line (dashed green)
             let run = Infinity;
             const pbPts = seq.map((v, i) => { run = Math.min(run, v); return [X(i), Y(run)]; });
-            svg += `<polyline points="${pbPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#5fe08c" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>`;
+            svg += `<polyline points="${pbPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="var(--brand-accent-light)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>`;
 
             // Time line
-            svg += `<polyline points="${timePts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#FF9F0A" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+            svg += `<polyline points="${timePts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="var(--session-accent, var(--brand-accent))" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
 
             // Solve dots (skip when dense)
             if (seq.length <= 80) {
                 svg += timePts.map(([cx, cy]) =>
-                    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.5" fill="#FF6A00" stroke="rgba(0,0,0,0.35)" stroke-width="0.5"/>`
+                    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.5" fill="var(--session-accent, var(--brand-accent))" stroke="rgba(0,0,0,0.35)" stroke-width="0.5"/>`
                 ).join('');
             }
 
@@ -4095,13 +4183,15 @@
             const spread = maxV - minV;
 
             // Smart bucket size based on spread
-            let bucketSize;
-            if      (spread <= 1.5)  bucketSize = 0.25;
-            else if (spread <= 4)    bucketSize = 0.5;
-            else if (spread <= 15)   bucketSize = 1;
-            else if (spread <= 40)   bucketSize = 2;
-            else if (spread <= 120)  bucketSize = 5;
-            else                     bucketSize = 10;
+            let bucketSize = timerChartPrefs.bucket === 'auto' ? null : parseFloat(timerChartPrefs.bucket);
+            if (!bucketSize) {
+                if      (spread <= 1.5)  bucketSize = 0.25;
+                else if (spread <= 4)    bucketSize = 0.5;
+                else if (spread <= 15)   bucketSize = 1;
+                else if (spread <= 40)   bucketSize = 2;
+                else if (spread <= 120)  bucketSize = 5;
+                else                     bucketSize = 10;
+            }
 
             const bucketStart = Math.floor(minV / bucketSize) * bucketSize;
             const numBuckets = Math.min(50, Math.ceil((maxV - bucketStart) / bucketSize) + 1);
@@ -4143,16 +4233,16 @@
                 const x = padL + i * (bw + gap);
                 const y = padT + plotH - barH;
                 const isPeak = i === peakBucket;
-                svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${barH.toFixed(1)}" fill="${isPeak ? '#FFD60A' : '#FF9F0A'}" opacity="${isPeak ? 1 : 0.78}" rx="2"/>`;
+                svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${barH.toFixed(1)}" fill="${isPeak ? 'var(--brand-accent-light)' : 'var(--session-accent, var(--brand-accent))'}" opacity="${isPeak ? 1 : 0.78}" rx="2"/>`;
                 if (bw >= 14 && barH > 14) {
-                    svg += `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" fill="${isPeak ? '#FFD60A' : '#aaa'}" font-size="10" text-anchor="middle">${c}</text>`;
+                    svg += `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" fill="${isPeak ? 'var(--brand-accent-light)' : '#aaa'}" font-size="10" text-anchor="middle">${c}</text>`;
                 }
             });
 
             // Median indicator line
             const mx = padL + medianBucket * (bw + gap) + bw / 2;
-            svg += `<line x1="${mx.toFixed(1)}" y1="${padT}" x2="${mx.toFixed(1)}" y2="${padT + plotH}" stroke="rgba(95,224,140,0.5)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
-            svg += `<text x="${mx.toFixed(1)}" y="${padT - 3}" fill="#5fe08c" font-size="9" text-anchor="middle">med</text>`;
+            svg += `<line x1="${mx.toFixed(1)}" y1="${padT}" x2="${mx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--brand-accent-light)" opacity=".62" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+            svg += `<text x="${mx.toFixed(1)}" y="${padT - 3}" fill="var(--brand-accent-light)" font-size="9" text-anchor="middle">med</text>`;
 
             // X-axis labels
             for (let i = 0; i < numBuckets; i += labelEvery) {
@@ -4168,6 +4258,7 @@
             renderSolveList();
             renderGraph();
             renderHistogram();
+            renderCompactQuestPanels();
         }
         // Graph hover tooltips (wired once; read _gdata / _hdata set by render functions)
         {
@@ -5724,7 +5815,12 @@
             }
         }
         function ensureBattleLiveCountListener() {
-            if (battlesCountUnsub || !fbSync.enabled || !fbSync.getUser() || !battlesLiveCountEl) return;
+            if (!battlesLiveCountEl) return;
+            if (!fbSync.enabled || !fbSync.getUser()) {
+                battlesLiveCountEl.textContent = 'Live matches: 0';
+                return;
+            }
+            if (battlesCountUnsub) return;
             const fs = fbSync.fs();
             const dbInst = fbSync.db();
             battlesCountUnsub = fs.onSnapshot(fs.collection(dbInst, 'battles'), (snap) => {
@@ -5732,12 +5828,12 @@
                 battlesLiveCountEl.textContent = `Live matches: ${live}`;
                 refreshRoadmapTask('Show live battle activity count in the Battles lobby', true);
             }, () => {
-                battlesLiveCountEl.textContent = 'Live matches: —';
+                battlesLiveCountEl.textContent = 'Live matches: 0';
             });
         }
         function stopBattleLiveCountListener() {
             if (battlesCountUnsub) { try { battlesCountUnsub(); } catch (_) {} battlesCountUnsub = null; }
-            if (battlesLiveCountEl) battlesLiveCountEl.textContent = 'Live matches: —';
+            if (battlesLiveCountEl) battlesLiveCountEl.textContent = 'Live matches: 0';
         }
         function updateBattleCountdownOverlay() {
             stopBattleCountdownLoop();
@@ -5801,6 +5897,7 @@
             stopBattleCountdownLoop();
             updateBattlesGate();
             ensureBattleLiveCountListener();
+            renderCompactQuestPanels();
         }
 
         function updateBattlesGate() {
