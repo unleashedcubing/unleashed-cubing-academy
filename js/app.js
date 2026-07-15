@@ -132,6 +132,9 @@
             const c = APP_COLORS.find(x => x.id === id) || APP_COLORS[0];
             document.documentElement.style.setProperty('--orange',      c.main);
             document.documentElement.style.setProperty('--orange-dark', c.dark);
+            document.documentElement.style.setProperty('--brand-accent', c.main);
+            document.documentElement.style.setProperty('--brand-accent-dark', c.dark);
+            document.documentElement.dataset.appColor = c.id;
         }
         applyAppColor((() => { try { const v = localStorage.getItem('uc_appColor'); return v ? JSON.parse(v) : 'orange'; } catch(e) { return 'orange'; } })());
         liteVisualMedia.addEventListener?.('change', () => {

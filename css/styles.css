@@ -6974,8 +6974,10 @@
             --card-bg: rgba(17, 21, 28, 0.88);
             --orange: #ff7a18;
             --orange-dark: #ff3d0d;
-            --arena-cyan: #61d5ff;
-            --arena-lime: #c8ff5a;
+            --brand-accent: var(--orange);
+            --brand-accent-dark: var(--orange-dark);
+            --arena-cyan: color-mix(in srgb, var(--brand-accent) 62%, white 38%);
+            --arena-lime: var(--brand-accent);
             --arena-ink: #090b10;
             --arena-panel: #11151c;
             --arena-line: rgba(255,255,255,0.08);
@@ -6985,12 +6987,12 @@
         * { box-sizing: border-box; }
         html { background: var(--arena-ink); }
         body {
-            font-family: 'Space Grotesk', sans-serif;
+            font-family: 'Inter', sans-serif;
             background:
                 linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px),
                 radial-gradient(circle at 68% 18%, rgba(97,213,255,0.08), transparent 28%),
-                radial-gradient(circle at 18% 78%, rgba(255,85,21,0.11), transparent 32%),
+                radial-gradient(circle at 18% 78%, color-mix(in srgb, var(--brand-accent) 11%, transparent), transparent 32%),
                 #07090d;
             background-size: 32px 32px, 32px 32px, auto, auto, auto;
         }
@@ -7669,4 +7671,115 @@
             .quest-highlight-grid { grid-template-columns: 1fr; }
             .quest-stat-grid { grid-template-columns: 1fr; }
             #quests-view .app-page-heading .page-title { font-size: 3.2rem; }
+        }
+
+        /* ============================================================
+           Brand typography + appearance-colour contract
+           ============================================================ */
+        body,
+        body button,
+        body select,
+        body input,
+        body textarea,
+        body .nav-item,
+        body .train-quick-btn,
+        body .train-cta,
+        body .panel-title,
+        body .page-title,
+        body .page-sub,
+        body .quest-title,
+        body .quest-stat-label,
+        body .quest-stat-note,
+        body .app-color-label {
+            font-family: 'Inter', sans-serif !important;
+        }
+        body code,
+        body pre,
+        body kbd,
+        body .uc-scramble,
+        body .uc-bigtimer,
+        body .solve-time,
+        body .quest-count,
+        body .quest-reward,
+        body .quest-hero-xp,
+        body .wca-pr-time .val,
+        body #battle-join-code {
+            font-family: 'Ubuntu Mono', monospace !important;
+        }
+        #assistant-view,
+        #assistant-view .assistant-chat-title,
+        #assistant-view .assistant-chat-sub,
+        #assistant-view .assistant-empty-title,
+        #assistant-view .assistant-empty,
+        #assistant-view .assistant-msg-body,
+        #assistant-view .assistant-intro,
+        #assistant-view .assistant-thinking-msg {
+            font-family: 'EB Garamond', serif !important;
+        }
+        #assistant-view .assistant-chat-title,
+        #assistant-view .assistant-empty-title {
+            font-weight: 600;
+            letter-spacing: .01em;
+        }
+        #assistant-view .assistant-msg-body,
+        #assistant-view .assistant-empty,
+        #assistant-view .assistant-chat-sub {
+            font-size: 1.08rem;
+            line-height: 1.58;
+        }
+        #assistant-view button,
+        #assistant-view select,
+        #assistant-view textarea,
+        #assistant-view .assistant-msg-role,
+        #assistant-view .assistant-model-pill,
+        #assistant-view .assistant-compose-model {
+            font-family: 'Inter', sans-serif !important;
+        }
+
+        .academy-rank-card {
+            border-color: color-mix(in srgb, var(--brand-accent) 28%, transparent);
+            background: linear-gradient(135deg,
+                color-mix(in srgb, var(--brand-accent) 15%, transparent),
+                color-mix(in srgb, var(--brand-accent) 4%, transparent));
+        }
+        .academy-rank-level,
+        .quest-card.is-done .quest-card-icon,
+        .quest-card.is-done::after {
+            background: var(--brand-accent);
+            color: #090b10;
+        }
+        .arena-kicker,
+        .quest-lvl-num,
+        .quest-cubey-callout b,
+        .qc-crown {
+            color: var(--brand-accent);
+        }
+        .arena-kicker i,
+        .cubey-status-dot {
+            background: var(--brand-accent);
+            box-shadow: 0 0 12px var(--brand-accent);
+        }
+        .quest-cubey-orbit {
+            border-color: color-mix(in srgb, var(--brand-accent) 24%, transparent);
+        }
+        .quest-cubey-callout {
+            border-color: color-mix(in srgb, var(--brand-accent) 28%, transparent);
+        }
+        .quest-hero .xp-bar-fill {
+            background: linear-gradient(90deg, var(--brand-accent-dark), var(--brand-accent), color-mix(in srgb, var(--brand-accent) 55%, white 45%));
+            box-shadow: 0 0 18px color-mix(in srgb, var(--brand-accent) 38%, transparent);
+        }
+        .quest-hero .xp-bar-fill::after {
+            background: color-mix(in srgb, var(--brand-accent) 30%, white 70%);
+            box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand-accent) 13%, transparent), 0 0 18px var(--brand-accent);
+        }
+        #quests-view .app-page-heading .page-title {
+            background: linear-gradient(110deg,
+                #fff 5%,
+                var(--brand-accent) 46%,
+                color-mix(in srgb, var(--brand-accent) 52%, white 48%) 72%,
+                #fff 95%);
+            background-size: 220% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
         }
