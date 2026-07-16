@@ -1211,7 +1211,10 @@
                 const rankNote = rankCard.querySelector('.academy-rank-copy small');
                 const rankLevel = rankCard.querySelector('.academy-rank-level');
                 if (rankName) rankName.textContent = levelName(level.level);
-                if (rankNote) rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Level ${level.level + 1} at ${formatWholeNumber(level.next)} XP`;
+                if (rankNote) {
+                    const xpRemaining = Math.max(0, level.span - level.into);
+                    rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Next level: ${formatWholeNumber(xpRemaining)} XP`;
+                }
                 if (rankLevel) rankLevel.textContent = level.level;
             }
             document.querySelectorAll('[data-open-quests]').forEach(button => {
