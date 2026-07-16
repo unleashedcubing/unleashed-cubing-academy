@@ -8135,3 +8135,176 @@
         .quest-card.is-done .quest-title {
             color: var(--text-main);
         }
+
+        /* Compact quest page hierarchy and cards. */
+        #quests-view .app-page-heading {
+            align-items: end;
+            gap: 24px;
+            margin-bottom: 14px;
+        }
+        #quests-view .app-page-heading .page-title {
+            font-size: clamp(2.35rem, 4.2vw, 4.25rem);
+            line-height: .92;
+            letter-spacing: -.055em;
+            text-transform: none;
+        }
+        #quests-view .app-page-heading .page-sub {
+            max-width: 540px;
+            font-size: .82rem;
+            line-height: 1.45;
+        }
+        #quests-view .panel-title,
+        #quests-view .quest-spotlight-label,
+        #quests-view .quest-stat-label,
+        #quests-view .quest-hero-eyebrow {
+            font-size: .68rem;
+            letter-spacing: .035em;
+            text-transform: none;
+        }
+        .quests-grid-outer {
+            gap: 14px;
+        }
+        .quest-hero {
+            min-height: 190px;
+            padding: 22px 285px 20px 24px;
+            border-radius: 20px;
+        }
+        .quest-hero .xp-bar.large {
+            height: 13px;
+            margin: 18px 0 9px;
+        }
+        .quest-lvl-num {
+            font-size: 1.75rem;
+        }
+        .quest-lvl-name,
+        .quest-hero-xp {
+            font-size: .88rem;
+        }
+        .quest-xp-next,
+        .quest-hero-foot,
+        .quest-xp-breakdown {
+            font-size: .68rem;
+        }
+        .quest-cubey-stage {
+            right: 18px;
+            transform: scale(.82);
+            transform-origin: top right;
+        }
+        .quest-highlight-grid {
+            gap: 10px;
+        }
+        .quest-spotlight,
+        .quest-stat-card,
+        .quest-section {
+            padding: 15px 16px;
+            border-radius: 16px;
+        }
+        .quest-spotlight::after {
+            display: none;
+        }
+        .quest-spotlight-title {
+            margin-top: 8px;
+            font-size: 1rem;
+        }
+        .quest-spotlight-desc {
+            margin-top: 5px;
+            font-size: .76rem;
+            line-height: 1.4;
+        }
+        .quest-spotlight-progress {
+            margin-top: 12px;
+        }
+        .quest-spotlight-tip {
+            margin-top: 8px;
+            font-size: .7rem;
+        }
+        .quest-stat-grid {
+            gap: 8px;
+        }
+        .quest-stat-card {
+            gap: 6px;
+        }
+        .quest-stat-value {
+            font-size: 1.35rem;
+        }
+        .quest-stat-note {
+            font-size: .7rem;
+            line-height: 1.4;
+        }
+        .quest-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 9px;
+            margin-top: 8px;
+        }
+        .quest-card {
+            padding: 13px;
+            gap: 9px;
+            border-radius: 13px;
+            background: color-mix(in srgb, var(--brand-accent) 3%, rgba(15,18,24,.96));
+        }
+        .quest-card:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,.18);
+            transform: translateY(-1px);
+        }
+        .quest-card-head {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            gap: 8px;
+        }
+        .quest-card-identity > div {
+            min-width: 0;
+        }
+        .quest-card-icon {
+            width: 30px;
+            height: 30px;
+            flex-basis: 30px;
+            border-radius: 9px;
+            font-size: .78rem;
+        }
+        .quest-type {
+            margin-bottom: 2px;
+            font-size: .57rem;
+        }
+        .quest-title {
+            margin: 0;
+            font-size: .8rem;
+            line-height: 1.25;
+        }
+        .quest-reward {
+            padding: 2px 6px;
+            font-size: .64rem;
+            white-space: nowrap;
+        }
+        .quest-desc {
+            font-size: .69rem;
+            line-height: 1.35;
+        }
+        .quest-count,
+        .quest-foot {
+            font-size: .66rem;
+        }
+        .quest-card.is-done {
+            border-color: color-mix(in srgb, var(--brand-accent) 24%, rgba(255,255,255,.06));
+            background: color-mix(in srgb, var(--brand-accent) 6%, rgba(15,18,24,.96));
+        }
+        .quest-card.is-done .quest-percent,
+        .quest-card.is-done .quest-count {
+            color: var(--brand-accent-light);
+        }
+        @media (max-width: 1100px) {
+            .quest-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 700px) {
+            #quests-view .app-page-heading { align-items: start; gap: 8px; }
+            #quests-view .app-page-heading .page-title { font-size: 2.45rem; }
+            .quest-grid { grid-template-columns: 1fr; }
+            .quest-hero { padding: 190px 16px 18px; }
+            .quest-cubey-stage {
+                top: -3px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%) scale(.72);
+                transform-origin: top center;
+            }
+        }

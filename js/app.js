@@ -1110,14 +1110,17 @@
             const battlesWon = (profile && profile.battlesWon) || 0;
             return {
                 daily: [
-                    { id:'d-solve-5',    title:'Warm up with 5 solves', have: today, need: 5, xp: 10 },
-                    { id:'d-solve-12',   title:'Complete 12 solves',    have: today, need: 12, xp: 25 },
-                    { id:'d-solve-25',   title:'Push to 25 solves',     have: today, need: 25, xp: 45 }
+                    { id:'d-solve-5',    title:'Warm up with 3 solves',       have: today, need: 3,  xp: 4,
+                      spotlight:'A quick start that counts on busy days.' },
+                    { id:'d-solve-12',   title:'Complete a 10-solve session', have: today, need: 10, xp: 10,
+                      spotlight:'Build a useful session without overdoing it.' },
+                    { id:'d-solve-25',   title:'Log 20 solves today',         have: today, need: 20, xp: 20,
+                      spotlight:'A realistic stretch goal for focused practice.' }
                 ],
                 battles: [
+                    { id:'q-solves-50',  title:'Build a 50-solve foundation',    have: totalSolves, need: 50, xp: 40 },
                     { id:'q-solves-150', title:'Reach 150 total solves',         have: totalSolves, need: 150, xp: 100,
                       desc:'Unlocks the Battles arena.' },
-                    { id:'q-solves-50',  title:'Build a 50-solve foundation',    have: totalSolves, need: 50, xp: 40 },
                     { id:'q-wca-link',   title:'Link your WCA profile',          have: wcaOk ? 1 : 0, need: 1, xp: 40 },
                     { id:'q-main-event', title:'Set your main event in Profile', have: hasMain ? 1 : 0, need: 1, xp: 20 }
                 ],
@@ -1139,11 +1142,12 @@
         }
         function questMomentumText(q, done) {
             if (done) return 'Completed';
-            if (q.need === 1) return 'One move away';
+            if (q.have <= 0) return 'Ready to start';
+            if (q.need === 1) return 'Not completed yet';
             const left = Math.max(0, q.need - q.have);
             if (left <= 3) return `Closing in: ${left} left`;
-            if (left <= Math.max(5, Math.ceil(q.need * 0.15))) return 'Near completion';
-            return `${left} left to clear`;
+            if ((q.have / q.need) >= 0.8) return 'Nearly there';
+            return `${left} left`;
         }
         function questIcon(q, done) {
             if (done) return '✓';
@@ -1225,12 +1229,9 @@
             }, 0);
             const dailyXpTotal = Object.values((profile && profile.dailyQuestLog) || {})
                 .reduce((a, b) => a + b, 0);
-            const featuredDaily = [...q.daily].sort((a, b) => {
-                const aDone = (a.extraDone !== undefined) ? a.extraDone : (a.have >= a.need);
-                const bDone = (b.extraDone !== undefined) ? b.extraDone : (b.have >= b.need);
-                if (aDone !== bDone) return aDone ? 1 : -1;
-                return (b.xp || 0) - (a.xp || 0);
-            })[0];
+            const featuredDaily = q.daily.find(quest => {
+                return !((quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need));
+            }) || q.daily[q.daily.length - 1];
             const completedPermanent = [...q.battles, ...q.borders]
                 .filter(quest => (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need)).length;
             const completedDaily = q.daily.filter(quest => (quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need)).length;
@@ -1251,7 +1252,7 @@
                 <div class="app-page-shell">
                     <div class="page-heading app-page-heading">
                         <h1 class="page-title">Quests</h1>
-                        <p class="page-sub">Chase streaks, clear challenge tiers, and make your training feel worth logging into.</p>
+                        <p class="page-sub">Build consistent habits with quick daily goals and long-term milestones.</p>
                     </div>
                 <div class="quests-grid-outer ${newAwards.length ? 'has-new-awards' : ''}">
                     <div class="quest-particles" aria-hidden="true">
@@ -1302,7 +1303,7 @@
                             </div>
                             ${featuredDaily ? `
                                 <div class="quest-spotlight-title">${featuredDaily.title}</div>
-                                <div class="quest-spotlight-desc">${featuredDaily.desc || 'Stay in motion and keep the streak alive.'}</div>
+                                <div class="quest-spotlight-desc">${featuredDaily.spotlight || featuredDaily.desc || 'Stay in motion and keep the streak alive.'}</div>
                                 <div class="quest-spotlight-progress">
                                     <div class="quest-bar"><div class="quest-bar-fill" style="width:${dailyPercent.toFixed(1)}%"></div></div>
                                     <div class="quest-count">${featuredDaily.need === 1 ? (((featuredDaily.extraDone !== undefined) ? featuredDaily.extraDone : (featuredDaily.have >= featuredDaily.need)) ? '✓' : '–') : `${Math.min(featuredDaily.have, featuredDaily.need)} / ${featuredDaily.need}`}</div>
