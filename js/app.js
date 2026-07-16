@@ -1064,6 +1064,15 @@
             const pct = ((xp - base) / (next - base)) * 100;
             return { xp, level: lvl, base, next, pct, into: xp - base, span: next - base };
         }
+        function formatXp(value) {
+            return `${formatWholeNumber(Math.max(0, Math.round(Number(value) || 0)))} XP`;
+        }
+        function xpRemaining(progress) {
+            return Math.max(0, progress.span - progress.into);
+        }
+        function xpToNextLevel(progress) {
+            return `${formatXp(xpRemaining(progress))} to Level ${progress.level + 1}`;
+        }
         function levelName(n) {
             if (n >= 50) return 'Absurd';
             if (n >= 45) return 'Legend';
@@ -1177,7 +1186,7 @@
                             <span class="quest-title">${q.title}</span>
                         </div>
                     </div>
-                    <span class="quest-reward">+${q.xp} XP</span>
+                    <span class="quest-reward">+${formatXp(q.xp)}</span>
                 </div>
                 ${q.desc ? `<div class="quest-desc">${q.desc}</div>` : ''}
                 <div class="quest-progress">
@@ -1198,7 +1207,7 @@
             const percent = active ? Math.min(100, (active.have / active.need) * 100) : 100;
             const markup = (context) => `<div class="compact-quest-head"><span>Level ${level.level} · ${levelName(level.level)}</span><button type="button" class="compact-quest-open" data-open-quests>All quests</button></div>
                 <div class="compact-quest-title">${active ? escHTML(active.title) : 'Daily quests cleared'}</div>
-                <div class="compact-quest-meta"><span>${active ? `${Math.min(active.have, active.need)} / ${active.need}` : '✓'}</span><span>${active ? `+${active.xp} XP` : `${level.into}/${level.span} XP`}</span></div>
+                <div class="compact-quest-meta"><span>${active ? `${Math.min(active.have, active.need)} / ${active.need}` : '✓'}</span><span>${active ? `+${formatXp(active.xp)}` : xpToNextLevel(level)}</span></div>
                 <div class="compact-quest-bar"><i style="width:${percent.toFixed(1)}%"></i></div>
                 <div class="compact-quest-tip">${context === 'battle' ? 'Timer solves level you up and unlock the arena.' : 'Every solve moves your level forward.'}</div>`;
             const timerPanel = document.getElementById('timer-quest-panel');
@@ -1211,10 +1220,7 @@
                 const rankNote = rankCard.querySelector('.academy-rank-copy small');
                 const rankLevel = rankCard.querySelector('.academy-rank-level');
                 if (rankName) rankName.textContent = levelName(level.level);
-                if (rankNote) {
-                    const xpRemaining = Math.max(0, level.span - level.into);
-                    rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Next level: ${formatWholeNumber(xpRemaining)} XP`;
-                }
+                if (rankNote) rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : xpToNextLevel(level);
                 if (rankLevel) rankLevel.textContent = level.level;
             }
             document.querySelectorAll('[data-open-quests]').forEach(button => {
@@ -1240,6 +1246,9 @@
             }, 0);
             const dailyXpTotal = Object.values((profile && profile.dailyQuestLog) || {})
                 .reduce((a, b) => a + b, 0);
+            const totalXpSources = actXp + permanentXp + dailyXpTotal;
+            const timerShare = totalXpSources ? Math.round((actXp / totalXpSources) * 100) : 0;
+            const questShare = totalXpSources ? 100 - timerShare : 0;
             const featuredDaily = q.daily.find(quest => {
                 return !((quest.extraDone !== undefined) ? quest.extraDone : (quest.have >= quest.need));
             }) || q.daily[q.daily.length - 1];
@@ -1282,16 +1291,16 @@
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                <div class="quest-hero-xp">${formatWholeNumber(lp.xp)} XP</div>
-                                <div class="quest-xp-next">→ ${nextLevelLabel} at ${formatWholeNumber(lp.next)} XP</div>
+                                <div class="quest-hero-xp">${formatWholeNumber(lp.into)} / ${formatXp(lp.span)}</div>
+                                <div class="quest-xp-next">${formatXp(xpRemaining(lp))} remaining</div>
                             </div>
                         </div>
                         <div class="xp-bar large"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
                         <div class="quest-hero-foot">
-                            <span>${formatWholeNumber(lp.into)} / ${formatWholeNumber(lp.span)} XP to <b>${nextLevelLabel}</b></span>
+                            <span>Progress to <b>${nextLevelLabel}</b></span>
                             <span class="quest-xp-breakdown">
-                                <span title="Solve XP increases after 500 and 2000 total solves">Timer activity: ${formatWholeNumber(actXp)}</span>
-                                <span title="XP from completed quests">Quest XP: ${formatWholeNumber(permanentXp + dailyXpTotal)}</span>
+                                <span title="Share of progress earned from timer activity">From timer: ${timerShare}%</span>
+                                <span title="Share of progress earned from completed quests">From quests: ${questShare}%</span>
                             </span>
                         </div>
                     </div>
@@ -1299,7 +1308,7 @@
                         <div class="train-panel quest-spotlight">
                             <div class="quest-spotlight-top">
                                 <span class="quest-spotlight-label">Featured Daily</span>
-                                ${featuredDaily ? `<span class="quest-reward">+${featuredDaily.xp} XP</span>` : ''}
+                                ${featuredDaily ? `<span class="quest-reward">+${formatXp(featuredDaily.xp)}</span>` : ''}
                             </div>
                             ${featuredDaily ? `
                                 <div class="quest-spotlight-title">${featuredDaily.title}</div>
@@ -2531,7 +2540,7 @@
                                         <span class="lvl-pill">LVL ${lp.level}</span>
                                         <span class="lvl-name-pill">${levelName(lp.level)}</span>
                                         <div class="xp-bar"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
-                                        <span class="xp-text">${lp.into} / ${lp.span} XP</span>
+                                        <span class="xp-text">${formatWholeNumber(lp.into)} / ${formatXp(lp.span)} · ${formatXp(xpRemaining(lp))} remaining</span>
                                     </div>`;
                                 })()}
                                 ${wcaLink}
