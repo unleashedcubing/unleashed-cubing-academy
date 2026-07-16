@@ -20,6 +20,23 @@ function requireDb() {
 
 function nowMs() { return Date.now(); }
 
+async function markCallEnded(chatId, callId) {
+    if (!chatId || !callId) return;
+    const { db, fs } = requireDb();
+    await Promise.all([
+        fs.setDoc(fs.doc(db, 'chats', chatId, 'calls', callId), {
+            status: 'ended',
+            endedAtMs: nowMs(),
+            endedByUid: fbSync.getUser().uid
+        }, { merge: true }),
+        fs.setDoc(fs.doc(db, 'chats', chatId), {
+            currentCallId: null,
+            currentCallState: null,
+            currentCallFromUid: null
+        }, { merge: true })
+    ]);
+}
+
 function normalizeCode(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -421,19 +438,7 @@ async function teardownActiveCall(pushEnded = false) {
         remoteAudio.srcObject = null;
     }
     if (pushEnded && fbSync.enabled && fbSync.getUser()) {
-        const { db, fs } = requireDb();
-        await Promise.all([
-            fs.setDoc(fs.doc(db, 'chats', current.chatId, 'calls', current.callId), {
-                status: 'ended',
-                endedAtMs: nowMs(),
-                endedByUid: fbSync.getUser().uid
-            }, { merge: true }),
-            fs.setDoc(fs.doc(db, 'chats', current.chatId), {
-                currentCallId: null,
-                currentCallState: null,
-                currentCallFromUid: null
-            }, { merge: true })
-        ]).catch(() => {});
+        await markCallEnded(current.chatId, current.callId);
     }
 }
 
@@ -517,8 +522,16 @@ export async function acceptVoiceCall(chatId, callId) {
     }, { merge: true });
 }
 
-export async function endVoiceCall() {
-    await teardownActiveCall(true);
+export async function endVoiceCall(chatId, callId) {
+    if (activeCall) {
+        await teardownActiveCall(true);
+        return;
+    }
+    if (remoteAudio) {
+        try { remoteAudio.pause(); } catch (_) {}
+        remoteAudio.srcObject = null;
+    }
+    await markCallEnded(chatId, callId);
 }
 
 export function activeVoiceCall() {

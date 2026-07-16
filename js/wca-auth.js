@@ -15,6 +15,9 @@
 const WCA_AUTH_URL  = 'https://www.worldcubeassociation.org/oauth/authorize';
 const WCA_TOKEN_URL = 'https://www.worldcubeassociation.org/oauth/token';
 const WCA_ME_URL    = 'https://www.worldcubeassociation.org/api/v0/me';
+const WCA_MY_COMPETITIONS_URL = 'https://www.worldcubeassociation.org/api/v0/competitions/mine';
+const WCA_TOKEN_KEY = 'uca_wca_access_token';
+const WCA_TOKEN_EXPIRY_KEY = 'uca_wca_access_token_expires_at';
 
 let wcaConfig = null;
 try {
@@ -87,6 +90,9 @@ export async function handleWcaCallback() {
         cleanUrl();
         return null;
     }
+    const expiresIn = Number(params.get('expires_in') || 7200);
+    sessionStorage.setItem(WCA_TOKEN_KEY, token);
+    sessionStorage.setItem(WCA_TOKEN_EXPIRY_KEY, String(Date.now() + Math.max(60, expiresIn) * 1000));
     console.info('[WCA] Got access_token from fragment, fetching /me');
     try {
         let meResp;
@@ -115,9 +121,48 @@ export async function handleWcaCallback() {
             personal_records: me.personal_records || null
         };
     } catch (e) {
+        sessionStorage.removeItem(WCA_TOKEN_KEY);
+        sessionStorage.removeItem(WCA_TOKEN_EXPIRY_KEY);
         cleanUrl();
         throw e;
     }
+}
+
+export function getWcaAccessToken() {
+    const token = sessionStorage.getItem(WCA_TOKEN_KEY) || '';
+    const expiresAt = Number(sessionStorage.getItem(WCA_TOKEN_EXPIRY_KEY) || 0);
+    if (!token || (expiresAt && Date.now() >= expiresAt)) {
+        sessionStorage.removeItem(WCA_TOKEN_KEY);
+        sessionStorage.removeItem(WCA_TOKEN_EXPIRY_KEY);
+        return '';
+    }
+    return token;
+}
+
+export async function fetchMyWcaCompetitions() {
+    const token = getWcaAccessToken();
+    if (!token) throw new Error('Sign in with WCA again to check your registered competitions.');
+    const response = await fetch(WCA_MY_COMPETITIONS_URL, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    if (response.status === 401) {
+        sessionStorage.removeItem(WCA_TOKEN_KEY);
+        sessionStorage.removeItem(WCA_TOKEN_EXPIRY_KEY);
+        throw new Error('Your WCA session expired. Sign in with WCA again.');
+    }
+    if (!response.ok) throw new Error(`WCA competition lookup failed: HTTP ${response.status}`);
+    const data = await response.json();
+    const future = Array.isArray(data?.future_competitions) ? data.future_competitions : [];
+    return Promise.all(future.slice(0, 8).map(async competition => {
+        try {
+            const detailsResponse = await fetch(`https://www.worldcubeassociation.org/api/v0/competitions/${encodeURIComponent(competition.id)}`);
+            if (!detailsResponse.ok) return competition;
+            const details = await detailsResponse.json();
+            return { ...competition, event_ids: details.event_ids || competition.event_ids || [] };
+        } catch (_) {
+            return competition;
+        }
+    }));
 }
 
 // Fallback: fetch a user's PUBLIC profile + PRs by WCA ID (no auth required).

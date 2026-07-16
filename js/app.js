@@ -1,7 +1,7 @@
         import { db } from './data.js';
         import { fbSync } from './firebase-sync.js';
         import * as social from './social.js';
-        import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile } from './wca-auth.js';
+        import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile, fetchMyWcaCompetitions } from './wca-auth.js';
 
         let Alg = null;
         let randomScrambleForEvent = null;
@@ -982,6 +982,10 @@
         function escHTML(s) {
             return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         }
+        function formatWholeNumber(value) {
+            const number = Number(value);
+            return Number.isFinite(number) ? Math.round(number).toLocaleString() : '0';
+        }
         async function copyText(text) {
             const value = String(text == null ? '' : text).trim();
             if (!value) return false;
@@ -1207,7 +1211,7 @@
                 const rankNote = rankCard.querySelector('.academy-rank-copy small');
                 const rankLevel = rankCard.querySelector('.academy-rank-level');
                 if (rankName) rankName.textContent = levelName(level.level);
-                if (rankNote) rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Level ${level.level + 1} at ${level.next} XP`;
+                if (rankNote) rankNote.textContent = level.level >= 50 ? 'Absurd rank achieved' : `Level ${level.level + 1} at ${formatWholeNumber(level.next)} XP`;
                 if (rankLevel) rankLevel.textContent = level.level;
             }
             document.querySelectorAll('[data-open-quests]').forEach(button => {
@@ -1220,6 +1224,10 @@
             const newAwards = awardDailyQuests(q.daily);
             const lp = levelProgress();
             const nextName = levelName(lp.level + 1);
+            const currentName = levelName(lp.level);
+            const nextLevelLabel = nextName === currentName
+                ? `Level ${lp.level + 1}`
+                : `${nextName} · Level ${lp.level + 1}`;
 
             // XP breakdown for tooltip/display
             const actXp = solveActivityXp(totalSolvesAll());
@@ -1275,16 +1283,16 @@
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                <div class="quest-hero-xp">${lp.xp} XP</div>
-                                <div class="quest-xp-next">→ ${nextName} at ${lp.next} XP</div>
+                                <div class="quest-hero-xp">${formatWholeNumber(lp.xp)} XP</div>
+                                <div class="quest-xp-next">→ ${nextLevelLabel} at ${formatWholeNumber(lp.next)} XP</div>
                             </div>
                         </div>
                         <div class="xp-bar large"><div class="xp-bar-fill" style="width:${Math.min(100,Math.max(0,lp.pct)).toFixed(1)}%"></div></div>
                         <div class="quest-hero-foot">
-                            <span>${lp.into} / ${lp.span} XP to <b>${nextName}</b></span>
+                            <span>${formatWholeNumber(lp.into)} / ${formatWholeNumber(lp.span)} XP to <b>${nextLevelLabel}</b></span>
                             <span class="quest-xp-breakdown">
-                                <span title="Solve XP increases after 500 and 2000 total solves">Timer activity: ${actXp}</span>
-                                <span title="XP from completed quests">Quests: ${permanentXp + dailyXpTotal}</span>
+                                <span title="Solve XP increases after 500 and 2000 total solves">Timer activity: ${formatWholeNumber(actXp)}</span>
+                                <span title="XP from completed quests">Quest XP: ${formatWholeNumber(permanentXp + dailyXpTotal)}</span>
                             </span>
                         </div>
                     </div>
@@ -1459,6 +1467,27 @@
             const wcaId = String(profile.wca_id || '').trim().toUpperCase();
             const slug = slugifyCompetitionName(comp?.name || comp?.id || 'competition');
             return `/competition:${slug}:${wcaId}`;
+        }
+        function isCompetitionCommand(value) {
+            return /^\/(?:competition|competion)(?=\s|:|$)/i.test(String(value || '').trim());
+        }
+        function normalizeCompetitionCommand(value) {
+            return String(value || '').replace(/^\/competion(?=\s|:|$)/i, '/competition');
+        }
+        function competitionOverviewText(comps) {
+            if (!Array.isArray(comps) || !comps.length) {
+                return 'No upcoming registered WCA competitions were found for your linked WCA ID.';
+            }
+            return [
+                '**Your upcoming WCA competitions**',
+                ...comps.slice(0, 8).map((comp, index) => {
+                    const location = [comp.city, comp.country_iso2].filter(Boolean).join(', ');
+                    const events = Array.isArray(comp.event_ids) && comp.event_ids.length ? ` · ${(comp.event_ids || []).join(', ')}` : '';
+                    return `${index + 1}. **${comp.name || 'Competition'}** — ${comp.start_date || 'date TBA'}${location ? ` · ${location}` : ''}${events}`;
+                }),
+                '',
+                'Choose a competition card to ask Cubey for event-specific preparation.'
+            ].join('\n');
         }
         function competitionCommandHint(comp) {
             const events = Array.isArray(comp?.event_ids) && comp.event_ids.length ? ` · ${comp.event_ids.join(', ')}` : '';
@@ -1698,7 +1727,7 @@
                 const box = document.getElementById('assistant-comp-picker');
                 if (!box || !assistantInput) return;
                 const raw = assistantInput.value || '';
-                const wantsComp = raw.trim().toLowerCase().startsWith('/competition');
+                const wantsComp = isCompetitionCommand(raw);
                 const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
                 if (!wantsComp) {
                     box.style.display = 'none';
@@ -1710,8 +1739,12 @@
                     box.innerHTML = `<div class="assistant-comp-picker-empty">Link your WCA account first to use competition-specific prep.</div>`;
                     return;
                 }
+                if (window.__ucUpcomingCompsLoading) {
+                    box.innerHTML = `<div class="assistant-comp-picker-empty">Checking your upcoming WCA competitions…</div>`;
+                    return;
+                }
                 if (!comps.length) {
-                    box.innerHTML = `<div class="assistant-comp-picker-empty">No upcoming registered competitions found for your linked WCA account yet.</div>`;
+                    box.innerHTML = `<div class="assistant-comp-picker-empty">${escHTML(window.__ucUpcomingCompsError || 'No upcoming registered competitions found for your linked WCA account yet.')}</div>`;
                     return;
                 }
                 box.innerHTML = `
@@ -1779,7 +1812,7 @@
             });
             async function submitAssistantPrompt() {
                 if (!assistantInput) return;
-                const raw = assistantInput.value.trim();
+                const raw = normalizeCompetitionCommand(assistantInput.value.trim());
                 if (!raw) return;
                 assistantPrefs.history.push({ role: 'user', content: raw });
                 assistantPrefs.history = assistantPrefs.history.slice(-10);
@@ -1791,7 +1824,17 @@
                 const sendBtn = document.getElementById('assistant-send');
                 if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking'; }
                 try {
-                    const reply = await askCubingAssistant(raw);
+                    let reply;
+                    if (isCompetitionCommand(raw) && !profile.wca_id) {
+                        reply = 'Link and verify your WCA ID in Profile first. Then `/competition` can check your upcoming registered competitions.';
+                    } else if (isCompetitionCommand(raw) && !currentCompetitionChoice()) {
+                        const comps = await loadUpcomingComps(profile.wca_id);
+                        reply = comps === null
+                            ? (window.__ucUpcomingCompsError || 'I could not check WCA competitions right now. Please try again in a moment.')
+                            : competitionOverviewText(comps);
+                    } else {
+                        reply = await askCubingAssistant(raw);
+                    }
                     assistantPrefs.history.push({ role: 'assistant', content: reply });
                     assistantPrefs.history = assistantPrefs.history.slice(-10);
                     saveAssistantPrefs();
@@ -1881,7 +1924,7 @@
                                     <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Ask for drills, comp prep, analysis, or a training plan..."></textarea>
                                     <div class="assistant-comp-picker" id="assistant-comp-picker" style="display:none;"></div>
                                     <div class="assistant-compose-actions">
-                                        <span class="assistant-compose-model">Cubey is learning with you</span>
+                                        <span class="assistant-compose-model">Cubey is AI and can make mistakes.</span>
                                         <button class="train-cta assistant-send-btn" id="assistant-send">Send</button>
                                     </div>
                                 </div>
@@ -1897,7 +1940,11 @@
                 </div>
             `;
             bindAssistantComposer(renderAssistantPage);
-            if (profile.wca_id) loadUpcomingComps(profile.wca_id);
+            if (profile.wca_id) {
+                loadUpcomingComps(profile.wca_id).then(() => {
+                    document.getElementById('assistant-input')?.dispatchEvent(new Event('input'));
+                });
+            }
         }
         function socialModeActive() {
             return socialView && socialView.style.display !== 'none';
@@ -2285,7 +2332,17 @@
                 try { await social.acceptVoiceCall(socialChatState.chatId, socialChatState.call.id); } catch (e) { alert(e.message || e); }
             });
             document.getElementById('social-end-call')?.addEventListener('click', async () => {
-                try { await social.endVoiceCall(); } catch (e) { alert(e.message || e); }
+                const button = document.getElementById('social-end-call');
+                if (button) { button.disabled = true; button.textContent = 'Leaving…'; }
+                try {
+                    await social.endVoiceCall(socialChatState.chatId, socialChatState.call?.id);
+                    socialChatState.call = null;
+                    if (socialChatState.chat) socialChatState.chat.currentCallId = null;
+                    renderSocialPage();
+                } catch (e) {
+                    if (button) { button.disabled = false; button.textContent = 'Leave VC'; }
+                    alert(e.message || e);
+                }
             });
             document.getElementById('social-battle-mode')?.addEventListener('change', (e) => {
                 socialPrefs.battleMode = e.target.value || 'ao5';
@@ -2649,27 +2706,32 @@
 
         async function loadUpcomingComps(wcaId) {
             const el = document.getElementById('wca-upcoming-body');
-            if (!el) return;
-            const cacheKey = 'wca_upcomping_' + wcaId;
+            const cacheKey = 'wca_upcoming_' + wcaId;
             let comps;
+            window.__ucUpcomingCompsLoading = true;
             try {
                 const cached = sessionStorage.getItem(cacheKey);
                 if (cached) {
                     comps = JSON.parse(cached);
                 } else {
-                    const resp = await fetch(`https://www.worldcubeassociation.org/api/v0/competitions?upcoming_for=${encodeURIComponent(wcaId)}&per_page=8&sort=start_date`);
-                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                    comps = await resp.json();
+                    comps = await fetchMyWcaCompetitions();
                     sessionStorage.setItem(cacheKey, JSON.stringify(comps));
                 }
+                window.__ucUpcomingCompsError = '';
             } catch (e) {
-                if (el) el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">Could not load competitions — check your connection.</span>';
-                return;
+                const message = e?.message || 'Could not load competitions — check your connection.';
+                window.__ucUpcomingCompsError = message;
+                if (el) el.innerHTML = `<span style="color:var(--text-muted);font-size:0.88rem;">${escHTML(message)}</span>`;
+                window.__ucUpcomingComps = [];
+                return null;
+            } finally {
+                window.__ucUpcomingCompsLoading = false;
             }
-            if (!el) return;
+            window.__ucUpcomingComps = Array.isArray(comps) ? comps : [];
             if (!Array.isArray(comps) || !comps.length) {
-                el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No upcoming registered competitions found for your WCA ID.</span>';
-                return;
+                if (el) el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No upcoming registered competitions found for your WCA ID.</span>';
+                if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
+                return [];
             }
             function fmtCompDate(start, end) {
                 const s = new Date(start + 'T00:00:00');
@@ -2681,8 +2743,7 @@
                 return s.toLocaleDateString(undefined, opts) + ' – ' + e.toLocaleDateString(undefined, opts);
             }
             const now = new Date();
-            window.__ucUpcomingComps = comps;
-            el.innerHTML = comps.map(c => {
+            const markup = comps.map(c => {
                 const startDate = new Date(c.start_date + 'T00:00:00');
                 const diffDays = Math.round((startDate - now) / 86400000);
                 const badge = diffDays > 0 ? `<span class="upcoming-days">${diffDays === 1 ? 'tomorrow' : 'in ' + diffDays + ' days'}</span>`
@@ -2697,7 +2758,9 @@
                     ${eventPips ? `<div class="upcoming-comp-events">${eventPips}</div>` : ''}
                 </div>`;
             }).join('');
+            if (el) el.innerHTML = markup;
             if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
+            return comps;
         }
 
         const ASSISTANT_MODELS = [
@@ -2828,10 +2891,10 @@
             );
             const wcaRecords = Object.entries(profile.wca_records || {})
                 .map(([ev, rec]) => `${eventLabel(ev)} | single: ${rec.single != null ? fmtTime(rec.single) : '—'} | average: ${rec.average != null ? fmtTime(rec.average) : '—'}`);
-            const mode = userPrompt.trim().startsWith('/competition') ? 'competition' : 'general';
+            const mode = isCompetitionCommand(userPrompt) ? 'competition' : 'general';
             return {
                 mode,
-                prompt: userPrompt.replace(/^\/competition\b/i, '').trim() || 'Give me the most helpful competition guidance.',
+                prompt: normalizeCompetitionCommand(userPrompt).replace(/^\/competition\b/i, '').trim() || 'Give me the most helpful competition guidance.',
                 profile: {
                     mainEvent: eventLabel(profile.main_event),
                     cubes: profile.main_cubes || '',

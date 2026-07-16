@@ -5336,7 +5336,7 @@
         .page-heading { margin: 4px 4px 18px; }
         .page-title {
             font-family: 'Inter', sans-serif;
-            font-size: 2.2rem;
+            font-size: 1.9rem;
             font-weight: 900;
             color: var(--text);
             letter-spacing: -1px;
@@ -8143,8 +8143,8 @@
             margin-bottom: 14px;
         }
         #quests-view .app-page-heading .page-title {
-            font-size: clamp(2.35rem, 4.2vw, 4.25rem);
-            line-height: .92;
+            font-size: clamp(2.1rem, 3.4vw, 3.45rem);
+            line-height: 1.05;
             letter-spacing: -.055em;
             text-transform: none;
         }
@@ -8297,7 +8297,7 @@
         }
         @media (max-width: 700px) {
             #quests-view .app-page-heading { align-items: start; gap: 8px; }
-            #quests-view .app-page-heading .page-title { font-size: 2.45rem; }
+            #quests-view .app-page-heading .page-title { font-size: 2.15rem; }
             .quest-grid { grid-template-columns: 1fr; }
             .quest-hero { padding: 190px 16px 18px; }
             .quest-cubey-stage {
