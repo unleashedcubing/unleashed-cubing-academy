@@ -1132,16 +1132,10 @@
                 ]
             };
         }
-        function questRarityLabel(q) {
-            if (q.tier === 'legendary') return 'Legendary';
-            if (q.tier === 'rainbow') return 'Mythic';
-            if (q.tier === 'gold') return 'Epic';
-            if (q.tier === 'silver') return 'Rare';
-            if (q.tier === 'bronze') return 'Starter';
-            if (q.need >= 5000) return 'Legendary';
-            if (q.need >= 500) return 'Epic';
-            if (q.need >= 100) return 'Rare';
-            return 'Daily';
+        function questTypeLabel(q) {
+            if (q.id?.startsWith('d-')) return 'Daily quest';
+            if (q.tier) return 'Profile frame';
+            return 'Milestone';
         }
         function questMomentumText(q, done) {
             if (done) return 'Completed';
@@ -1166,15 +1160,13 @@
             const done = (q.extraDone !== undefined) ? q.extraDone : (q.have >= q.need);
             const pct = Math.min(100, Math.max(0, (q.have / q.need) * 100));
             const haveDisplay = (q.need === 1) ? (done ? '✓' : '–') : `${Math.min(q.have, q.need)} / ${q.need}`;
-            const rarity = questRarityLabel(q).toLowerCase();
-            return `<div class="quest-card quest-${rarity} ${done ? 'is-done' : ''}" style="--quest-progress:${pct.toFixed(1)}%">
-                <div class="quest-card-aura" aria-hidden="true"></div>
+            return `<div class="quest-card ${done ? 'is-done' : ''}" style="--quest-progress:${pct.toFixed(1)}%">
                 <div class="quest-card-head">
                     <div class="quest-card-identity">
                         <span class="quest-card-icon" aria-hidden="true">${questIcon(q, done)}</span>
                         <div>
-                        <div class="quest-rarity">${questRarityLabel(q)}</div>
-                        <span class="quest-title">${q.title}</span>
+                            <div class="quest-type">${questTypeLabel(q)}</div>
+                            <span class="quest-title">${q.title}</span>
                         </div>
                     </div>
                     <span class="quest-reward">+${q.xp} XP</span>
@@ -1836,9 +1828,6 @@
                         <div class="panel-title">
                             <span>Official Rankings</span>
                             <span class="assistant-model-pill">WCA</span>
-                        </div>
-                        <div class="assistant-intro">
-                            Uses Robin Ingelbrecht&apos;s WCA REST API for live rank data. Try regions like <code>world</code>, <code>europe</code>, <code>asia</code>, or a country code like <code>US</code>.
                         </div>
                         <div class="leaderboard-toolbar">
                             <select id="leaderboard-event" class="stats-filter-select">
