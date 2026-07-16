@@ -8308,3 +8308,24 @@
                 transform-origin: top center;
             }
         }
+
+        /* Shared supplied Cubey artwork. */
+        .cubey-character {
+            left: -4px;
+            bottom: 0;
+            width: 122px;
+            height: 122px;
+        }
+        .cubey-art,
+        .quest-cubey-art {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .quest-cubey {
+            left: 52px;
+            top: 18px;
+            width: 170px;
+            height: 170px;
+        }

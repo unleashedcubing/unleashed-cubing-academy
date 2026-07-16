@@ -1262,14 +1262,7 @@
                         <div class="quest-cubey-stage" aria-hidden="true">
                             <div class="quest-cubey-orbit"><i></i><i></i><i></i></div>
                             <div class="quest-cubey">
-                                <span class="qc-crown">✦</span>
-                                <div class="qc-head">
-                                    <i class="qc-tile q1"></i><i class="qc-tile q2"></i><i class="qc-tile q3"></i>
-                                    <i class="qc-tile q4"></i><i class="qc-tile q5"></i><i class="qc-tile q6"></i>
-                                    <span class="qc-eye left"></span><span class="qc-eye right"></span><span class="qc-mouth"></span>
-                                </div>
-                                <span class="qc-arm left"></span><span class="qc-arm right"></span>
-                                <span class="qc-leg left"></span><span class="qc-leg right"></span>
+                                <img class="quest-cubey-art" src="assets/cubey.svg" alt="">
                             </div>
                             <div class="quest-cubey-callout"><b>Quest mode!</b><span>${newAwards.length ? `+${newAwards.reduce((sum, quest) => sum + quest.xp, 0)} XP claimed` : 'Keep the combo moving'}</span></div>
                         </div>
