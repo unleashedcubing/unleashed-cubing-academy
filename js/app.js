@@ -1258,10 +1258,7 @@
 
             questsView.innerHTML = `
                 <div class="app-page-shell">
-                    <div class="page-heading app-page-heading">
-                        <h1 class="page-title">Quests</h1>
-                        <p class="page-sub">Build consistent habits with quick daily goals and long-term milestones.</p>
-                    </div>
+                    ${appPageHeading('Quests', 'Build consistent habits with quick daily goals and long-term milestones.')}
                 <div class="quests-grid-outer ${newAwards.length ? 'has-new-awards' : ''}">
                     <div class="quest-particles" aria-hidden="true">
                         ${Array.from({length: 14}, (_, i) => `<i style="--i:${i}"></i>`).join('')}
@@ -1272,7 +1269,6 @@
                             <div class="quest-cubey">
                                 <img class="quest-cubey-art" src="assets/cubey.svg" alt="">
                             </div>
-                            <div class="quest-cubey-callout"><b>Quest mode!</b><span>${newAwards.length ? `+${newAwards.reduce((sum, quest) => sum + quest.xp, 0)} XP claimed` : 'Keep the combo moving'}</span></div>
                         </div>
                         <div class="quest-hero-head">
                             <div>
