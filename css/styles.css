@@ -3349,6 +3349,24 @@
             flex-wrap: wrap;
             gap: 8px;
         }
+        .onboard-chip-group {
+            flex: 1 0 100%;
+            min-width: 0;
+        }
+        .onboard-chip-group + .onboard-chip-group { margin-top: 8px; }
+        .onboard-chip-group-title {
+            margin-bottom: 7px;
+            color: var(--text-muted);
+            font-size: .68rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+        .onboard-chip-group-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
         .onboard-chip {
             background: rgba(255,255,255,0.04);
             border: 1px solid rgba(255,255,255,0.08);
@@ -8354,4 +8372,333 @@
             margin-top: 4px;
             font-size: .95rem;
             line-height: normal;
+        }
+
+        /* ============================================================
+           Timer workspace, hardware controls, and linked accounts
+           ============================================================ */
+        .nav-item { position: relative; }
+        .nav-notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            width: 9px;
+            height: 9px;
+            padding: 0;
+            border: 2px solid #111318;
+            border-radius: 999px;
+            background: #ff3f46;
+            box-shadow: 0 0 0 3px rgba(255,63,70,.12), 0 0 14px rgba(255,63,70,.72);
+            color: transparent;
+            font-size: 0;
+            pointer-events: none;
+        }
+        .nav-notification-dot[hidden] { display: none !important; }
+
+        .timer-trainer-cube-heading {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            margin: -2px 0 8px;
+            padding: 9px 10px;
+            border-bottom: 1px solid color-mix(in srgb, var(--orange) 30%, rgba(255,255,255,.07));
+            background: rgba(17,20,27,.96);
+            color: var(--orange);
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+
+        .timer-zen-stats {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px 18px;
+            color: #939cab;
+            font: 700 .78rem 'Ubuntu Mono', monospace;
+            letter-spacing: .02em;
+        }
+        .timer-zen-stats b { color: #eef2f7; }
+        #timer-zen-toggle.on {
+            color: #0d1117 !important;
+            border-color: transparent !important;
+            background: var(--session-accent, var(--orange)) !important;
+        }
+
+        .stackmat-controls {
+            display: grid;
+            grid-template-columns: minmax(160px, 1fr) auto auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .stackmat-controls select {
+            min-width: 0;
+            width: 100%;
+            min-height: 40px;
+        }
+
+        .connected-accounts {
+            display: grid;
+            gap: 10px;
+        }
+        .connected-account-card {
+            display: grid;
+            grid-template-columns: 42px minmax(0, 1fr);
+            align-items: center;
+            gap: 12px;
+            padding: 13px 14px;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 15px;
+            background: rgba(255,255,255,.035);
+        }
+        .connected-account-mark {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 900;
+        }
+        .connected-account-mark.google-mark {
+            background: #fff;
+            color: #4285f4;
+        }
+        .connected-account-mark.wca-mark {
+            background: #101820;
+            color: #ffd100;
+            box-shadow: inset 0 0 0 1px rgba(255,209,0,.28);
+        }
+        .connected-account-copy {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .connected-account-copy strong { color: #f5f7fa; }
+        .connected-account-copy span {
+            overflow-wrap: anywhere;
+            color: var(--text-muted);
+            font-size: .8rem;
+            line-height: 1.35;
+        }
+        .connected-account-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .connected-account-actions > * { flex: 1; }
+
+        /* The timer is a workspace, not a document: its internal lists scroll. */
+        body[data-active-mode="timer"] {
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .app-shell,
+        body[data-active-mode="timer"] .main-content,
+        body[data-active-mode="timer"] #timer-view,
+        body[data-active-mode="timer"] .timer-layout {
+            min-height: 0;
+            height: 100%;
+        }
+        body[data-active-mode="timer"] .app-shell { overflow: hidden; }
+        body[data-active-mode="timer"] .main-content {
+            box-sizing: border-box;
+            padding: 12px 18px;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] #timer-view {
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .timer-layout {
+            box-sizing: border-box;
+            align-items: stretch;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .timer-main-col {
+            display: grid;
+            grid-template-rows: auto minmax(280px, 1fr) minmax(150px, .48fr);
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .timer-controls-bar {
+            min-width: 0;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        body[data-active-mode="timer"] .timer-controls-bar::-webkit-scrollbar { display: none; }
+        body[data-active-mode="timer"] .timer-controls-bar > * { flex: 0 0 auto; }
+        body[data-active-mode="timer"] .timer-controls-bar #open-timer-trainer {
+            min-width: 0;
+            max-width: 255px;
+        }
+        body[data-active-mode="timer"] #timer-trainer-status {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body[data-active-mode="timer"] .timer-center-stack {
+            box-sizing: border-box;
+            min-height: 0;
+            height: 100%;
+            padding: clamp(18px, 3.5vh, 36px) 20px clamp(12px, 2vh, 20px);
+            justify-content: center;
+        }
+        body[data-active-mode="timer"] .timer-with-feedback { min-height: clamp(88px, 15vh, 130px); }
+        body[data-active-mode="timer"] .timer-with-feedback #puzzle-timer {
+            font-size: clamp(4.2rem, min(9vw, 14vh), 8rem);
+        }
+        body[data-active-mode="timer"] .timer-graphs-row {
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .timer-graph-panel {
+            box-sizing: border-box;
+            min-height: 0;
+            height: 100%;
+            padding: 12px 14px;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .timer-graph-panel svg {
+            display: block;
+            min-height: 0;
+            height: calc(100% - 54px);
+        }
+        body[data-active-mode="timer"] .timer-side {
+            position: static;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            max-height: none;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .session-overview-panel,
+        body[data-active-mode="timer"] .compact-quest-panel { flex: 0 0 auto; }
+        body[data-active-mode="timer"] .time-list-panel {
+            min-height: 0;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .time-list-panel #puzzle-solves {
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        body[data-active-mode="timer"] .session-rail {
+            box-sizing: border-box;
+            min-height: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        body[data-active-mode="timer"] .session-rail-list {
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+        }
+        body[data-active-mode="timer"] .session-rail-list::-webkit-scrollbar { display: none; }
+
+        #timer-view.zen-mode .timer-layout { grid-template-columns: minmax(0, 1fr); }
+        #timer-view.zen-mode .timer-main-col { grid-template-rows: auto minmax(0, 1fr); }
+        #timer-view.zen-mode .timer-side,
+        #timer-view.zen-mode .session-rail,
+        #timer-view.zen-mode .timer-graphs-row,
+        #timer-view.zen-mode .widgets-row,
+        #timer-view.zen-mode .cubey-coach { display: none !important; }
+        #timer-view.zen-mode .timer-zen-stats { display: flex; }
+        #timer-view.zen-mode .timer-center-stack {
+            min-height: 0;
+            border-color: color-mix(in srgb, var(--session-accent, var(--orange)) 38%, rgba(255,255,255,.07));
+        }
+
+        @media (max-height: 720px) and (min-width: 641px) {
+            body[data-active-mode="timer"] .timer-main-col { grid-template-rows: auto minmax(0, 1fr); }
+            body[data-active-mode="timer"] .timer-graphs-row { display: none; }
+            body[data-active-mode="timer"] .compact-quest-panel { display: none; }
+            body[data-active-mode="timer"] .timer-center-stack { padding-block: 12px; }
+            body[data-active-mode="timer"] .widgets-row .widget-slot:nth-child(n+3) { display: none; }
+        }
+
+        @media (max-width: 900px) and (min-width: 641px) {
+            body[data-active-mode="timer"] .timer-layout { grid-template-columns: minmax(0, 1fr) 272px; }
+            body[data-active-mode="timer"] .session-rail { display: none; }
+            body[data-active-mode="timer"] .main-content { padding: 12px; }
+        }
+
+        @media (max-width: 640px) {
+            .nav-notification-dot { top: 5px; right: 8px; }
+            .stackmat-controls { grid-template-columns: 1fr 1fr; }
+            .stackmat-controls select { grid-column: 1 / -1; }
+            .connected-account-actions { flex-direction: column; }
+
+            body[data-active-mode="timer"] .app-shell {
+                display: grid;
+                grid-template-rows: auto minmax(0, 1fr);
+            }
+            body[data-active-mode="timer"] .sidebar {
+                position: relative;
+                height: auto;
+                max-height: none;
+            }
+            body[data-active-mode="timer"] .main-content {
+                min-height: 0;
+                height: auto;
+                padding: 8px;
+            }
+            body[data-active-mode="timer"] .timer-layout {
+                padding-bottom: 58px;
+                grid-template-columns: 1fr;
+            }
+            body[data-active-mode="timer"] .timer-main-col {
+                grid-template-rows: auto minmax(0, 1fr);
+                gap: 8px;
+            }
+            body[data-active-mode="timer"] .timer-controls-bar { padding: 6px; }
+            body[data-active-mode="timer"] .timer-controls-bar .train-quick-btn,
+            body[data-active-mode="timer"] .timer-controls-bar select {
+                min-height: 34px;
+                padding-block: 6px;
+                font-size: .72rem;
+            }
+            body[data-active-mode="timer"] .timer-center-stack {
+                min-height: 0;
+                padding: 12px 10px 9px;
+                gap: clamp(6px, 1.4vh, 11px);
+                border-radius: 18px;
+            }
+            body[data-active-mode="timer"] .timer-center-stack #puzzle-scramble {
+                max-height: 5.4em;
+                overflow-y: auto;
+                font-size: clamp(.68rem, 2.8vw, .88rem);
+                line-height: 1.45;
+            }
+            body[data-active-mode="timer"] .timer-with-feedback {
+                min-height: clamp(70px, 13vh, 105px);
+            }
+            body[data-active-mode="timer"] .timer-with-feedback #puzzle-timer {
+                font-size: clamp(3.35rem, 16vw, 5.4rem);
+            }
+            body[data-active-mode="timer"] .widgets-row {
+                gap: 7px;
+                flex-wrap: nowrap;
+            }
+            body[data-active-mode="timer"] .widgets-row .widget-slot {
+                min-width: 105px;
+                max-width: 145px;
+            }
+            body[data-active-mode="timer"] .timer-graphs-row { display: none !important; }
+            body[data-active-mode="timer"] .cubey-coach { display: none; }
+            body[data-active-mode="timer"] .session-rail { height: 56px; }
+            #timer-view.zen-mode .session-rail { display: none !important; }
+            #timer-view.zen-mode .timer-layout { padding-bottom: 0; }
+            #timer-view.zen-mode .timer-controls-bar #open-timer-settings,
+            #timer-view.zen-mode .timer-controls-bar #timer-copy-scramble { display: none; }
         }

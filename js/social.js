@@ -222,12 +222,21 @@ export async function sendDirectMessage(friendUid, text, kind = 'text') {
     return chatId;
 }
 
+export async function markDirectChatRead(friendUid) {
+    const { user, db, fs } = requireDb();
+    const chatId = await ensureDirectChat(friendUid);
+    await fs.updateDoc(fs.doc(db, 'chats', chatId), {
+        [`readAtByUid.${user.uid}`]: nowMs()
+    });
+}
+
 export function listenSocialHub(onUpdate) {
     const { user, db, fs } = requireDb();
     let friends = [];
     let incoming = [];
     let outgoing = [];
     let invites = [];
+    let chats = [];
 
     const emit = async () => {
         const friendIds = friends.map(item => item.id);
@@ -242,6 +251,17 @@ export function listenSocialHub(onUpdate) {
             ...item,
             fromProfile: await getSocialProfile(item.fromUid)
         });
+        const unreadChats = chats.filter(chat => {
+            const readAt = Number(chat.readAtByUid?.[user.uid] || 0);
+            return chat.lastSenderUid && chat.lastSenderUid !== user.uid &&
+                Number(chat.lastMessageAtMs || 0) > readAt;
+        });
+        const incomingCalls = chats.filter(chat =>
+            chat.currentCallId &&
+            chat.currentCallState === 'ringing' &&
+            chat.currentCallFromUid &&
+            chat.currentCallFromUid !== user.uid
+        );
         onUpdate({
             me: await getSocialProfile(user.uid),
             friends: friends.map(item => ({ id: item.id, ...item, profile: profileMap.get(item.id) })).sort((a, b) => {
@@ -252,7 +272,10 @@ export function listenSocialHub(onUpdate) {
             }),
             incoming: await Promise.all(incoming.map(item => hydrateRequest(item, true))),
             outgoing: await Promise.all(outgoing.map(item => hydrateRequest(item, false))),
-            invites: (await Promise.all(invites.map(hydrateInvite))).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0))
+            invites: (await Promise.all(invites.map(hydrateInvite))).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)),
+            chats,
+            unreadChatCount: unreadChats.length,
+            incomingCallCount: incomingCalls.length
         });
     };
 
@@ -271,6 +294,10 @@ export function listenSocialHub(onUpdate) {
         }),
         fs.onSnapshot(fs.query(fs.collection(db, 'battleInvites'), fs.where('toUid', '==', user.uid)), (snap) => {
             invites = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => item.status === 'pending');
+            emit().catch(() => {});
+        }),
+        fs.onSnapshot(fs.query(fs.collection(db, 'chats'), fs.where('memberIds', 'array-contains', user.uid)), (snap) => {
+            chats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             emit().catch(() => {});
         })
     ];

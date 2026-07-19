@@ -1,6 +1,5 @@
 // ============================================================================
 // Smart Cube (Bluetooth) — wraps cubing.js's connectSmartPuzzle.
-// Supports GAN, GiiKER, GoCube, MoYu (via the cubing.js BLE module).
 //
 // Browser support: Web Bluetooth — Chrome / Edge / Opera (desktop & Android).
 // Safari and iOS do NOT support Web Bluetooth.
@@ -8,40 +7,15 @@
 
 import { connectSmartPuzzle } from "https://cdn.cubing.net/v0/js/cubing/bluetooth";
 
-const SMART_CUBE_OPTIONAL_SERVICES = [
-    'battery_service',
-    'device_information',
-    '0000fff0-0000-1000-8000-00805f9b34fb',
-    '0000fff6-0000-1000-8000-00805f9b34fb',
-    '0000aadb-0000-1000-8000-00805f9b34fb',
-    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-    '0000fe59-0000-1000-8000-00805f9b34fb',
-    '0000fe95-0000-1000-8000-00805f9b34fb'
-];
-
-async function connectSelectedDevice(device) {
-    const attempts = [
-        () => connectSmartPuzzle({ bluetoothDevice: device }),
-        () => connectSmartPuzzle({ device }),
-        () => connectSmartPuzzle(device)
-    ];
-    let lastError = null;
-    for (const attempt of attempts) {
-        try {
-            return await attempt();
-        } catch (e) {
-            lastError = e;
-        }
+function readableError(error) {
+    const message = String(error?.message || error || '').trim();
+    if (error?.name === 'NotFoundError') {
+        return 'No supported cube was selected. Wake and turn the cube, then try again.';
     }
-    throw lastError || new Error('Could not attach to the selected smart cube.');
-}
-
-async function connectWithBroadPicker() {
-    const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: SMART_CUBE_OPTIONAL_SERVICES
-    });
-    return connectSelectedDevice(device);
+    if (/network|gatt|connect/i.test(message)) {
+        return 'The cube was found but could not connect. Remove it from saved Bluetooth devices, wake it, and retry.';
+    }
+    return message || 'Could not connect to this smart cube.';
 }
 
 export async function connectCube({ onMove, onSolved, onName, onError, onDisconnect } = {}) {
@@ -51,52 +25,57 @@ export async function connectCube({ onMove, onSolved, onName, onError, onDisconn
         throw new Error(msg);
     }
 
+    if (typeof navigator.bluetooth.getAvailability === 'function' &&
+        !await navigator.bluetooth.getAvailability()) {
+        const msg = 'Bluetooth is unavailable on this device.';
+        if (onError) onError(msg);
+        throw new Error(msg);
+    }
+
     let puzzle;
     try {
         puzzle = await connectSmartPuzzle();
     } catch (e) {
-        try {
-            puzzle = await connectWithBroadPicker();
-        } catch (fallbackError) {
-            const msg = fallbackError?.message || e?.message || String(fallbackError || e);
-            if (onError) onError(msg);
-            throw fallbackError || e;
-        }
+        const msg = readableError(e);
+        if (onError) onError(msg);
+        throw new Error(msg);
     }
 
-    const name = (puzzle && (puzzle.name || puzzle.deviceName)) || 'Smart Cube';
+    let name = 'Smart Cube';
+    try {
+        name = typeof puzzle?.name === 'function'
+            ? await puzzle.name()
+            : (puzzle?.name || puzzle?.deviceName || name);
+    } catch (_) {}
     if (onName) onName(name);
 
-    // cubing.js's smart puzzles expose moves through varying APIs across versions.
-    // Try the modern listener pattern first, then fall back.
     let detached = false;
-    let listenerHandle = null;
+    let removeListener = null;
 
-    function emitMove(moveObj) {
+    function emitMove(event) {
         if (detached || !onMove) return;
-        const str = (moveObj && typeof moveObj.toString === 'function') ? moveObj.toString() : String(moveObj);
-        onMove(str);
+        const algLeaf = event?.latestAlgLeaf || event?.algLeaf || event;
+        const str = algLeaf && typeof algLeaf.toString === 'function' ? algLeaf.toString() : String(algLeaf || '');
+        if (str) onMove(str, algLeaf, event);
     }
 
     try {
-        // Modern: addAlgLeafListener({ onAlgLeaf(move) })
         if (typeof puzzle.addAlgLeafListener === 'function') {
-            listenerHandle = puzzle.addAlgLeafListener({
-                onAlgLeaf: (move) => emitMove(move)
-            });
+            const listener = event => emitMove(event);
+            puzzle.addAlgLeafListener(listener);
+            removeListener = () => puzzle.removeAlgLeafListener?.(listener);
         } else if (typeof puzzle.addMoveListener === 'function') {
-            listenerHandle = puzzle.addMoveListener((m) => emitMove(m));
-        } else if (puzzle.eventEmitter && typeof puzzle.eventEmitter.addEventListener === 'function') {
-            const handler = (ev) => emitMove(ev.detail && (ev.detail.latestMove || ev.detail.move) || ev.detail);
-            puzzle.eventEmitter.addEventListener('move', handler);
-            listenerHandle = () => puzzle.eventEmitter.removeEventListener('move', handler);
+            const listener = event => emitMove(event);
+            const handle = puzzle.addMoveListener(listener);
+            removeListener = typeof handle === 'function'
+                ? handle
+                : () => puzzle.removeMoveListener?.(listener);
         } else if (typeof puzzle.addEventListener === 'function') {
-            const handler = (ev) => emitMove(ev.detail || ev);
+            const handler = ev => emitMove(ev.detail || ev);
             puzzle.addEventListener('move', handler);
-            listenerHandle = () => puzzle.removeEventListener('move', handler);
+            removeListener = () => puzzle.removeEventListener('move', handler);
         } else {
-            console.warn('Smart puzzle has no recognised move listener API:', puzzle);
-            if (onError) onError('Connected, but this cube\'s move-streaming API is unfamiliar to this build of cubing.js. Moves will not be tracked.');
+            throw new Error('Connected, but this cube does not provide a move stream.');
         }
     } catch (e) {
         console.error('Failed to attach move listener:', e);
@@ -120,9 +99,9 @@ export async function connectCube({ onMove, onSolved, onName, onError, onDisconn
         disconnect() {
             detached = true;
             try {
-                if (typeof listenerHandle === 'function') listenerHandle();
-                if (puzzle.disconnect) puzzle.disconnect();
-                else if (puzzle.device && puzzle.device.gatt && puzzle.device.gatt.disconnect) puzzle.device.gatt.disconnect();
+                removeListener?.();
+                if (typeof puzzle.disconnect === 'function') puzzle.disconnect();
+                else if (puzzle.device?.gatt?.connected) puzzle.device.gatt.disconnect();
             } catch (e) {}
             if (onDisconnect) onDisconnect();
         }

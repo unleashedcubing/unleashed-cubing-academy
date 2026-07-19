@@ -7,7 +7,9 @@ const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_V}/firebase
 const PROFILE_KEYS = [
     'learned', 'mainChoices', 'inspection', 'focusMode',
     'holdDelay', 'precision', 'groupMode', 'trainCube', 'puzzleCube',
-    'profile', 'statsFilter', 'trainGroupMode', 'inputMode', 'planner'
+    'profile', 'statsFilter', 'trainGroupMode', 'inputMode', 'planner',
+    'learning', 'algMasteryCube', 'sessionRailLayout', 'timerChartPrefs',
+    'assistantPrefs', 'socialPrefs', 'appColor', 'widgets', 'zenMode'
 ];
 
 function configIsRealistic(cfg) {
@@ -21,7 +23,7 @@ let userChangeListeners = [];
 let initialAuthResolved = false;
 
 // Firestore helpers (loaded only if config is usable)
-let doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp;
+let doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, runTransaction;
 let GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged;
 let firestoreModule = null;
 
@@ -29,6 +31,14 @@ let firestoreModule = null;
 let pendingProfile = {};
 let pendingSessions = {};
 let writeTimer = null;
+let pendingUid = '';
+function clearPendingWrites() {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+    pendingProfile = {};
+    pendingSessions = {};
+    pendingUid = '';
+}
 function scheduleWrite() {
     if (!enabled || !currentUser) return;
     clearTimeout(writeTimer);
@@ -37,6 +47,10 @@ function scheduleWrite() {
 async function flushWrites() {
     if (!enabled || !currentUser) return;
     const uid = currentUser.uid;
+    if (pendingUid && pendingUid !== uid) {
+        clearPendingWrites();
+        return;
+    }
     const tasks = [];
     if (Object.keys(pendingProfile).length) {
         tasks.push(setDoc(doc(db, 'users', uid, 'data', 'profile'), pendingProfile, { merge: true }));
@@ -46,12 +60,15 @@ async function flushWrites() {
         tasks.push(setDoc(doc(db, 'users', uid, 'data', 'sessions'), pendingSessions, { merge: true }));
         pendingSessions = {};
     }
+    pendingUid = '';
     try { await Promise.all(tasks); }
     catch (e) { console.error('Firestore write failed:', e); }
 }
 
 export function noteLSWrite(key, value) {
     if (!enabled || !currentUser) return;
+    if (pendingUid && pendingUid !== currentUser.uid) clearPendingWrites();
+    pendingUid = currentUser.uid;
     if (key.startsWith('sess_')) {
         pendingSessions['puzzle_' + key.slice(5)] = value;
     } else if (PROFILE_KEYS.includes(key)) {
@@ -212,7 +229,11 @@ function applyCloudToLocal(cloud) {
     if (cloud.sessions) {
         Object.entries(cloud.sessions).forEach(([k, v]) => {
             if (!k.startsWith('puzzle_')) return;
-            localStorage.setItem('uc_sess_' + k.slice(7), JSON.stringify(v));
+            const suffix = k.slice(7);
+            const localKey = suffix === 'sessions_global'
+                ? 'uc_sessions_global'
+                : 'uc_sess_' + suffix;
+            localStorage.setItem(localKey, JSON.stringify(v));
         });
     }
 }
@@ -250,12 +271,13 @@ async function initializeFirebase() {
         auth = authMod.getAuth(app);
         db   = fsMod.getFirestore(app);
 
-        ({ doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp } = fsMod);
+        ({ doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, runTransaction } = fsMod);
         ({ GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = authMod);
         firestoreModule = fsMod;
         enabled = true;
 
         onAuthStateChanged(auth, async (user) => {
+            if (pendingUid && pendingUid !== user?.uid) clearPendingWrites();
             currentUser = user;
             if (user) {
                 try {
@@ -292,17 +314,97 @@ async function doSignIn() {
         return;
     }
     try {
-        await signInWithPopup(auth, new GoogleAuthProvider());
+        const result = await signInWithPopup(auth, new GoogleAuthProvider());
+        return result.user || null;
     } catch (e) {
         console.error('Sign-in failed:', e);
-        alert('Sign-in failed: ' + (e.message || e.code || e));
+        const alreadyUsed = [
+            'auth/account-exists-with-different-credential',
+            'auth/credential-already-in-use',
+            'auth/email-already-in-use'
+        ].includes(e?.code);
+        alert(alreadyUsed
+            ? 'This Google account is already connected to another UC Academy account.'
+            : 'Sign-in failed: ' + (e.message || e.code || e));
+        return null;
     }
 }
 async function doSignOut() {
     await firebaseReady;
     if (!enabled) return;
-    try { await signOut(auth); }
+    try {
+        await flushWrites();
+        clearPendingWrites();
+        await signOut(auth);
+    }
     catch (e) { console.error('Sign-out failed:', e); }
+}
+
+async function waitForAuth() {
+    await firebaseReady;
+    if (initialAuthResolved) return currentUser;
+    return new Promise(resolve => {
+        const listener = user => {
+            userChangeListeners = userChangeListeners.filter(item => item !== listener);
+            resolve(user);
+        };
+        userChangeListeners.push(listener);
+    });
+}
+
+async function claimWcaIdentity(rawWcaId) {
+    await firebaseReady;
+    const user = currentUser;
+    if (!enabled || !user) throw new Error('Sign in with Google before linking WCA.');
+    const wcaId = String(rawWcaId || '').trim().toUpperCase();
+    if (!/^\d{4}[A-Z]{4}\d{2}$/.test(wcaId)) throw new Error('WCA did not return a valid WCA ID.');
+
+    const linkRef = doc(db, 'accountLinks', `wca_${wcaId}`);
+    const accountRef = doc(db, 'users', user.uid, 'data', 'account');
+    await runTransaction(db, async transaction => {
+        const linkSnap = await transaction.get(linkRef);
+        const accountSnap = await transaction.get(accountRef);
+        if (linkSnap.exists() && linkSnap.data()?.uid !== user.uid) {
+            const error = new Error('This WCA account is already linked to another UC Academy account.');
+            error.code = 'wca/account-already-used';
+            throw error;
+        }
+        const currentWcaId = String(accountSnap.data()?.wcaId || '');
+        if (currentWcaId && currentWcaId !== wcaId) {
+            throw new Error('Unlink your current WCA account before linking a different one.');
+        }
+        transaction.set(linkRef, {
+            kind: 'wca',
+            value: wcaId,
+            uid: user.uid,
+            linkedAtMs: Date.now()
+        }, { merge: true });
+        transaction.set(accountRef, {
+            googleUid: user.uid,
+            googleEmail: user.email || '',
+            wcaId,
+            updatedAtMs: Date.now()
+        }, { merge: true });
+    });
+    return wcaId;
+}
+
+async function unlinkWcaIdentity(rawWcaId) {
+    await firebaseReady;
+    const user = currentUser;
+    if (!enabled || !user) throw new Error('Sign in with Google first.');
+    const wcaId = String(rawWcaId || '').trim().toUpperCase();
+    if (!wcaId) return;
+    const linkRef = doc(db, 'accountLinks', `wca_${wcaId}`);
+    const accountRef = doc(db, 'users', user.uid, 'data', 'account');
+    await runTransaction(db, async transaction => {
+        const linkSnap = await transaction.get(linkRef);
+        if (linkSnap.exists() && linkSnap.data()?.uid !== user.uid) {
+            throw new Error('This WCA link belongs to another account.');
+        }
+        if (linkSnap.exists()) transaction.delete(linkRef);
+        transaction.set(accountRef, { wcaId: null, updatedAtMs: Date.now() }, { merge: true });
+    });
 }
 
 export const fbSync = {
@@ -317,6 +419,9 @@ export const fbSync = {
     noteLSWrite,
     isInitialAuthResolved: () => initialAuthResolved,
     ready:         () => firebaseReady,
+    waitForAuth,
+    claimWcaIdentity,
+    unlinkWcaIdentity,
     // Firestore primitives exposed for additional features (battles, etc.)
     db: () => db,
     fs: () => firestoreModule

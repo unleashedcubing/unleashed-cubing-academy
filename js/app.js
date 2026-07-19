@@ -1,7 +1,7 @@
         import { db } from './data.js';
         import { fbSync } from './firebase-sync.js';
         import * as social from './social.js';
-        import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchPublicWcaProfile, fetchMyWcaCompetitions } from './wca-auth.js';
+        import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchMyWcaCompetitions, clearWcaSession } from './wca-auth.js';
 
         let Alg = null;
         let randomScrambleForEvent = null;
@@ -172,6 +172,7 @@
         const categoryFilter = document.getElementById('category-filter');
         const searchInput = document.getElementById('search-input');
         const loader = document.getElementById('loading-indicator');
+        let exactAlgNameFilter = '';
 
         // ---- Persistent user data (localStorage + optional cloud sync) ----
         const LS = {
@@ -213,6 +214,7 @@
             main_cubes: '',
             bio: '',
             wca_id: '',
+            wca_user_id: null,
             wca_verified: false,
             wca_name: '',     // verified name from WCA
             wca_records: {},  // normalized { eventId: { single, average } } in seconds
@@ -534,7 +536,9 @@
 
             let list = db.filter(item => {
                 const matchCat = item.category === selectedCat;
-                const matchTerm = term === '' ||
+                const matchTerm = exactAlgNameFilter
+                    ? item.name === exactAlgNameFilter
+                    : term === '' ||
                                   item.name.toLowerCase().includes(term) ||
                                   item.main_alg.toLowerCase().includes(term) ||
                                   item.alts.some(a => a.toLowerCase().includes(term));
@@ -702,8 +706,14 @@
             }
         }
 
-        categoryFilter.addEventListener('change', renderCards);
-        searchInput.addEventListener('input', renderCards);
+        categoryFilter.addEventListener('change', () => {
+            exactAlgNameFilter = '';
+            renderCards();
+        });
+        searchInput.addEventListener('input', () => {
+            exactAlgNameFilter = '';
+            renderCards();
+        });
 
         // ---- Cube-picker landing page ----
         // Map each cube tile to its category whitelist (which <option>s stay visible)
@@ -958,6 +968,24 @@
             { id: 'minx', label: 'Megaminx' }, { id: 'sq1', label: 'Square-1' }, { id: 'clock', label: 'Clock' },
             { id: '444bf', label: '4x4 BF' }, { id: '555bf', label: '5x5 BF' }, { id: '333mbf', label: '3x3 Multi-BF' }
         ];
+        const EVENT_OPTION_GROUPS = [
+            { label: 'NxN Cubes', ids: ['222', '333', '444', '555', '666', '777'] },
+            { label: '3x3 Disciplines', ids: ['333oh', '333fm'] },
+            { label: 'Side Events', ids: ['clock', 'minx', 'pyram', 'skewb', 'sq1'] },
+            { label: 'Blindfolded', ids: ['333bf', '444bf', '555bf', '333mbf'] }
+        ];
+        function groupedEventOptions(selected = '', allowedIds = null) {
+            const allowed = allowedIds ? new Set(allowedIds) : null;
+            return EVENT_OPTION_GROUPS.map(group => {
+                const options = group.ids
+                    .map(id => MAIN_EVENT_OPTIONS.find(option => option.id === id))
+                    .filter(option => option && (!allowed || allowed.has(option.id)));
+                if (!options.length) return '';
+                return `<optgroup label="${escHTML(group.label)}">${options.map(option =>
+                    `<option value="${option.id}" ${selected === option.id ? 'selected' : ''}>${escHTML(option.label)}</option>`
+                ).join('')}</optgroup>`;
+            }).join('');
+        }
         function eventLabel(id) {
             const e = MAIN_EVENT_OPTIONS.find(x => x.id === id);
             return e ? e.label : id;
@@ -1482,6 +1510,22 @@
         function normalizeCompetitionCommand(value) {
             return String(value || '').replace(/^\/competion(?=\s|:|$)/i, '/competition');
         }
+        function parseCompetitionCommand(value) {
+            const normalized = normalizeCompetitionCommand(value).trim();
+            const match = normalized.match(/^\/competition(?:\:([^:\s]+))?(?:\:([A-Za-z0-9]+))?(?:\s|$)/i);
+            return match ? {
+                slug: String(match[1] || '').toLowerCase(),
+                wcaId: String(match[2] || '').toUpperCase()
+            } : null;
+        }
+        function competitionEventSummary(comp) {
+            const registered = Array.isArray(comp?.registered_event_ids) ? comp.registered_event_ids : [];
+            if (registered.length) return registered.join(', ');
+            const status = String(comp?.registration_status || '').toLowerCase();
+            if (status.includes('wait')) return 'Waitlisted · events not publicly available';
+            if (status.includes('pending')) return 'Registration pending · events not publicly available';
+            return 'Registered events unavailable';
+        }
         function competitionOverviewText(comps) {
             if (!Array.isArray(comps) || !comps.length) {
                 return 'No upcoming registered WCA competitions were found for your linked WCA ID.';
@@ -1490,16 +1534,14 @@
                 '**Your upcoming WCA competitions**',
                 ...comps.slice(0, 8).map((comp, index) => {
                     const location = [comp.city, comp.country_iso2].filter(Boolean).join(', ');
-                    const events = Array.isArray(comp.event_ids) && comp.event_ids.length ? ` · ${(comp.event_ids || []).join(', ')}` : '';
-                    return `${index + 1}. **${comp.name || 'Competition'}** — ${comp.start_date || 'date TBA'}${location ? ` · ${location}` : ''}${events}`;
+                    return `${index + 1}. **${comp.name || 'Competition'}** — ${comp.start_date || 'date TBA'}${location ? ` · ${location}` : ''} · ${competitionEventSummary(comp)}`;
                 }),
                 '',
                 'Choose a competition card to ask Cubey for event-specific preparation.'
             ].join('\n');
         }
         function competitionCommandHint(comp) {
-            const events = Array.isArray(comp?.event_ids) && comp.event_ids.length ? ` · ${comp.event_ids.join(', ')}` : '';
-            return `${comp?.name || 'Competition'}${events}`;
+            return `${comp?.name || 'Competition'} · ${competitionEventSummary(comp)}`;
         }
         function regionMetaCandidates() {
             const countries = Array.isArray(window.__ucWcaMeta?.countries) ? window.__ucWcaMeta.countries : [];
@@ -1726,7 +1768,6 @@
             return window.__ucWcaMeta;
         }
         function bindAssistantComposer(renderFn) {
-            renderCubingAssistantCompOptions();
             renderAssistantHistory();
             const assistantInput = document.getElementById('assistant-input');
             const assistantStatus = document.getElementById('assistant-key-status');
@@ -1762,18 +1803,16 @@
                     </div>
                     <div class="assistant-comp-picker-grid">
                         ${comps.map(comp => `
-                            <button class="assistant-comp-card" data-comp-command="${escHTML(competitionCommandText(comp))}" data-comp-id="${escHTML(comp.id || comp.name || '')}">
+                            <button class="assistant-comp-card" data-comp-command="${escHTML(competitionCommandText(comp))}">
                                 <span class="assistant-comp-card-name">${escHTML(comp.name || 'Competition')}</span>
                                 <span class="assistant-comp-card-meta">${escHTML((comp.start_date || '').slice(0, 10))}${comp.city ? ` · ${escHTML(comp.city)}` : ''}</span>
-                                <span class="assistant-comp-card-events">${escHTML((comp.event_ids || []).join(', ') || 'events loading')}</span>
+                                <span class="assistant-comp-card-events">${escHTML(competitionEventSummary(comp))}</span>
                             </button>
                         `).join('')}
                     </div>
                 `;
                 box.querySelectorAll('[data-comp-command]').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        assistantPrefs.competitionId = btn.getAttribute('data-comp-id') || '';
-                        saveAssistantPrefs();
                         assistantInput.value = `${btn.getAttribute('data-comp-command') || '/competition'} `;
                         assistantInput.focus();
                         assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
@@ -1795,10 +1834,6 @@
                 saveAssistantPrefs();
                 renderFn();
             });
-            document.getElementById('assistant-comp-select')?.addEventListener('change', (e) => {
-                assistantPrefs.competitionId = e.target.value;
-                saveAssistantPrefs();
-            });
             document.getElementById('assistant-set-key')?.addEventListener('click', async () => {
                 const current = getAssistantApiKey() || openRouterConfig?.apiKey || '';
                 const next = await window.ucPrompt('Paste your OpenRouter API key. It will be stored locally in this browser unless you use openrouter-config.js.', current || '', { title: 'OpenRouter API key', secret: true, confirmLabel: 'Save key' });
@@ -1810,13 +1845,6 @@
                 assistantPrefs.history = [];
                 saveAssistantPrefs();
                 renderAssistantHistory();
-            });
-            document.getElementById('assistant-quick-comp')?.addEventListener('click', () => {
-                if (!assistantInput) return;
-                assistantInput.value = '/competition ';
-                assistantInput.focus();
-                assistantInput.setSelectionRange(assistantInput.value.length, assistantInput.value.length);
-                updateCompetitionPicker();
             });
             async function submitAssistantPrompt() {
                 if (!assistantInput) return;
@@ -1833,13 +1861,20 @@
                 if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking'; }
                 try {
                     let reply;
-                    if (isCompetitionCommand(raw) && !profile.wca_id) {
+                    const command = parseCompetitionCommand(raw);
+                    if (command?.wcaId && command.wcaId !== String(profile.wca_id || '').toUpperCase()) {
+                        reply = 'That command belongs to a different WCA account. Type /competition and choose a competition from your own linked account.';
+                    } else if (isCompetitionCommand(raw) && !profile.wca_id) {
                         reply = 'Link and verify your WCA ID in Profile first. Then `/competition` can check your upcoming registered competitions.';
-                    } else if (isCompetitionCommand(raw) && !currentCompetitionChoice()) {
+                    } else if (isCompetitionCommand(raw) && !currentCompetitionChoice(raw)) {
                         const comps = await loadUpcomingComps(profile.wca_id);
-                        reply = comps === null
-                            ? (window.__ucUpcomingCompsError || 'I could not check WCA competitions right now. Please try again in a moment.')
-                            : competitionOverviewText(comps);
+                        const selected = currentCompetitionChoice(raw);
+                        if (selected) reply = await askCubingAssistant(raw);
+                        else {
+                            reply = comps === null
+                                ? (window.__ucUpcomingCompsError || 'I could not check WCA competitions right now. Please try again in a moment.')
+                                : competitionOverviewText(comps);
+                        }
                     } else {
                         reply = await askCubingAssistant(raw);
                     }
@@ -1876,9 +1911,7 @@
                         </div>
                         <div class="leaderboard-toolbar">
                             <select id="leaderboard-event" class="stats-filter-select">
-                                ${MAIN_EVENT_OPTIONS.filter(o => !['333mbf'].includes(o.id)).map(o =>
-                                    `<option value="${o.id}" ${leaderboardPrefs.event === o.id ? 'selected' : ''}>${escHTML(o.label)}</option>`
-                                ).join('')}
+                                ${groupedEventOptions(leaderboardPrefs.event, MAIN_EVENT_OPTIONS.filter(o => o.id !== '333mbf').map(o => o.id))}
                             </select>
                             <select id="leaderboard-type" class="stats-filter-select">
                                 <option value="single" ${leaderboardPrefs.type === 'single' ? 'selected' : ''}>Single</option>
@@ -1918,9 +1951,7 @@
                             </div>
                         </div>
                         <div class="assistant-toolbar assistant-chat-toolbar">
-                            <select id="assistant-comp-select" class="stats-filter-select">
-                                <option value="">No competition focus</option>
-                            </select>
+                            <span class="assistant-command-hint">Type <code>/competition</code> to choose an upcoming comp</span>
                             <button class="train-quick-btn" id="assistant-clear-chat">Clear Chat</button>
                         </div>
                         <div class="assistant-key-status" id="assistant-key-status"></div>
@@ -1928,8 +1959,7 @@
                             <div class="assistant-history assistant-chat-history" id="cubing-assistant-history"></div>
                             <div class="assistant-compose assistant-chat-compose">
                                 <div class="assistant-compose-main">
-                                    <button class="train-quick-btn assistant-slash-btn" id="assistant-quick-comp">/competition</button>
-                                    <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Ask for drills, comp prep, analysis, or a training plan..."></textarea>
+                                    <textarea id="assistant-input" class="pe-input assistant-input assistant-chat-input" rows="2" placeholder="Message Cubey, or type /competition to choose a comp..."></textarea>
                                     <div class="assistant-comp-picker" id="assistant-comp-picker" style="display:none;"></div>
                                     <div class="assistant-compose-actions">
                                         <span class="assistant-compose-model">Cubey is AI and can make mistakes.</span>
@@ -1939,7 +1969,6 @@
                                 <div class="assistant-suggestion-row">
                                     <button class="assistant-suggestion-pill" data-assistant-starter="Review my recent 3x3 solves and tell me my top 3 priorities.">Review Solves</button>
                                     <button class="assistant-suggestion-pill" data-assistant-starter="Build me a focused 30 minute practice session for today.">Build Practice</button>
-                                    <button class="assistant-suggestion-pill" data-assistant-starter="/competition Help me prepare for my upcoming competition.">Comp Prep</button>
                                     <button class="assistant-suggestion-pill" data-assistant-starter="Help me choose what alg set to improve next.">Alg Focus</button>
                                 </div>
                             </div>
@@ -1956,6 +1985,17 @@
         }
         function socialModeActive() {
             return socialView && socialView.style.display !== 'none';
+        }
+        function updateSocialNotificationDot() {
+            const dot = document.getElementById('social-notification-dot');
+            if (!dot) return;
+            const count = (socialHubState.incoming?.length || 0) +
+                (socialHubState.invites?.length || 0) +
+                Number(socialHubState.unreadChatCount || 0) +
+                Number(socialHubState.incomingCallCount || 0);
+            dot.hidden = !fbSync.getUser() || count === 0;
+            dot.dataset.count = count > 9 ? '9+' : String(count);
+            dot.setAttribute('aria-label', `${count} new social notification${count === 1 ? '' : 's'}`);
         }
         function socialSelectedFriendUid() {
             const valid = (socialHubState.friends || []).some(item => item.id === socialPrefs.selectedFriendUid);
@@ -1990,6 +2030,7 @@
             if (socialHubUnsub || !fbSync.getUser()) return;
             socialHubUnsub = social.listenSocialHub((state) => {
                 socialHubState = state;
+                updateSocialNotificationDot();
                 socialSelectedFriendUid();
                 saveSocialPrefs();
                 ensureSocialChatListener();
@@ -2003,6 +2044,13 @@
             stopSocialChatListener();
             socialChatUnsub = social.listenDirectChat(friendUid, (state) => {
                 socialChatState = state;
+                const user = fbSync.getUser();
+                const readAt = Number(state.chat?.readAtByUid?.[user?.uid] || 0);
+                if (socialModeActive() && state.chat?.lastSenderUid &&
+                    state.chat.lastSenderUid !== user?.uid &&
+                    Number(state.chat.lastMessageAtMs || 0) > readAt) {
+                    social.markDirectChatRead(friendUid).catch(() => {});
+                }
                 if (socialModeActive()) renderSocialPage();
             });
         }
@@ -2155,9 +2203,7 @@
                             ${selectedFriend ? `
                                 <div class="social-battle-form">
                                     <select id="social-battle-event" class="stats-filter-select">
-                                        <option value="222" ${socialPrefs.battleEvent === '222' ? 'selected' : ''}>2x2</option>
-                                        <option value="333" ${socialPrefs.battleEvent === '333' ? 'selected' : ''}>3x3</option>
-                                        <option value="pyram" ${socialPrefs.battleEvent === 'pyram' ? 'selected' : ''}>Pyraminx</option>
+                                        ${groupedEventOptions(socialPrefs.battleEvent, ['222', '333', 'pyram'])}
                                     </select>
                                     <select id="social-battle-mode" class="stats-filter-select">
                                         <option value="ao5" ${socialPrefs.battleMode === 'ao5' ? 'selected' : ''}>Ao5</option>
@@ -2297,6 +2343,7 @@
                 socialPrefs.selectedFriendUid = btn.dataset.friendUid || '';
                 saveSocialPrefs();
                 ensureSocialChatListener();
+                social.markDirectChatRead(socialPrefs.selectedFriendUid).catch(() => {});
                 renderSocialPage();
             }));
             document.getElementById('social-remove-friend')?.addEventListener('click', async () => {
@@ -2406,6 +2453,10 @@
             if (!fbSync.getUser()) {
                 stopSocialHubListener();
                 stopSocialChatListener();
+                socialHubState = { me: null, friends: [], incoming: [], outgoing: [], invites: [], chats: [], unreadChatCount: 0, incomingCallCount: 0 };
+                updateSocialNotificationDot();
+            } else {
+                ensureSocialHubListener();
             }
             if (socialModeActive()) renderSocialPage();
         });
@@ -2553,7 +2604,7 @@
                         </div>
                         ${profile.bio
                             ? `<div class="profile-bio">${escHTML(profile.bio)}</div>`
-                            : `<div class="profile-stub" id="profile-stub">Click <b>Edit profile</b> to add a bio, main event, cubes, socials and your WCA ID.</div>`
+                            : `<div class="profile-stub" id="profile-stub">Click <b>Edit profile</b> to add a bio, main event, cubes, socials, and link your WCA account.</div>`
                         }
                         ${socialsHTML}
                     </div>
@@ -2582,9 +2633,7 @@
                             <span>Personal Bests <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;margin-left:4px;">in-app</span></span>
                             <select id="stats-filter-cube" class="stats-filter-select">
                                 <option value="all" ${statsFilter === 'all' ? 'selected' : ''}>All Puzzles</option>
-                                ${PUZZLES_FOR_STATS.map(pid =>
-                                    `<option value="${pid}" ${statsFilter === pid ? 'selected' : ''}>${PUZZLE_LABEL[pid]}</option>`
-                                ).join('')}
+                                ${groupedEventOptions(statsFilter, PUZZLES_FOR_STATS)}
                             </select>
                         </div>
                         ${(() => {
@@ -2662,7 +2711,7 @@
                                 <span class="alg-progress-total">${shownLearned} / ${shownTotal} learned</span>
                                 <select id="stats-alg-mastery-cube" class="stats-filter-select" aria-label="Algorithm mastery cube">
                                     <option value="all" ${algMasteryCube === 'all' ? 'selected' : ''}>All cubes</option>
-                                    ${algMasteryCubeOptions().map(option => `<option value="${escHTML(option.id)}" ${algMasteryCube === option.id ? 'selected' : ''}>${escHTML(option.label)}</option>`).join('')}
+                                    ${groupedEventOptions(algMasteryCube, algMasteryCubeOptions().map(option => option.id))}
                                 </select>
                             </div>
                         </div>
@@ -2714,7 +2763,7 @@
 
         async function loadUpcomingComps(wcaId) {
             const el = document.getElementById('wca-upcoming-body');
-            const cacheKey = 'wca_upcoming_' + wcaId;
+            const cacheKey = 'wca_upcoming_v2_' + wcaId;
             let comps;
             window.__ucUpcomingCompsLoading = true;
             try {
@@ -2722,7 +2771,7 @@
                 if (cached) {
                     comps = JSON.parse(cached);
                 } else {
-                    comps = await fetchMyWcaCompetitions();
+                    comps = await fetchMyWcaCompetitions(wcaId);
                     sessionStorage.setItem(cacheKey, JSON.stringify(comps));
                 }
                 window.__ucUpcomingCompsError = '';
@@ -2738,7 +2787,6 @@
             window.__ucUpcomingComps = Array.isArray(comps) ? comps : [];
             if (!Array.isArray(comps) || !comps.length) {
                 if (el) el.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No upcoming registered competitions found for your WCA ID.</span>';
-                if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
                 return [];
             }
             function fmtCompDate(start, end) {
@@ -2756,18 +2804,19 @@
                 const diffDays = Math.round((startDate - now) / 86400000);
                 const badge = diffDays > 0 ? `<span class="upcoming-days">${diffDays === 1 ? 'tomorrow' : 'in ' + diffDays + ' days'}</span>`
                     : diffDays === 0 ? `<span class="upcoming-days">today</span>` : '';
-                const eventPips = (c.event_ids || []).map(e => `<span class="event-pip">${e}</span>`).join('');
+                const compEvents = c.registered_event_ids || [];
+                const eventPips = (compEvents || []).map(e => `<span class="event-pip">${escHTML(e)}</span>`).join('');
+                const registrationNote = eventPips ? '' : `<span class="event-pip">${escHTML(competitionEventSummary(c))}</span>`;
                 return `<div class="upcoming-comp">
                     <div class="upcoming-comp-name"><a href="${escHTML(c.url || '#')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${escHTML(c.name)}</a></div>
                     <div class="upcoming-comp-meta">
                         ${escHTML(fmtCompDate(c.start_date, c.end_date))} &middot; ${escHTML(c.city || '')}${c.country_iso2 ? ', ' + escHTML(c.country_iso2) : ''}
                         ${badge}
                     </div>
-                    ${eventPips ? `<div class="upcoming-comp-events">${eventPips}</div>` : ''}
+                    <div class="upcoming-comp-events">${eventPips || registrationNote}</div>
                 </div>`;
             }).join('');
             if (el) el.innerHTML = markup;
-            if (typeof renderCubingAssistantCompOptions === 'function') renderCubingAssistantCompOptions();
             return comps;
         }
 
@@ -2780,15 +2829,25 @@
         ];
         const DEFAULT_ASSISTANT_MODEL = ASSISTANT_MODELS[0].id;
         let assistantPending = false;
-        let assistantPrefs = LS.get('assistantPrefs', { competitionId: '', history: [], model: DEFAULT_ASSISTANT_MODEL });
+        let assistantPrefs = LS.get('assistantPrefs', { history: [], model: DEFAULT_ASSISTANT_MODEL });
         if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
         if (!assistantPrefs.model) assistantPrefs.model = DEFAULT_ASSISTANT_MODEL;
+        if ('competitionId' in assistantPrefs) delete assistantPrefs.competitionId;
         function saveAssistantPrefs() { LS.set('assistantPrefs', assistantPrefs); }
         let socialPrefs = LS.get('socialPrefs', { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] });
         if (!socialPrefs || typeof socialPrefs !== 'object') socialPrefs = { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] };
         if (!Array.isArray(socialPrefs.closeFriendUids)) socialPrefs.closeFriendUids = [];
         function saveSocialPrefs() { LS.set('socialPrefs', socialPrefs); }
-        let socialHubState = { me: null, friends: [], incoming: [], outgoing: [], invites: [] };
+        let socialHubState = {
+            me: null,
+            friends: [],
+            incoming: [],
+            outgoing: [],
+            invites: [],
+            chats: [],
+            unreadChatCount: 0,
+            incomingCallCount: 0
+        };
         let socialChatState = { friend: null, me: null, chatId: null, chat: null, messages: [], call: null };
         let socialHubUnsub = null;
         let socialChatUnsub = null;
@@ -2859,24 +2918,54 @@
             });
             return { plans, algGoals };
         }
-        function currentCompetitionChoice() {
+        function currentCompetitionChoice(userPrompt = '') {
+            const command = parseCompetitionCommand(userPrompt);
+            if (!command?.slug) return null;
             const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
-            return comps.find(c => c.id === assistantPrefs.competitionId || c.name === assistantPrefs.competitionId) || null;
+            return comps.find(comp =>
+                slugifyCompetitionName(comp.name || comp.id) === command.slug ||
+                String(comp.id || '').toLowerCase() === command.slug
+            ) || null;
         }
         function formatCompetitionForPrompt(comp) {
             if (!comp) return 'No competition selected.';
+            const registered = comp.registered_event_ids || [];
+            const offered = comp.offered_event_ids || comp.event_ids || [];
             return [
                 `Name: ${comp.name || 'Competition'}`,
                 `Dates: ${comp.start_date || '?'} to ${comp.end_date || '?'}`,
                 `City/Country: ${comp.city || ''}${comp.country_iso2 ? `, ${comp.country_iso2}` : ''}`,
-                `Events: ${(comp.event_ids || []).join(', ') || 'unknown'}`
+                `Registration status: ${comp.registration_status || 'registered'}`,
+                registered.length
+                    ? `Registered events: ${registered.join(', ')}`
+                    : `Registered events are not publicly available yet. Events offered (not confirmed as this user's events): ${offered.join(', ') || 'unknown'}`
             ].join('\n');
+        }
+        function currentTimesSummary() {
+            const byPuzzle = new Map();
+            allSolvesWithContext().forEach(solve => {
+                if (!byPuzzle.has(solve.puzzle)) byPuzzle.set(solve.puzzle, []);
+                byPuzzle.get(solve.puzzle).push(solve);
+            });
+            return [...byPuzzle.entries()].map(([puzzle, entries]) => {
+                const solves = entries
+                    .sort((a, b) => (a.date || 0) - (b.date || 0))
+                    .map(entry => ({ t: entry.time, penalty: entry.penalty }));
+                const valid = solves.filter(solve => solve.penalty !== 'dnf').map(statEff);
+                return [
+                    eventLabel(puzzle),
+                    `${solves.length} solves`,
+                    `best ${valid.length ? fmtTime(Math.min(...valid)) : '—'}`,
+                    `current ao5 ${fmtTime(aoNAll(solves, 5))}`,
+                    `current ao12 ${fmtTime(aoNAll(solves, 12))}`
+                ].join(' | ');
+            });
         }
         function buildAssistantSystemPrompt() {
             return [
                 'You are Cubey, the beta cubing coach inside Unleashed Cubing Academy.',
                 'You are an expert speedcubing coach, well versed in WCA regulations, event strategy, common algorithm sets, practice planning, competition prep, and mindset.',
-                'Use the user\'s WCA official times, recent solves, goals, algorithm progress, and selected competition to give concrete coaching.',
+                'Use the user\'s WCA official times, current timer statistics, recent solves, goals, algorithm progress, and command-selected competition to give concrete coaching.',
                 'Be specific, practical, encouraging, and honest.',
                 'When useful, break advice into priorities, drills, and a realistic next-step plan.',
                 'If the user uses /competition, focus on the selected upcoming competition: event-specific prep, packing, schedule mindset, nerves, warmup, and expectations.',
@@ -2892,7 +2981,7 @@
         }
         function buildAssistantContext(userPrompt) {
             const goalInfo = plannerSummary();
-            const comp = currentCompetitionChoice();
+            const comp = currentCompetitionChoice(userPrompt);
             const recentSolves = recentSolveSummary(150);
             const algProgress = algMasteryGroups().map(group =>
                 `${group.cubeLabel} ${group.label}: ${group.learned}/${group.total} learned, ${group.learning} marked learning`
@@ -2900,9 +2989,13 @@
             const wcaRecords = Object.entries(profile.wca_records || {})
                 .map(([ev, rec]) => `${eventLabel(ev)} | single: ${rec.single != null ? fmtTime(rec.single) : '—'} | average: ${rec.average != null ? fmtTime(rec.average) : '—'}`);
             const mode = isCompetitionCommand(userPrompt) ? 'competition' : 'general';
+            const upcomingCompetitions = (Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [])
+                .map(formatCompetitionForPrompt);
             return {
                 mode,
-                prompt: normalizeCompetitionCommand(userPrompt).replace(/^\/competition\b/i, '').trim() || 'Give me the most helpful competition guidance.',
+                prompt: normalizeCompetitionCommand(userPrompt)
+                    .replace(/^\/competition(?::[^:\s]+)?(?::[A-Za-z0-9]+)?\s*/i, '')
+                    .trim() || 'Give me the most helpful competition guidance.',
                 profile: {
                     mainEvent: eventLabel(profile.main_event),
                     cubes: profile.main_cubes || '',
@@ -2916,6 +3009,8 @@
                 },
                 progress: algProgress,
                 wcaRecords,
+                currentTimes: currentTimesSummary(),
+                upcomingCompetitions,
                 selectedCompetition: comp ? formatCompetitionForPrompt(comp) : 'No competition selected.',
                 recentSolves
             };
@@ -3015,7 +3110,6 @@
                         <div class="assistant-empty">Ask for solve breakdowns, event strategy, comp mindset help, or a focused practice block built from your data.</div>
                         <div class="assistant-starter-grid">
                             <button class="assistant-starter" data-assistant-starter="Help me drop my 3x3 ao5 by 2 seconds.">Drop my 3x3 ao5</button>
-                            <button class="assistant-starter" data-assistant-starter="/competition Help me prep for my next comp.">Prep my next comp</button>
                             <button class="assistant-starter" data-assistant-starter="Look at my recent solves and tell me the biggest weakness.">Find my biggest weakness</button>
                         </div>
                     </div>
@@ -3045,17 +3139,6 @@
             ` : '';
             body.innerHTML = historyMarkup + pendingMarkup;
             body.scrollTop = body.scrollHeight;
-        }
-        function renderCubingAssistantCompOptions() {
-            const select = document.getElementById('assistant-comp-select');
-            if (!select) return;
-            const comps = Array.isArray(window.__ucUpcomingComps) ? window.__ucUpcomingComps : [];
-            const prior = assistantPrefs.competitionId || '';
-            select.innerHTML = `<option value="">No competition focus</option>` + comps.map((c, idx) => {
-                const id = c.id || c.name || `comp-${idx}`;
-                const events = (c.event_ids || []).join(', ');
-                return `<option value="${escHTML(id)}" ${prior === id ? 'selected' : ''}>${escHTML(c.name)}${events ? ` · ${escHTML(events)}` : ''}</option>`;
-            }).join('');
         }
         function leaderboardUrl() {
             const type = leaderboardPrefs.type === 'average' ? 'average' : 'single';
@@ -3126,7 +3209,9 @@
 
         // ---- Alg Goal helpers ----
         function buildAlgGoalSplits(category, totalDays, hasDrillDay) {
-            const algs = db.filter(it => it.category === category);
+            const algs = db
+                .filter(it => it.category === category)
+                .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
             const learnDays = (hasDrillDay && totalDays > 1) ? totalDays - 1 : totalDays;
             if (!algs.length || !learnDays) return [];
             const base = Math.floor(algs.length / learnDays);
@@ -3311,6 +3396,7 @@
                 showCubeAlgs(cubeForAlgCategory(category));
                 categoryFilter.value = category;
                 searchInput.value = button.dataset.todayAlg || '';
+                exactAlgNameFilter = button.dataset.todayAlg || '';
                 renderCards();
             }));
         }
@@ -3447,9 +3533,13 @@
         }
         function openAlgGoalModal(preselect) {
             const catSel = document.getElementById('alg-goal-cat');
-            catSel.innerHTML = ONBOARD_ALGSETS.map(a =>
-                `<option value="${a.category}" ${preselect === a.category ? 'selected' : ''}>${a.label} (${db.filter(it => it.category === a.category).length})</option>`
-            ).join('');
+            catSel.innerHTML = Object.entries(CUBE_CATS).map(([cube, categories]) => {
+                const options = ONBOARD_ALGSETS.filter(item => categories.includes(item.category));
+                if (!options.length) return '';
+                return `<optgroup label="${escHTML(cube)}">${options.map(item =>
+                    `<option value="${escHTML(item.category)}" ${preselect === item.category ? 'selected' : ''}>${escHTML(item.label)} (${db.filter(alg => alg.category === item.category).length})</option>`
+                ).join('')}</optgroup>`;
+            }).join('');
             document.getElementById('alg-goal-days').value = '7';
             document.getElementById('alg-goal-drill').checked = true;
             document.getElementById('alg-goal-start').value = new Date().toISOString().slice(0, 10);
@@ -3566,6 +3656,13 @@
             }
             return {
                 getState: () => state,
+                startImmediately() {
+                    if (state === 'running') return;
+                    if (raf) cancelAnimationFrame(raf);
+                    if (holdTO) { clearTimeout(holdTO); holdTO = null; }
+                    pendingPenalty = 'ok';
+                    beginRun();
+                },
                 press() {
                     if (state === 'running') {
                         cancelAnimationFrame(raf);
@@ -3911,25 +4008,73 @@
         let puzzleStarted = false;
         let currentScramble = '';
         let currentTrainingCase = null;
-        let timerTrainerPrefs = LS.get('timerTrainerPrefs', { enabled: false, categories: [], cases: [], cubeFilter: 'all' });
-        if (!Array.isArray(timerTrainerPrefs.categories)) timerTrainerPrefs.categories = [];
-        if (!Array.isArray(timerTrainerPrefs.cases)) timerTrainerPrefs.cases = [];
-        if (!timerTrainerPrefs.cubeFilter) timerTrainerPrefs.cubeFilter = 'all';
-        function timerTrainerCaseId(item) { return `${item.category}::${item.name}`; }
-        // Older builds stored bare case names. Expand them once so same-named cases
-        // from different cubes can be selected independently going forward.
-        if (timerTrainerPrefs.cases.some(value => !String(value).includes('::'))) {
-            const oldNames = new Set(timerTrainerPrefs.cases);
-            timerTrainerPrefs.cases = db.filter(item => oldNames.has(item.name)).map(timerTrainerCaseId);
+        const DEFAULT_TIMER_TRAINER_PREFS = Object.freeze({
+            enabled: false,
+            categories: [],
+            cases: [],
+            cubeFilter: '333'
+        });
+        let legacyTimerTrainerPrefs = LS.get('timerTrainerPrefs', null);
+        let legacyTimerTrainerPending = !!(legacyTimerTrainerPrefs &&
+            (legacyTimerTrainerPrefs.enabled || legacyTimerTrainerPrefs.categories?.length || legacyTimerTrainerPrefs.cases?.length));
+        function reloadLegacyTimerTrainerPrefs() {
+            legacyTimerTrainerPrefs = LS.get('timerTrainerPrefs', null);
+            legacyTimerTrainerPending = !!(legacyTimerTrainerPrefs &&
+                (legacyTimerTrainerPrefs.enabled || legacyTimerTrainerPrefs.categories?.length || legacyTimerTrainerPrefs.cases?.length));
         }
-        function saveTimerTrainerPrefs() { LS.set('timerTrainerPrefs', timerTrainerPrefs); }
+        function normalizeTimerTrainerPrefs(value, fallbackPuzzle = '333') {
+            const raw = value && typeof value === 'object' ? value : {};
+            return {
+                enabled: !!raw.enabled,
+                categories: Array.isArray(raw.categories) ? [...new Set(raw.categories.map(String))] : [],
+                cases: Array.isArray(raw.cases) ? [...new Set(raw.cases.map(String))] : [],
+                cubeFilter: raw.cubeFilter && raw.cubeFilter !== 'all' ? String(raw.cubeFilter) : fallbackPuzzle
+            };
+        }
+        let timerTrainerPrefs = normalizeTimerTrainerPrefs(legacyTimerTrainerPrefs, '333');
+        function timerTrainerCaseId(item) { return `${item.category}::${item.name}`; }
+        function upgradeTimerTrainerCaseIds(prefs) {
+            if (!prefs.cases.some(value => !String(value).includes('::'))) return prefs;
+            const oldNames = new Set(prefs.cases);
+            prefs.cases = db.filter(item => oldNames.has(item.name)).map(timerTrainerCaseId);
+            return prefs;
+        }
+        upgradeTimerTrainerCaseIds(timerTrainerPrefs);
+        function loadTimerTrainerPrefsForSession() {
+            const session = puzzleStore && curSession();
+            if (!session) return;
+            if (legacyTimerTrainerPending) {
+                if (!session.trainerPrefs) {
+                    session.trainerPrefs = normalizeTimerTrainerPrefs(legacyTimerTrainerPrefs, session.puzzle || '333');
+                }
+                legacyTimerTrainerPending = false;
+                try { localStorage.removeItem(LS.key('timerTrainerPrefs')); } catch (_) {}
+            }
+            session.trainerPrefs = upgradeTimerTrainerCaseIds(normalizeTimerTrainerPrefs(session.trainerPrefs, session.puzzle || '333'));
+            timerTrainerPrefs = normalizeTimerTrainerPrefs(session.trainerPrefs, session.puzzle || '333');
+            updateTimerTrainerStatus();
+        }
+        function saveTimerTrainerPrefs() {
+            const session = puzzleStore && curSession();
+            if (!session) return;
+            session.trainerPrefs = normalizeTimerTrainerPrefs(timerTrainerPrefs, session.puzzle || '333');
+            savePuzzle();
+        }
         function availableTimerTrainerCategories() {
-            return [...new Set(db.map(item => item.category))].filter(cat => !isReferenceCategory(cat)).sort((a, b) => a.localeCompare(b));
+            return [...new Set(db.map(item => item.category))]
+                .filter(cat => !isReferenceCategory(cat))
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
         }
         function timerTrainerItems() {
             const allowedCats = new Set(timerTrainerPrefs.categories || []);
             const allowedCases = new Set(timerTrainerPrefs.cases || []);
-            return db.filter(item => allowedCats.has(item.category) && allowedCases.has(timerTrainerCaseId(item)) && !isReferenceCategory(item.category));
+            const sessionPuzzle = puzzleStore && curSession() ? curSession().puzzle : timerTrainerPrefs.cubeFilter;
+            return db.filter(item =>
+                algCategoryEventId(item.category) === sessionPuzzle &&
+                allowedCats.has(item.category) &&
+                allowedCases.has(timerTrainerCaseId(item)) &&
+                !isReferenceCategory(item.category)
+            );
         }
         function timerTrainerEnabled() {
             return !!timerTrainerPrefs.enabled && timerTrainerItems().length > 0;
@@ -3937,7 +4082,9 @@
         function timerTrainerStatusLabel() {
             if (!timerTrainerEnabled()) return 'Subset Trainer: Off';
             const items = timerTrainerItems();
-            return `Subset Trainer: ${items.length} case${items.length === 1 ? '' : 's'}`;
+            const labels = [...new Set(items.map(item => item.category.replace(/^Megaminx\s+|^Pyraminx\s+|^\d+x\d+\s+/, '')))];
+            const subset = labels.length <= 2 ? labels.join(' + ') : `${labels.length} subsets`;
+            return `${subset} · ${items.length} case${items.length === 1 ? '' : 's'}`;
         }
         function updateTimerTrainerStatus() {
             const statusEl = document.getElementById('timer-trainer-status');
@@ -3967,6 +4114,22 @@
         let focusMode = LS.get('focusMode', false);
         let holdDelayMs = LS.get('holdDelay', 0);   // 0 | 300 | 550
         let sessionRailLayout = LS.get('sessionRailLayout', 'side');
+        let zenMode = LS.get('zenMode', false);
+
+        function applyZenMode() {
+            timerView.classList.toggle('zen-mode', !!zenMode);
+            const button = document.getElementById('timer-zen-toggle');
+            if (button) {
+                button.classList.toggle('on', !!zenMode);
+                button.setAttribute('aria-pressed', String(!!zenMode));
+                button.textContent = zenMode ? 'Exit Zen' : 'Zen';
+            }
+        }
+        function toggleZenMode(force) {
+            zenMode = typeof force === 'boolean' ? force : !zenMode;
+            LS.set('zenMode', zenMode);
+            applyZenMode();
+        }
 
         function applySessionRailLayout() {
             document.body.classList.toggle('session-layout-top', sessionRailLayout === 'top');
@@ -4047,6 +4210,14 @@
             const cur = v => v == null ? '—' : (v === Infinity ? 'DNF' : fmt(v));
             const best = v => v == null ? '—' : (v === Infinity ? 'DNF' : fmt(v));
             const wcaFmt = v => v == null ? '—' : fmt(v);
+            const zenStats = document.getElementById('timer-zen-stats');
+            if (zenStats) {
+                zenStats.innerHTML = [
+                    ['Ao5', cur(curAo5)],
+                    ['Ao12', cur(curAo12)],
+                    ['PB', best(bestSingle)]
+                ].map(([label, value]) => `<span><small>${label}</small><b>${value}</b></span>`).join('');
+            }
 
             // Build header row + each stat as a row of [label, current, best]
             const rows = [];
@@ -4361,17 +4532,6 @@
                 const items = timerTrainerItems();
                 const nextCase = items[Math.floor(Math.random() * items.length)];
                 currentTrainingCase = nextCase || null;
-                const nextPuzzle = algCategoryEventId(nextCase.category);
-                let target = puzzleStore.sessions.find(s => s.puzzle === nextPuzzle);
-                if (!target) {
-                    target = { id: 's' + Date.now(), name: 'Session 1', puzzle: nextPuzzle, solves: [] };
-                    puzzleStore.sessions.push(target);
-                }
-                puzzleStore.activeId = target.id;
-                if (puzzleSelect.value !== nextPuzzle) puzzleSelect.value = nextPuzzle;
-                savePuzzle();
-                renderSessionSelect();
-                refreshPuzzle();
                 currentScramble = genScramble(nextCase);
                 puzzleScrambleEl.textContent = `${nextCase.name} · ${currentScramble}`;
                 resetPuzzleCubeView(currentScramble);
@@ -4536,11 +4696,21 @@
                 store = { activeId: allSessions[0].id, sessions: allSessions };
             }
             puzzleStore = store;
+            puzzleStore.sessions.forEach(session => {
+                session.solves = Array.isArray(session.solves) ? session.solves : [];
+                if (session.trainerPrefs) {
+                    session.trainerPrefs = upgradeTimerTrainerCaseIds(
+                        normalizeTimerTrainerPrefs(session.trainerPrefs, session.puzzle || '333')
+                    );
+                }
+            });
             // Sync the cube selector to the active session's puzzle
             const active = curSession();
             if (active && active.puzzle && puzzleSelect.value !== active.puzzle) {
                 puzzleSelect.value = active.puzzle;
             }
+            loadTimerTrainerPrefsForSession();
+            savePuzzle();
             renderSessionSelect();
             refreshPuzzle();
         }
@@ -4657,8 +4827,13 @@
 
         sessionSelect.addEventListener('change', () => {
             puzzleStore.activeId = sessionSelect.value;
+            const session = curSession();
+            if (session?.puzzle) puzzleSelect.value = session.puzzle;
+            loadTimerTrainerPrefsForSession();
             savePuzzle();
+            renderSessionSelect();
             refreshPuzzle();
+            nextPuzzleScramble();
         });
         // Activating a session also retargets the cube selector to its puzzle.
         function activateSessionById(sid) {
@@ -4667,6 +4842,7 @@
             if (s && s.puzzle && puzzleSelect.value !== s.puzzle) {
                 puzzleSelect.value = s.puzzle;
             }
+            loadTimerTrainerPrefsForSession();
             savePuzzle();
             renderSessionSelect();
             refreshPuzzle();
@@ -4689,9 +4865,12 @@
             if (!await window.ucConfirm('Delete session "' + curSession().name + '" and all its solves?', { title: 'Delete session?', confirmLabel: 'Delete', danger: true })) return;
             puzzleStore.sessions = puzzleStore.sessions.filter(s => s.id !== puzzleStore.activeId);
             puzzleStore.activeId = puzzleStore.sessions[0].id;
+            puzzleSelect.value = curSession().puzzle || '333';
+            loadTimerTrainerPrefsForSession();
             savePuzzle();
             renderSessionSelect();
             refreshPuzzle();
+            nextPuzzleScramble();
         });
 
         // ---- Settings ----
@@ -4761,6 +4940,7 @@
                 puzzleStore.sessions.push(target);
             }
             puzzleStore.activeId = target.id;
+            loadTimerTrainerPrefsForSession();
             savePuzzle();
             renderSessionSelect();
             refreshPuzzle();
@@ -4772,6 +4952,16 @@
             if (!timerTrainerEnabled()) showTimerTrainerReveal('');
             nextPuzzleScramble();
         });
+        document.getElementById('timer-copy-scramble')?.addEventListener('click', async (event) => {
+            if (!currentScramble) return;
+            const button = event.currentTarget;
+            const copied = await copyText(currentScramble);
+            const prior = button.textContent;
+            button.textContent = copied ? 'Copied' : 'Copy failed';
+            setTimeout(() => { button.textContent = prior; }, 900);
+        });
+        document.getElementById('timer-zen-toggle')?.addEventListener('click', () => toggleZenMode());
+        applyZenMode();
         document.getElementById('puzzle-clear').addEventListener('click', async () => {
             if (!curSolves().length) return;
             if (!await window.ucConfirm('Clear all solves in this session?', { title: 'Clear solves?', confirmLabel: 'Clear', danger: true })) return;
@@ -4931,9 +5121,12 @@
         if (signinSkip)   signinSkip.addEventListener('click',   closeSigninModal);
         if (signinModal)  signinModal.addEventListener('click', e => { if (e.target === signinModal) closeSigninModal(); });
         if (signinGoogle) signinGoogle.addEventListener('click', () => { closeSigninModal(); fbSync.signIn(); });
-        if (signinWca)    signinWca.addEventListener('click',    () => {
+        if (signinWca)    signinWca.addEventListener('click', async () => {
             closeSigninModal();
-            sessionStorage.setItem('wca_signin_intent', '1');
+            let user = fbSync.getUser();
+            if (!user) user = await fbSync.signIn();
+            if (!user) return;
+            sessionStorage.setItem('wca_linking_uid', user.uid);
             startWcaLogin();
         });
 
@@ -4949,23 +5142,22 @@
         });
 
         function clearSignedOutUserCache() {
-            const personalKeys = new Set([
-                'profile', 'learned', 'learning', 'mainChoices', 'planner',
-                'statsFilter', 'algMasteryCube', 'timerTrainerPrefs', 'inputMode',
-                'inspection', 'focusMode', 'holdDelay', 'precision', 'groupMode',
-                'trainCube', 'puzzleCube'
-            ]);
             try {
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                     const key = localStorage.key(i);
                     if (!key) continue;
-                    const localKey = key.startsWith('uc_') ? key.slice(3) : '';
-                    if (key === 'uc_sessions_global' || localKey.startsWith('sess_') ||
-                        localKey.startsWith('ptimes_') || personalKeys.has(localKey)) {
+                    // Signed-in data uses `uc_*`; guest data is deliberately
+                    // isolated under `uc_guest_*` and must survive refreshes.
+                    if (key.startsWith('uc_') && !key.startsWith('uc_guest_') && key !== 'uc_openrouter_api_key') {
                         localStorage.removeItem(key);
                     }
                 }
             } catch (_) {}
+            clearWcaSession();
+            sessionStorage.removeItem('wca_linking_uid');
+            if (typeof stopStackmat === 'function') stopStackmat();
+            if (typeof disconnectSmartCube === 'function') disconnectSmartCube();
+            puzzleTimer.reset();
             puzzleStarted = false;
             puzzleStore = null;
             if (puzzleSolvesEl) puzzleSolvesEl.innerHTML = '<span class="solve-list-empty">Sign in again to load your synced solves.</span>';
@@ -4974,14 +5166,34 @@
 
         // When auth state changes, reload state from (newly synced) localStorage and refresh UI.
         fbSync.onUserChange((user) => {
+            if (!user && fbSync.enabled) clearSignedOutUserCache();
             // Refresh in-memory state from LS (cloud sync may have updated it)
             const freshP = LS.get('profile', {});
             Object.assign(profile, DEFAULT_PROFILE, freshP);
             profile.socials = Object.assign({}, DEFAULT_PROFILE.socials, freshP.socials || {});
             learnedSet.clear();
             LS.get('learned', []).forEach(n => learnedSet.add(n));
+            learningSet.clear();
+            LS.get('learning', []).forEach(n => learningSet.add(n));
             Object.keys(mainChoices).forEach(k => delete mainChoices[k]);
             Object.assign(mainChoices, LS.get('mainChoices', {}));
+            plannerData = LS.get('planner', { plans: [], algGoals: [] });
+            if (!plannerData || typeof plannerData !== 'object') plannerData = {};
+            if (!Array.isArray(plannerData.plans)) plannerData.plans = [];
+            if (!Array.isArray(plannerData.algGoals)) plannerData.algGoals = [];
+            assistantPrefs = LS.get('assistantPrefs', { history: [], model: DEFAULT_ASSISTANT_MODEL });
+            if (!assistantPrefs || typeof assistantPrefs !== 'object') assistantPrefs = {};
+            if (!Array.isArray(assistantPrefs.history)) assistantPrefs.history = [];
+            assistantPrefs.model = sanitizeModelId(assistantPrefs.model);
+            if ('competitionId' in assistantPrefs) delete assistantPrefs.competitionId;
+            socialPrefs = LS.get('socialPrefs', { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] });
+            if (!socialPrefs || typeof socialPrefs !== 'object') socialPrefs = { friendCodeInput: '', selectedFriendUid: '', battleEvent: '333', battleMode: 'ao5', battleTarget: 3, closeFriendUids: [] };
+            if (!Array.isArray(socialPrefs.closeFriendUids)) socialPrefs.closeFriendUids = [];
+            leaderboardPrefs = LS.get('leaderboardPrefs', { event: '333', type: 'single', country: '' });
+            if (!leaderboardPrefs || typeof leaderboardPrefs !== 'object') leaderboardPrefs = { event: '333', type: 'single', country: '' };
+            timerChartPrefs = LS.get('timerChartPrefs', { window: '50', bucket: 'auto' });
+            if (!timerChartPrefs || typeof timerChartPrefs !== 'object') timerChartPrefs = { window: '50', bucket: 'auto' };
+            reloadLegacyTimerTrainerPrefs();
             inspectionEnabled = LS.get('inspection', false);
             focusMode         = LS.get('focusMode', false);
             holdDelayMs       = LS.get('holdDelay', 0);
@@ -4991,16 +5203,27 @@
             groupMode         = LS.get('groupMode', 'name');
             showTrainCube     = LS.get('trainCube', true);
             showPuzzleCube    = LS.get('puzzleCube', true);
+            zenMode           = LS.get('zenMode', false);
+            inputMode         = LS.get('inputMode', 'timer');
+            applyAppColor(LS.get('appColor', 'orange'));
 
             // Re-render whatever is currently visible
             renderCards();
             if (trainCaselist.children.length) buildCaselist();
             if (puzzleStarted) loadPuzzle();
+            else if (timerView.style.display !== 'none') startPuzzle();
             if (statsView.style.display !== 'none') renderStats();
+            if (planView.style.display !== 'none') renderPlanner();
+            if (assistantView.style.display !== 'none') renderAssistantPage();
+            if (leaderboardView.style.display !== 'none') renderLeaderboardPage();
             applyTrainCube();
             applyPuzzleCube();
             applySessionRailLayout();
+            applyZenMode();
+            applyInputMode();
             applySettingsUI();
+            if (progressChartWindow) progressChartWindow.value = timerChartPrefs.window || '50';
+            if (distributionBucket) distributionBucket.value = timerChartPrefs.bucket || 'auto';
             document.querySelectorAll('.group-toggle-btn').forEach(b =>
                 b.classList.toggle('active', b.dataset.group === groupMode));
             renderAuthWidget();
@@ -5042,7 +5265,7 @@
                 timerTrainerModal._draft = {
                     categories: [...(timerTrainerPrefs.categories || [])],
                     cases: [...(timerTrainerPrefs.cases || [])],
-                    cubeFilter: timerTrainerPrefs.cubeFilter || 'all'
+                    cubeFilter: timerTrainerPrefs.cubeFilter || curSession()?.puzzle || '333'
                 };
             }
             return timerTrainerModal._draft;
@@ -5052,18 +5275,27 @@
             const draft = timerTrainerDraft();
             const selectedCats = new Set(draft.categories);
             const selectedCases = new Set(draft.cases);
-            const cubeFilter = draft.cubeFilter || 'all';
+            const cubeFilter = draft.cubeFilter || curSession()?.puzzle || '333';
             const categories = availableTimerTrainerCategories().filter(category =>
-                cubeFilter === 'all' || algCategoryEventId(category) === cubeFilter
+                algCategoryEventId(category) === cubeFilter
             );
             if (timerTrainerCubeFilterEl) {
                 const options = algMasteryCubeOptions();
-                timerTrainerCubeFilterEl.innerHTML = `<option value="all">All cubes</option>${options.map(option =>
-                    `<option value="${esc(option.id)}">${esc(option.label)}</option>`
-                ).join('')}`;
+                const nxn = options.filter(option => ['222', '333', '444', '555'].includes(option.id));
+                const side = options.filter(option => !['222', '333', '444', '555'].includes(option.id));
+                timerTrainerCubeFilterEl.innerHTML = `
+                    <optgroup label="NxN Cubes">${nxn.map(option =>
+                        `<option value="${esc(option.id)}">${esc(option.label)}</option>`
+                    ).join('')}</optgroup>
+                    <optgroup label="Side Events">${side.map(option =>
+                        `<option value="${esc(option.id)}">${esc(option.label)}</option>`
+                    ).join('')}</optgroup>
+                `;
                 timerTrainerCubeFilterEl.value = cubeFilter;
             }
-            timerTrainerCatsEl.innerHTML = categories.map(cat => {
+            timerTrainerCatsEl.innerHTML = `
+                <div class="timer-trainer-cube-heading">${esc(eventLabel(cubeFilter))} subsets</div>
+                ${categories.map(cat => {
                 const count = db.filter(item => item.category === cat).length;
                 return `<label class="timer-trainer-row">
                     <input type="checkbox" data-timer-trainer-category="${esc(cat)}" ${selectedCats.has(cat) ? 'checked' : ''}>
@@ -5072,13 +5304,15 @@
                         <span class="timer-trainer-row-sub">${count} case${count === 1 ? '' : 's'}</span>
                     </span>
                 </label>`;
-            }).join('');
-            const cases = db.filter(item => selectedCats.has(item.category) && !isReferenceCategory(item.category));
+            }).join('')}`;
+            const cases = db
+                .filter(item => selectedCats.has(item.category) && algCategoryEventId(item.category) === cubeFilter && !isReferenceCategory(item.category))
+                .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
             const grouped = cases.reduce((map, item) => {
                 (map[item.category] = map[item.category] || []).push(item);
                 return map;
             }, {});
-            timerTrainerCasesEl.innerHTML = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(cat => `
+            timerTrainerCasesEl.innerHTML = Object.keys(grouped).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(cat => `
                 <div class="timer-trainer-group">
                     <div class="timer-trainer-group-title">${esc(cat)}</div>
                     ${grouped[cat].map(item => {
@@ -5104,7 +5338,7 @@
             timerTrainerModal._draft = {
                 categories: [...(timerTrainerPrefs.categories || [])],
                 cases: [...(timerTrainerPrefs.cases || [])],
-                cubeFilter: timerTrainerPrefs.cubeFilter || 'all'
+                cubeFilter: timerTrainerPrefs.cubeFilter || curSession()?.puzzle || '333'
             };
             renderTimerTrainerModal();
             timerTrainerModal.style.display = 'flex';
@@ -5136,10 +5370,14 @@
                 enabled: true,
                 categories: [...draft.categories],
                 cases: [...draft.cases],
-                cubeFilter: draft.cubeFilter || 'all'
+                cubeFilter: draft.cubeFilter || curSession().puzzle || '333'
             };
+            curSession().puzzle = timerTrainerPrefs.cubeFilter;
+            puzzleSelect.value = curSession().puzzle;
             saveTimerTrainerPrefs();
             updateTimerTrainerStatus();
+            renderSessionSelect();
+            refreshPuzzle();
             closeTimerTrainerModal();
             nextPuzzleScramble();
         });
@@ -5157,7 +5395,9 @@
         });
         timerTrainerCubeFilterEl?.addEventListener('change', (e) => {
             const draft = timerTrainerDraft();
-            draft.cubeFilter = e.target.value || 'all';
+            draft.cubeFilter = e.target.value || curSession()?.puzzle || '333';
+            draft.categories = [];
+            draft.cases = [];
             renderTimerTrainerModal();
         });
         timerTrainerCasesEl?.addEventListener('change', (e) => {
@@ -5172,7 +5412,11 @@
         });
         document.querySelectorAll('[data-timer-trainer-pick]').forEach(btn => btn.addEventListener('click', () => {
             const draft = timerTrainerDraft();
-            const visibleCases = db.filter(item => draft.categories.includes(item.category) && !isReferenceCategory(item.category));
+            const visibleCases = db.filter(item =>
+                draft.categories.includes(item.category) &&
+                algCategoryEventId(item.category) === draft.cubeFilter &&
+                !isReferenceCategory(item.category)
+            );
             if (btn.dataset.timerTrainerPick === 'all') draft.cases = visibleCases.map(timerTrainerCaseId);
             else if (btn.dataset.timerTrainerPick === 'none') draft.cases = [];
             else if (btn.dataset.timerTrainerPick === 'learning') draft.cases = visibleCases.filter(item => learningSet.has(item.name)).map(timerTrainerCaseId);
@@ -5196,6 +5440,19 @@
             if (e.target === settingsModal) settingsModal.style.display = 'none';
         });
         document.addEventListener('keydown', (e) => {
+            const typing = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+            if (e.code === 'KeyZ' && timerView.style.display !== 'none' && !typing) {
+                e.preventDefault();
+                toggleZenMode();
+            }
+            if (e.code === 'KeyN' && timerView.style.display !== 'none' && !typing && puzzleTimer.getState() === 'idle') {
+                e.preventDefault();
+                puzzleTimer.reset();
+                nextPuzzleScramble();
+            }
+            if (e.code === 'Escape' && zenMode && timerView.style.display !== 'none') {
+                toggleZenMode(false);
+            }
             if (e.code === 'Escape' && settingsModal.style.display !== 'none') {
                 settingsModal.style.display = 'none';
             }
@@ -5305,6 +5562,10 @@
         const puzzleTypeUI   = document.getElementById('puzzle-type-ui');
         const puzzleTypeIn   = document.getElementById('puzzle-type-input');
         const puzzleStackmatUI = document.getElementById('puzzle-stackmat-ui');
+        let stackmatHandle = null;
+        const stackmatInput = document.getElementById('puzzle-stackmat-input');
+        const stackmatConnectButton = document.getElementById('puzzle-stackmat-connect');
+        const stackmatNote = document.querySelector('.stackmat-note');
 
         function applyInputMode() {
             const isTimer    = inputMode === 'timer';
@@ -5315,6 +5576,8 @@
             puzzleHintEl.style.display     = isTimer    ? '' : 'none';
             document.querySelectorAll('.input-mode-btn').forEach(b =>
                 b.classList.toggle('on', b.dataset.input === inputMode));
+            if (!isStackmat && stackmatHandle) stopStackmat();
+            if (isStackmat) refreshStackmatInputs(false).catch(() => {});
         }
         document.querySelectorAll('.input-mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -5513,12 +5776,9 @@
 
         function openProfileEdit() {
             const ev = document.getElementById('pe-event');
-            ev.innerHTML = MAIN_EVENT_OPTIONS.map(o =>
-                `<option value="${o.id}" ${o.id === profile.main_event ? 'selected' : ''}>${o.label}</option>`
-            ).join('');
+            ev.innerHTML = groupedEventOptions(profile.main_event);
             document.getElementById('pe-cubes').value = profile.main_cubes || '';
             document.getElementById('pe-bio').value   = profile.bio || '';
-            document.getElementById('pe-wca').value   = profile.wca_id || '';
             document.getElementById('pe-yt').value    = profile.socials.youtube   || '';
             document.getElementById('pe-ig').value    = profile.socials.instagram || '';
             document.getElementById('pe-tw').value    = profile.socials.twitter   || '';
@@ -5576,8 +5836,23 @@
 
         // WCA verification button + status note in the Edit Profile modal
         const peWcaVerifyBtn = document.getElementById('pe-wca-verify');
+        const peWcaUnlinkBtn = document.getElementById('pe-wca-unlink');
         const peWcaNote = document.getElementById('pe-wca-verified-note');
         function updateWcaVerifyNote() {
+            const user = fbSync.getUser();
+            const googleState = document.getElementById('pe-google-link-state');
+            const wcaState = document.getElementById('pe-wca-link-state');
+            if (googleState) {
+                googleState.textContent = user
+                    ? (user.email || user.displayName || 'Connected')
+                    : 'Not connected';
+            }
+            if (wcaState) {
+                wcaState.textContent = profile.wca_verified && profile.wca_id
+                    ? `${profile.wca_name || profile.wca_id} · ${profile.wca_id}`
+                    : 'Not linked';
+            }
+            if (peWcaUnlinkBtn) peWcaUnlinkBtn.hidden = !(profile.wca_verified && profile.wca_id);
             if (!wcaEnabled) {
                 peWcaNote.textContent = 'WCA linking is not configured yet on this deployment.';
                 peWcaVerifyBtn.disabled = true;
@@ -5588,49 +5863,47 @@
             peWcaVerifyBtn.disabled = false;
             peWcaVerifyBtn.style.opacity = '';
             if (profile.wca_verified && profile.wca_id) {
-                peWcaNote.innerHTML = `✓ Verified as <b>${escHTML(profile.wca_name || profile.wca_id)}</b>`;
+                peWcaNote.innerHTML = `Linked and verified. Reconnect if /competition says your WCA session expired.`;
                 peWcaNote.style.color = '#5fe08c';
-                peWcaVerifyBtn.style.display = 'none';
-            } else if (profile.wca_id && profile.wca_records && Object.keys(profile.wca_records).length) {
-                // Linked via public lookup (not identity-verified)
-                peWcaNote.innerHTML = `Linked to <b>${escHTML(profile.wca_name || profile.wca_id)}</b> · <span style="opacity:.7">Google sync can stay linked too.</span>`;
-                peWcaNote.style.color = '#5fe08c';
-                peWcaVerifyBtn.textContent = 'Verify identity with WCA';
                 peWcaVerifyBtn.style.display = '';
+                peWcaVerifyBtn.textContent = 'Reconnect WCA';
             } else {
-                peWcaNote.textContent = '';
+                peWcaNote.textContent = user
+                    ? 'WCA will verify your identity directly. No manual WCA ID is needed.'
+                    : 'Connect Google first, then link your WCA account.';
                 peWcaNote.style.color = '';
-                peWcaVerifyBtn.textContent = 'Verify with WCA';
+                peWcaVerifyBtn.textContent = user ? 'Link WCA account' : 'Connect Google first';
                 peWcaVerifyBtn.style.display = '';
             }
         }
         peWcaVerifyBtn.addEventListener('click', async () => {
-            // Primary path: OAuth-verified
-            const wcaIdInput = (document.getElementById('pe-wca').value || '').trim().toUpperCase();
-            // If the user filled in a WCA ID, try the PUBLIC endpoint first
-            // (no OAuth, no CORS issues). They lose true identity verification
-            // but PRs and basic profile populate immediately.
-            if (/^\d{4}[A-Z]{4}\d{2}$/.test(wcaIdInput)) {
-                peWcaNote.textContent = 'Loading your public WCA profile…';
-                peWcaNote.style.color = '';
-                try {
-                    const pub = await fetchPublicWcaProfile(wcaIdInput);
-                    profile.wca_id = pub.wca_id;
-                    profile.wca_name = pub.name || '';
-                    profile.wca_verified = false;     // public lookup, not identity-verified
-                    profile.wca_records = pub.personal_records || {};
-                    saveProfile();
-                    peWcaNote.innerHTML = `Linked to <b>${escHTML(pub.name || pub.wca_id)}</b>. Google sync can stay linked, and you can verify with WCA anytime.`;
-                    peWcaNote.style.color = '#5fe08c';
-                    if (statsView.style.display !== 'none') renderStats();
-                    return;
-                } catch (err) {
-                    console.warn('Public WCA lookup failed, falling back to OAuth:', err);
-                    peWcaNote.textContent = '';
-                }
-            }
-            // Else: full OAuth flow
+            let user = fbSync.getUser();
+            if (!user) user = await fbSync.signIn();
+            if (!user) return;
+            sessionStorage.setItem('wca_linking_uid', user.uid);
             startWcaLogin();
+        });
+        peWcaUnlinkBtn?.addEventListener('click', async () => {
+            if (!profile.wca_id) return;
+            if (!await window.ucConfirm('Unlink this WCA account? Your official records will be removed from UC Academy.', {
+                title: 'Unlink WCA?',
+                confirmLabel: 'Unlink',
+                danger: true
+            })) return;
+            try {
+                await fbSync.unlinkWcaIdentity(profile.wca_id);
+                profile.wca_id = '';
+                profile.wca_user_id = null;
+                profile.wca_name = '';
+                profile.wca_verified = false;
+                profile.wca_records = {};
+                clearWcaSession();
+                saveProfile();
+                updateWcaVerifyNote();
+                if (statsView.style.display !== 'none') renderStats();
+            } catch (error) {
+                alert(error.message || error);
+            }
         });
         // Patch the openProfileEdit flow so the note refreshes when modal opens
         const _origOpenProfileEdit = openProfileEdit;
@@ -5647,10 +5920,10 @@
         document.getElementById('pe-save').addEventListener('click', () => {
             const chosenFrame = document.getElementById('pe-frames').dataset.chosen || 'auto';
             const next = {
+                ...profile,
                 main_event: document.getElementById('pe-event').value,
                 main_cubes: document.getElementById('pe-cubes').value.trim().slice(0, 120),
                 bio:        sanitizeBio(document.getElementById('pe-bio').value),
-                wca_id:     document.getElementById('pe-wca').value.trim().toUpperCase().slice(0, 10),
                 frame:      chosenFrame,
                 avatar:     (pendingAvatar === null ? (profile.avatar || '') : pendingAvatar),
                 socials: {
@@ -5668,11 +5941,26 @@
         });
 
         // ---- Stackmat (real Web Audio decoder) ----
-        let stackmatHandle = null;
+        async function refreshStackmatInputs(requestPermission = false) {
+            const mod = await import('./stackmat-decoder.js');
+            const selected = stackmatInput?.value || LS.get('stackmatInput', '');
+            const devices = await mod.listAudioInputs({ requestPermission });
+            if (!stackmatInput) return devices;
+            stackmatInput.innerHTML = `<option value="">Default audio input</option>${devices.map(device =>
+                `<option value="${esc(device.id)}">${esc(device.label)}</option>`
+            ).join('')}`;
+            if (devices.some(device => device.id === selected)) stackmatInput.value = selected;
+            return devices;
+        }
         async function startStackmat() {
             try {
+                if (stackmatConnectButton) {
+                    stackmatConnectButton.disabled = true;
+                    stackmatConnectButton.textContent = 'Connecting...';
+                }
                 const mod = await import('./stackmat-decoder.js');
                 stackmatHandle = await mod.startStackmat({
+                    deviceId: stackmatInput?.value || '',
                     onStatus: (status) => {
                         const tEl = document.getElementById('puzzle-timer');
                         if (status === ' ') tEl.classList.add('running');
@@ -5692,33 +5980,64 @@
                         nextPuzzleScramble();
                     },
                     onError: (msg) => {
-                        const note = document.querySelector('.stackmat-note');
-                        if (note) note.textContent = msg;
+                        if (stackmatNote) stackmatNote.textContent = msg;
+                    },
+                    onSignal: (signal) => {
+                        if (!stackmatNote || !stackmatHandle) return;
+                        stackmatNote.textContent = signal.active
+                            ? 'Audio signal detected. Start and stop the Stackmat to test decoding.'
+                            : 'Listening, but no audio signal is reaching this input yet.'
                     }
                 });
-                const btn = document.getElementById('puzzle-stackmat-connect');
-                btn.textContent = '🛑 Disconnect Stackmat';
-                btn.dataset.connected = '1';
-                const note = document.querySelector('.stackmat-note');
-                if (note) note.textContent = 'Listening on audio input. Press a pad on your Stackmat to test the signal.';
+                await refreshStackmatInputs(false).catch(() => []);
+                if (stackmatHandle.deviceId && stackmatInput) {
+                    stackmatInput.value = stackmatHandle.deviceId;
+                    LS.set('stackmatInput', stackmatHandle.deviceId);
+                }
+                if (stackmatConnectButton) {
+                    stackmatConnectButton.textContent = 'Disconnect Stackmat';
+                    stackmatConnectButton.dataset.connected = '1';
+                }
+                if (stackmatNote) stackmatNote.textContent = `Listening on ${stackmatHandle.label}. Start and stop the Stackmat to test it.`;
             } catch (e) {
                 console.error(e);
                 alert('Could not start Stackmat: ' + (e.message || e));
+                stackmatHandle = null;
+                if (stackmatConnectButton) stackmatConnectButton.textContent = 'Connect Stackmat';
+            } finally {
+                if (stackmatConnectButton) stackmatConnectButton.disabled = false;
             }
         }
         function stopStackmat() {
             if (stackmatHandle) { try { stackmatHandle.stop(); } catch (e) {} stackmatHandle = null; }
-            const btn = document.getElementById('puzzle-stackmat-connect');
-            btn.textContent = '🎧 Connect Stackmat (audio jack)';
-            btn.dataset.connected = '';
-            const note = document.querySelector('.stackmat-note');
-            if (note) note.textContent = 'Plug your Stackmat into the headphone-in / line-in port and click Connect.';
+            if (stackmatConnectButton) {
+                stackmatConnectButton.textContent = 'Connect Stackmat';
+                stackmatConnectButton.dataset.connected = '';
+            }
+            if (stackmatNote) stackmatNote.textContent = 'Choose the Stackmat line-in or USB audio input, then press Connect.';
         }
-        document.getElementById('puzzle-stackmat-connect').addEventListener('click', () => {
+        stackmatConnectButton?.addEventListener('click', () => {
             if (stackmatHandle) stopStackmat(); else startStackmat();
         });
+        stackmatInput?.addEventListener('change', () => {
+            LS.set('stackmatInput', stackmatInput.value || '');
+            if (stackmatHandle) stopStackmat();
+        });
+        document.getElementById('puzzle-stackmat-refresh')?.addEventListener('click', async () => {
+            try {
+                const devices = await refreshStackmatInputs(true);
+                if (stackmatNote) stackmatNote.textContent = devices.length
+                    ? `Found ${devices.length} audio input${devices.length === 1 ? '' : 's'}. Choose the Stackmat input.`
+                    : 'No audio inputs were found.';
+            } catch (error) {
+                if (stackmatNote) stackmatNote.textContent = error?.message || 'Could not list audio inputs.';
+            }
+        });
+        navigator.mediaDevices?.addEventListener?.('devicechange', () => {
+            if (!stackmatHandle) refreshStackmatInputs(false).catch(() => {});
+        });
 
-        // ---- Smart Cube (Bluetooth: GAN / GiiKER / GoCube / MoYu) ----
+        // ---- Smart Cube (Bluetooth: GAN / GiiKER / GoCube / Rubik's Connected / HEYKUBE / QiYi) ----
         let smartCubeHandle = null;
         const smartStatusEl = document.getElementById('smart-cube-status');
         const smartBtn      = document.getElementById('smart-cube-connect');
@@ -5766,19 +6085,23 @@
                 const mod = await import('./smart-cube.js');
                 smartCubeHandle = await mod.connectCube({
                     onName: (name) => setSmartStatus('Connected: ' + name, true),
-                    onMove: (moveStr) => {
+                    onMove: (moveStr, algLeaf) => {
                         // Stream moves into the on-screen 2D cube on the Timer page
                         const cube = document.getElementById('puzzle-cube');
-                        try { cube.experimentalAddMove(moveStr); }
-                        catch (e) {
+                        try {
+                            if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
+                                cube.experimentalAddAlgLeaf(algLeaf, { cancel: true });
+                            } else {
+                                throw new Error('Algorithm leaf API unavailable');
+                            }
+                        } catch (e) {
                             // Fallback: append to current alg
                             const cur = cube.alg ? String(cube.alg) : '';
                             cube.alg = (cur + ' ' + moveStr).trim();
                         }
                         // Auto-start timer on first move (only in 'timer' input mode and only if idle)
                         if (inputMode === 'timer' && puzzleTimer.getState() === 'idle') {
-                            puzzleTimer.press();     // -> ready/armed
-                            puzzleTimer.release();   // -> running
+                            puzzleTimer.startImmediately();
                         }
                         // Auto-stop when the cube reaches solved state
                         if (checkSolvedAfterMove(moveStr) && puzzleTimer.getState() === 'running') {
@@ -6335,9 +6658,16 @@
 
         function renderOnboardChips() {
             const evEl = document.getElementById('onboard-events');
-            evEl.innerHTML = ONBOARD_EVENTS.map(e => {
-                const on = onboardSelections.events.has(e.id);
-                return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-event="${e.id}">${e.label}</button>`;
+            evEl.innerHTML = EVENT_OPTION_GROUPS.map(group => {
+                const events = group.ids.map(id => ONBOARD_EVENTS.find(event => event.id === id)).filter(Boolean);
+                if (!events.length) return '';
+                return `<div class="onboard-chip-group">
+                    <div class="onboard-chip-group-title">${escHTML(group.label)}</div>
+                    <div class="onboard-chip-group-items">${events.map(event => {
+                        const on = onboardSelections.events.has(event.id);
+                        return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-event="${event.id}">${escHTML(event.label)}</button>`;
+                    }).join('')}</div>
+                </div>`;
             }).join('');
             const mtEl = document.getElementById('onboard-methods');
             mtEl.innerHTML = ONBOARD_METHODS.map(m => {
@@ -6345,10 +6675,17 @@
                 return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-method="${m.id}">${m.label}</button>`;
             }).join('');
             const asEl = document.getElementById('onboard-algsets');
-            if (asEl) asEl.innerHTML = ONBOARD_ALGSETS.map(a => {
-                const on = onboardSelections.algsets.has(a.category);
-                const count = db.filter(it => it.category === a.category).length;
-                return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-algset="${a.category}">${a.label} <span style="opacity:0.55;font-size:0.78em">${count}</span></button>`;
+            if (asEl) asEl.innerHTML = Object.entries(CUBE_CATS).map(([cube, categories]) => {
+                const algSets = ONBOARD_ALGSETS.filter(item => categories.includes(item.category));
+                if (!algSets.length) return '';
+                return `<div class="onboard-chip-group">
+                    <div class="onboard-chip-group-title">${escHTML(cube)}</div>
+                    <div class="onboard-chip-group-items">${algSets.map(item => {
+                        const on = onboardSelections.algsets.has(item.category);
+                        const count = db.filter(alg => alg.category === item.category).length;
+                        return `<button type="button" class="onboard-chip ${on ? 'on' : ''}" data-onboard-algset="${escHTML(item.category)}">${escHTML(item.label)} <span style="opacity:0.55;font-size:0.78em">${count}</span></button>`;
+                    }).join('')}</div>
+                </div>`;
             }).join('');
         }
         function renderOnboardDots() {
@@ -6431,6 +6768,12 @@
             onboardModal.style.display = 'none';
         });
         document.getElementById('onboard-wca-btn').addEventListener('click', () => {
+            const user = fbSync.getUser();
+            if (!user) {
+                alert('Connect Google before linking WCA.');
+                return;
+            }
+            sessionStorage.setItem('wca_linking_uid', user.uid);
             startWcaLogin();   // redirects away; on return, callback handler picks it up
         });
         // Close on backdrop click / Esc
@@ -6462,10 +6805,19 @@
         fbSync.onUserChange((u) => { if (u) setTimeout(maybeStartOnboarding, 400); });
 
         // ---- WCA OAuth callback handling (runs once on every page load) ----
-        handleWcaCallback().then(result => {
+        handleWcaCallback().then(async result => {
             if (!result || !result.wca_id) return;
+            const user = await fbSync.waitForAuth();
+            if (!user) throw new Error('Sign in with Google before linking your WCA account.');
+            const expectedUid = sessionStorage.getItem('wca_linking_uid');
+            if (expectedUid && expectedUid !== user.uid) {
+                throw new Error('You returned with a different Google account. Sign in again and retry linking WCA.');
+            }
+            await fbSync.claimWcaIdentity(result.wca_id);
             sessionStorage.removeItem('wca_signin_intent');
+            sessionStorage.removeItem('wca_linking_uid');
             profile.wca_id = result.wca_id;
+            profile.wca_user_id = result.user_id || null;
             profile.wca_name = result.name || '';
             profile.wca_verified = true;
             // Normalize WCA personal_records into { eventId: { single, average } } in SECONDS
@@ -6483,10 +6835,12 @@
             // Show a toast-ish confirmation, then re-render
             if (statsView.style.display !== 'none') renderStats();
             console.info('[WCA] Verified as', result.wca_id, result.name);
-            setTimeout(() => alert('✓ WCA verified as ' + (result.name || result.wca_id)), 50);
+            setTimeout(() => alert('WCA linked as ' + (result.name || result.wca_id)), 50);
         }).catch(e => {
             console.error('WCA verification failed:', e);
-            alert('WCA verification failed: ' + (e.message || e));
+            alert(e?.code === 'wca/account-already-used'
+                ? 'That WCA account is already linked to another UC Academy account.'
+                : 'WCA linking failed: ' + (e.message || e));
         });
 
         // ============================================================
@@ -7035,19 +7389,26 @@
             ['🎲','Dice'],['🔥','Fire'],['⭐','Star'],['⚡','Lightning'],
             ['🎯','Target'],['👑','Crown'],['🏆','Trophy'],['🧩','Puzzle'],['💎','Diamond'],['🌙','Moon'],['☀','Sun']
         ];
+        const SC_ICON_GROUPS = [
+            { label: 'NxN Cubes', values: ['cube:222', 'cube:333', 'cube:444', 'cube:555', 'cube:666', 'cube:777'] },
+            { label: 'Side Events', values: ['cube:pyram', 'cube:skewb', 'cube:minx', 'cube:sq1', 'cube:clock'] },
+            { label: 'Disciplines', values: ['cube:oh', 'cube:bld', 'cube:fmc'] },
+            { label: 'Symbols', values: SC_ICON_OPTIONS.filter(([value]) => !value.startsWith('cube:')).map(([value]) => value) }
+        ];
+        function groupedSessionIconOptions(selected = '') {
+            return SC_ICON_GROUPS.map(group => `<optgroup label="${group.label}">${group.values.map(value => {
+                const option = SC_ICON_OPTIONS.find(([id]) => id === value);
+                return option ? `<option value="${option[0]}"${option[0] === selected ? ' selected' : ''}>${option[1]}</option>` : '';
+            }).join('')}</optgroup>`).join('');
+        }
         function buildSessionsTable(sessions) {
             const wrap = document.getElementById('sc-sessions-table-wrap');
             if (!wrap) return;
-            const PUZZLES = [
-                ['333','3×3'],['222','2×2'],['444','4×4'],['555','5×5'],
-                ['666','6×6'],['777','7×7'],['pyram','Pyraminx'],['skewb','Skewb'],
-                ['minx','Megaminx'],['sq1','Sq-1'],['clock','Clock']
-            ];
+            const puzzleIds = ['222', '333', '444', '555', '666', '777', 'pyram', 'skewb', 'minx', 'sq1', 'clock'];
             const THEME_HEX = { orange:'#FF9F0A',blue:'#5ab0ff',green:'#5fe08c',teal:'#22d3ee',purple:'#c084fc',pink:'#f472b6' };
-            const iconOpts = SC_ICON_OPTIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
             let rows = sessions.map((sess, i) => {
-                const pOpts = PUZZLES.map(([v, l]) => `<option value="${v}"${v===sess.puzzle?' selected':''}>${l}</option>`).join('');
-                const iOpts = SC_ICON_OPTIONS.map(([v, l]) => `<option value="${v}"${v===sess.icon?' selected':''}>${l}</option>`).join('');
+                const pOpts = groupedEventOptions(sess.puzzle, puzzleIds);
+                const iOpts = groupedSessionIconOptions(sess.icon);
                 const dots  = Object.entries(THEME_HEX).map(([nm, hex]) =>
                     `<button type="button" class="sc-sess-cdot${nm===sess.color?' on':''}" data-theme="${nm}" style="background:${hex}" title="${nm}"></button>`
                 ).join('');
@@ -7144,7 +7505,16 @@
                     const cdot   = row.querySelector('.sc-sess-cdot.on');
                     const color  = cdot ? cdot.dataset.theme : sess.color;
                     const id = 's' + (t++);
-                    puzzleStore.sessions.push({ id, name, description: '', puzzle, icon, color, solves: sess.solves.slice() });
+                    puzzleStore.sessions.push({
+                        id,
+                        name,
+                        description: '',
+                        puzzle,
+                        icon,
+                        color,
+                        solves: sess.solves.slice(),
+                        trainerPrefs: normalizeTimerTrainerPrefs(null, puzzle)
+                    });
                     if (!firstId) firstId = id;
                 });
                 if (firstId) puzzleStore.activeId = firstId;
@@ -7153,7 +7523,17 @@
                 const description = document.getElementById('sc-desc').value.trim().slice(0, 160);
                 if (scEditMode === 'new') {
                     const id = 's' + Date.now();
-                    puzzleStore.sessions.push({ id, name, description, puzzle: puzzleSelect.value || '333', icon: scIcon, color: scTheme, solves: [] });
+                    const puzzle = puzzleSelect.value || '333';
+                    puzzleStore.sessions.push({
+                        id,
+                        name,
+                        description,
+                        puzzle,
+                        icon: scIcon,
+                        color: scTheme,
+                        solves: [],
+                        trainerPrefs: normalizeTimerTrainerPrefs(null, puzzle)
+                    });
                     puzzleStore.activeId = id;
                 } else if (scEditMode === 'edit' && scEditId) {
                     const s = puzzleStore.sessions.find(x => x.id === scEditId);
@@ -7172,9 +7552,14 @@
             document.getElementById('sc-identity-section').style.display = '';
             document.getElementById('sc-visual-section').style.display = '';
             document.getElementById('sc-save').textContent = 'Create';
+            const activeSession = curSession();
+            if (activeSession?.puzzle) puzzleSelect.value = activeSession.puzzle;
+            loadTimerTrainerPrefsForSession();
             savePuzzle();
             renderSessionSelect();
             refreshPuzzle();
+            puzzleTimer.reset();
+            nextPuzzleScramble();
             closeSessionEditor();
         });
 

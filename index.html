@@ -75,6 +75,7 @@
                 <button class="nav-item" data-mode="social" title="Social">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2h14zm-7-8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm11 8v-2a4 4 0 0 0-3-3.87 3.98 3.98 0 0 1 2 3.46V21h1zm-4-12a4 4 0 1 0-2.35-7.24A5.98 5.98 0 0 1 17 9z"/></svg>
                     <span>Social</span>
+                    <span class="nav-notification-dot" id="social-notification-dot" aria-label="New social notifications" hidden></span>
                 </button>
                 <button class="nav-item" data-mode="quests" title="Quests">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M14 2l2 6 6 1-4.5 4.4L19 20l-7-4-7 4 1.5-6.6L2 9l6-1z"/></svg>
@@ -257,17 +258,21 @@
                         <!-- Visible controls bar above the scramble: cube selector + timer settings -->
                         <div class="timer-controls-bar">
                             <select id="puzzle-select" class="puzzle-select-prominent">
-                                <option value="222">2x2</option>
-                                <option value="333" selected>3x3</option>
-                                <option value="444">4x4</option>
-                                <option value="555">5x5</option>
-                                <option value="666">6x6</option>
-                                <option value="777">7x7</option>
-                                <option value="pyram">Pyraminx</option>
-                                <option value="skewb">Skewb</option>
-                                <option value="minx">Megaminx</option>
-                                <option value="sq1">Square-1</option>
-                                <option value="clock">Clock</option>
+                                <optgroup label="NxN Cubes">
+                                    <option value="222">2x2</option>
+                                    <option value="333" selected>3x3</option>
+                                    <option value="444">4x4</option>
+                                    <option value="555">5x5</option>
+                                    <option value="666">6x6</option>
+                                    <option value="777">7x7</option>
+                                </optgroup>
+                                <optgroup label="Side Events">
+                                    <option value="pyram">Pyraminx</option>
+                                    <option value="skewb">Skewb</option>
+                                    <option value="minx">Megaminx</option>
+                                    <option value="sq1">Square-1</option>
+                                    <option value="clock">Clock</option>
+                                </optgroup>
                             </select>
                             <button class="train-quick-btn settings-gear" id="open-timer-settings" title="Timer settings">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3a1 1 0 0 0-.8-.98l-1.8-.36-.5-1.21.94-1.58a1 1 0 0 0-.16-1.2l-1.42-1.42a1 1 0 0 0-1.2-.16l-1.58.95-1.21-.5-.36-1.8A1 1 0 0 0 13 2h-2a1 1 0 0 0-.98.8l-.36 1.8-1.21.5L6.87 4.16a1 1 0 0 0-1.2.16L4.25 5.74a1 1 0 0 0-.16 1.2L5.04 8.52l-.5 1.21-1.8.36a1 1 0 0 0-.74.97v2a1 1 0 0 0 .8.98l1.8.36.5 1.21-.94 1.58a1 1 0 0 0 .16 1.2l1.42 1.42a1 1 0 0 0 1.2.16l1.58-.94 1.21.5.36 1.8A1 1 0 0 0 11 22h2a1 1 0 0 0 .98-.8l.36-1.8 1.21-.5 1.58.94a1 1 0 0 0 1.2-.16l1.42-1.42a1 1 0 0 0 .16-1.2l-.94-1.58.5-1.21 1.8-.36A1 1 0 0 0 21 13z"/></svg>
@@ -277,6 +282,8 @@
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M9 19V9"/><path d="M14 19v-4"/><path d="M19 19v-8"/></svg>
                                 <span id="timer-trainer-status">Subset Trainer: Off</span>
                             </button>
+                            <button class="train-quick-btn timer-utility-btn" id="timer-copy-scramble" title="Copy current scramble">Copy scramble</button>
+                            <button class="train-quick-btn timer-utility-btn" id="timer-zen-toggle" title="Toggle Zen mode (Z)" aria-pressed="false">Zen</button>
                         </div>
 
                         <div class="timer-hidden-controls">
@@ -298,6 +305,7 @@
                                 <div id="solve-feedback-inline" class="solve-feedback-inline" aria-hidden="true"></div>
                             </div>
                             <div class="uc-hint" id="puzzle-hint">Hold <b>Space</b> (or tap below), release to start — press again to stop</div>
+                            <div class="timer-zen-stats" id="timer-zen-stats" aria-live="polite"></div>
                             <div class="timer-trainer-reveal" id="timer-trainer-reveal" style="display:none;"></div>
                             <div class="widgets-row" id="widgets-row" aria-label="Stat widgets"></div>
 
@@ -309,8 +317,14 @@
                             </div>
                             <!-- Stackmat placeholder -->
                             <div id="puzzle-stackmat-ui" class="puzzle-stackmat-ui" style="display:none;">
-                                <button class="train-quick-btn" id="puzzle-stackmat-connect">🎧 Connect Stackmat (audio jack)</button>
-                                <div class="stackmat-note">Stackmat support uses the audio jack via Web Audio. Plug your Stackmat into the headphone-in / line-in port and click Connect. Coming in the next pass.</div>
+                                <div class="stackmat-controls">
+                                    <select id="puzzle-stackmat-input" aria-label="Stackmat audio input">
+                                        <option value="">Default audio input</option>
+                                    </select>
+                                    <button class="train-quick-btn" id="puzzle-stackmat-refresh" type="button">Find inputs</button>
+                                    <button class="train-quick-btn" id="puzzle-stackmat-connect" type="button">Connect Stackmat</button>
+                                </div>
+                                <div class="stackmat-note">Connect the Stackmat through a line-in or USB audio adapter, choose that input, then press Connect.</div>
                             </div>
 
                             <div class="train-row" style="justify-content:center; margin-top:8px;">
@@ -415,9 +429,13 @@
                             <div class="settings-row" style="margin-bottom:10px;">
                                 <label class="pe-hint">Event:</label>
                                 <select id="battle-create-event">
-                                    <option value="222">2x2</option>
-                                    <option value="333" selected>3x3</option>
-                                    <option value="pyram">Pyraminx</option>
+                                    <optgroup label="NxN Cubes">
+                                        <option value="222">2x2</option>
+                                        <option value="333" selected>3x3</option>
+                                    </optgroup>
+                                    <optgroup label="Side Events">
+                                        <option value="pyram">Pyraminx</option>
+                                    </optgroup>
                                 </select>
                                 <label class="pe-hint" style="margin-left:8px;">Players:</label>
                                 <select id="battle-create-size">
@@ -711,9 +729,8 @@
                         <span class="smart-cube-status" id="smart-cube-status">Not connected</span>
                     </div>
                     <div class="pe-hint" style="margin-top:6px;">
-                        Supports GAN, GiiKER, GoCube, MoYu AI via Web Bluetooth (Chrome / Edge / Opera).
-                        Moves stream into the on-screen cube; the timer auto-starts on your first move
-                        after a scramble.
+                        Works with supported GAN, GiiKER, GoCube, Rubik's Connected, HEYKUBE, and QiYi cubes in a Web Bluetooth browser.
+                        Wake the cube before pairing. Moves update the on-screen cube and can start or stop the timer.
                     </div>
                 </div>
             </div>
@@ -728,7 +745,7 @@
             </div>
             <div class="modal-body timer-trainer-body">
                 <div class="timer-trainer-copy">
-                    Pick any subsets across cubes, and Timer will feed you recognition scrambles from those cases.
+                    Choose one cube and any of its subsets. This trainer setup belongs only to the current session.
                 </div>
                 <div class="timer-trainer-layout">
                     <div class="timer-trainer-block">
@@ -819,12 +836,26 @@
             </div>
 
             <div class="pe-tab-content" data-pe-content="wca" style="display:none;">
-                <div class="pe-field">
-                    <label for="pe-wca">WCA ID</label>
-                    <input type="text" id="pe-wca" placeholder="YYYYNAME##" maxlength="10">
-                    <span class="pe-hint-inline">Format: 4 digits + 4 letters + 2 digits (e.g. 2016SMITH01)</span>
+                <div class="connected-accounts" aria-label="Connected accounts">
+                    <div class="connected-account-card">
+                        <div class="connected-account-mark google-mark">G</div>
+                        <div class="connected-account-copy">
+                            <strong>Google account</strong>
+                            <span id="pe-google-link-state">Sign in to sync your account.</span>
+                        </div>
+                    </div>
+                    <div class="connected-account-card">
+                        <div class="connected-account-mark wca-mark">W</div>
+                        <div class="connected-account-copy">
+                            <strong>WCA account</strong>
+                            <span id="pe-wca-link-state">Not linked</span>
+                        </div>
+                    </div>
                 </div>
-                <button type="button" class="train-cta" id="pe-wca-verify" style="width:100%;">Verify with WCA</button>
+                <div class="connected-account-actions">
+                    <button type="button" class="train-cta" id="pe-wca-verify">Link WCA account</button>
+                    <button type="button" class="train-quick-btn" id="pe-wca-unlink" hidden>Unlink WCA</button>
+                </div>
                 <div class="pe-hint" id="pe-wca-verified-note"></div>
             </div>
 
@@ -1025,9 +1056,9 @@
                 <div class="signin-divider"><span>or</span></div>
                 <button class="train-quick-btn signin-opt-btn" id="signin-wca-btn">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><rect x="3" y="3" width="8" height="8" rx="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.6"/><rect x="3" y="13" width="8" height="8" rx="1.6"/><rect x="13" y="13" width="8" height="8" rx="1.6"/></svg>
-                    Sign in with WCA
+                    Link WCA after Google
                 </button>
-                <p class="signin-wca-note">Use Google for sync, and link WCA as well for official records, competition prep, and competition-aware coaching.</p>
+                <p class="signin-wca-note">Google creates your UC Academy account. You can link one verified WCA account to it for official records and /competition coaching.</p>
                 <button class="signin-skip-btn" id="signin-skip-btn">Continue without signing in</button>
             </div>
         </div>
