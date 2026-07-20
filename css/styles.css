@@ -3892,16 +3892,6 @@
             box-shadow: 0 0 9px #5fe08c;
             animation: smart-cube-pulse 1.6s ease-in-out infinite;
         }
-        .smart-cube-move-count {
-            overflow: hidden;
-            color: var(--text-muted);
-            font-size: .54rem;
-            font-weight: 700;
-            letter-spacing: 0;
-            text-overflow: ellipsis;
-            text-transform: none;
-            white-space: nowrap;
-        }
         #timer-view.smart-cube-active #puzzle-cube-wrap {
             display: block;
             width: 100%;
@@ -3919,47 +3909,11 @@
             width: 100%;
             height: 100%;
         }
-        .smart-cube-moves {
-            display: flex;
-            min-height: 28px;
-            box-sizing: border-box;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 7px;
-            overflow-x: auto;
-            border: 1px solid rgba(255,255,255,.07);
-            border-radius: 9px;
-            background: rgba(255,255,255,.035);
-            scrollbar-width: none;
-            font: 800 .82rem 'Ubuntu Mono', monospace;
-            white-space: nowrap;
-        }
-        .smart-cube-moves::-webkit-scrollbar { display: none; }
-        .smart-cube-moves-empty {
-            color: color-mix(in srgb, var(--session-accent, var(--orange)) 74%, #77808d);
-            font-size: .62rem;
-            font-weight: 700;
-        }
-        .smart-move-token {
-            display: inline-flex;
-            align-items: baseline;
-            color: var(--move-color, var(--session-accent, var(--orange)));
-            text-shadow: 0 0 10px color-mix(in srgb, var(--move-color, var(--session-accent, var(--orange))) 38%, transparent);
-        }
-        .smart-move-token.is-latest { animation: smart-move-pop .2s cubic-bezier(.2,.8,.2,1); }
-        .smart-move-suffix {
-            color: var(--move-color, var(--session-accent, var(--orange)));
-            filter: brightness(1.16);
-        }
         @keyframes smart-cube-in {
             from { opacity: 0; transform: translateY(-6px) scale(.96); }
             to { opacity: 1; transform: none; }
         }
         @keyframes smart-cube-pulse { 50% { opacity: .45; transform: scale(.72); } }
-        @keyframes smart-move-pop {
-            from { opacity: .35; transform: translateY(3px) scale(.82); }
-            to { opacity: 1; transform: none; }
-        }
 
         /* Top toolbar */
         .timer-topbar {
@@ -8902,17 +8856,9 @@
             }
             #timer-view.smart-cube-active #puzzle-cube-wrap { border-radius: 8px; }
             #timer-view.smart-cube-active .smart-cube-live-head { font-size: .5rem; }
-            #timer-view.smart-cube-active .smart-cube-move-count { display: none; }
-            #timer-view.smart-cube-active .smart-cube-moves {
-                min-height: 22px;
-                gap: 3px;
-                padding: 3px 5px;
-                font-size: .66rem;
-            }
-            #timer-view.smart-cube-active .smart-cube-moves-empty { font-size: .52rem; }
         }
 
-        /* Connected cube workspace: timer on the left, live 3D cube on the right. */
+        /* Connected cube workspace: timer + cube on the left, live stats on the right. */
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
             display: grid;
             grid-template-columns: minmax(0, 1fr) clamp(220px, 27%, 300px);
@@ -8941,33 +8887,116 @@
             min-height: 0;
             height: 100%;
             padding: 12px;
-            justify-content: center;
+            justify-content: flex-start;
+            overflow: hidden;
             border-radius: 20px;
             background:
-                radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--session-accent, var(--orange)) 13%, transparent), transparent 58%),
+                radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--session-accent, var(--orange)) 13%, transparent), transparent 55%),
                 linear-gradient(160deg, rgba(18,22,30,.98), rgba(8,11,16,.96));
             box-shadow: 0 18px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
         }
-        body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-cube-wrap {
-            flex: 1 1 auto;
-            min-height: 150px;
-            aspect-ratio: auto;
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack > #puzzle-cube-wrap {
+            display: block;
+            flex: 0 1 auto;
+            width: min(100%, 340px);
+            height: clamp(132px, 21vh, 205px);
+            min-height: 0;
+            margin: -2px auto 0;
+            aspect-ratio: 1.35 / 1;
+            border-radius: 16px;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-live-head {
             flex: 0 0 auto;
-            font-size: .68rem;
+            width: 100%;
+            padding: 2px 3px 5px;
+            font-size: .7rem;
         }
-        body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-moves {
-            flex: 0 0 auto;
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            flex: 1 1 auto;
+            width: 100%;
+            max-width: none;
+            min-height: 0;
+            margin: 0;
+            gap: 8px;
+            align-content: start;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row::-webkit-scrollbar {
+            display: none;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
+            min-width: 0;
+            padding: 8px 6px;
+            border-radius: 14px;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-value {
+            font-size: clamp(.95rem, 2vw, 1.25rem);
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-label {
+            font-size: .52rem;
+            letter-spacing: .08em;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-sub {
+            font-size: .58rem;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-with-feedback #puzzle-timer {
             font-size: clamp(3.2rem, min(6vw, 9vh), 5.2rem);
         }
-        body[data-active-mode="timer"] #timer-view.smart-cube-active .widgets-row,
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-graphs-row,
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-zen-stats,
         body[data-active-mode="timer"] #timer-view.smart-cube-active .cubey-coach {
             display: none !important;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-scramble {
+            min-height: 2.7em;
+            max-height: 5.2em;
+            line-height: 1.7;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-scramble.smart-scramble-ready {
+            min-height: 1.2em;
+        }
+        .smart-scramble-case {
+            margin-right: .45em;
+            color: var(--text-muted);
+            font-size: .82em;
+        }
+        .smart-scramble-token {
+            display: inline-block;
+            margin: 0 .08em;
+            padding: .04em .12em;
+            border-radius: .28em;
+            transition: color .16s ease, background .16s ease, opacity .16s ease, transform .16s ease;
+        }
+        .smart-scramble-token.is-done {
+            color: color-mix(in srgb, var(--session-accent, var(--orange)) 44%, var(--text-muted));
+            opacity: .38;
+        }
+        .smart-scramble-token.is-partial {
+            color: var(--session-accent, var(--orange));
+            text-decoration: underline;
+            text-underline-offset: .2em;
+        }
+        .smart-scramble-token.is-current {
+            color: #fff;
+            background: color-mix(in srgb, var(--session-accent, var(--orange)) 28%, transparent);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--session-accent, var(--orange)) 48%, transparent),
+                        0 0 16px color-mix(in srgb, var(--session-accent, var(--orange)) 18%, transparent);
+            transform: translateY(-1px);
+        }
+        #puzzle-scramble.smart-scramble-mismatch::after {
+            content: 'Undo extra turns';
+            display: block;
+            margin-top: .2em;
+            color: #ff6961;
+            font: 700 .62em 'Space Grotesk', sans-serif;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        #timer-view.smart-cube-ready .timer-with-feedback {
+            filter: drop-shadow(0 0 18px color-mix(in srgb, #5fe08c 22%, transparent));
         }
 
         @media (max-width: 900px) {
@@ -8990,26 +9019,35 @@
                 padding: 6px;
                 border-radius: 14px;
             }
-            body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-cube-wrap {
-                min-height: 82px;
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack > #puzzle-cube-wrap {
+                width: min(100%, 210px);
+                height: clamp(92px, 17vh, 128px);
+                min-height: 0;
                 border-radius: 9px;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-live-head {
-                font-size: .5rem;
+                padding: 1px 2px 4px;
+                font-size: .52rem;
             }
-            body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-move-count {
-                display: none;
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
             }
-            body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-moves {
-                min-height: 22px;
-                gap: 3px;
-                padding: 3px 5px;
-                font-size: .64rem;
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
+                min-height: 66px;
+                aspect-ratio: auto;
+                padding: 5px 4px;
+                border-radius: 10px;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack {
                 padding-inline: 8px;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-with-feedback #puzzle-timer {
                 font-size: clamp(2.45rem, 12vw, 3.8rem);
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-scramble {
+                min-height: 3.4em;
+                font-size: clamp(.64rem, 2.7vw, .82rem);
+                line-height: 1.65;
             }
         }
