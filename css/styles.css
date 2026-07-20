@@ -8911,3 +8911,105 @@
             }
             #timer-view.smart-cube-active .smart-cube-moves-empty { font-size: .52rem; }
         }
+
+        /* Connected cube workspace: timer on the left, live 3D cube on the right. */
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) clamp(220px, 27%, 300px);
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+                "smart-controls smart-controls"
+                "smart-timer smart-cube";
+            align-items: stretch;
+            gap: 12px;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-controls-bar {
+            grid-area: smart-controls;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack {
+            grid-area: smart-timer;
+            min-width: 0;
+            min-height: 0;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls {
+            position: static;
+            inset: auto;
+            grid-area: smart-cube;
+            display: flex;
+            width: auto;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            padding: 12px;
+            justify-content: center;
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--session-accent, var(--orange)) 13%, transparent), transparent 58%),
+                linear-gradient(160deg, rgba(18,22,30,.98), rgba(8,11,16,.96));
+            box-shadow: 0 18px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-cube-wrap {
+            flex: 1 1 auto;
+            min-height: 150px;
+            aspect-ratio: auto;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-live-head {
+            flex: 0 0 auto;
+            font-size: .68rem;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-moves {
+            flex: 0 0 auto;
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-with-feedback #puzzle-timer {
+            font-size: clamp(3.2rem, min(6vw, 9vh), 5.2rem);
+        }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .widgets-row,
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-graphs-row,
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-zen-stats,
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .cubey-coach {
+            display: none !important;
+        }
+
+        @media (max-width: 900px) {
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
+                grid-template-columns: minmax(0, 1fr) 190px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
+                grid-template-columns: minmax(0, 1fr) 124px;
+                grid-template-rows: auto minmax(0, 1fr);
+                gap: 7px;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls {
+                position: static;
+                inset: auto;
+                width: auto;
+                gap: 4px;
+                padding: 6px;
+                border-radius: 14px;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active #puzzle-cube-wrap {
+                min-height: 82px;
+                border-radius: 9px;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-live-head {
+                font-size: .5rem;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-move-count {
+                display: none;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-moves {
+                min-height: 22px;
+                gap: 3px;
+                padding: 3px 5px;
+                font-size: .64rem;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack {
+                padding-inline: 8px;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-with-feedback #puzzle-timer {
+                font-size: clamp(2.45rem, 12vw, 3.8rem);
+            }
+        }

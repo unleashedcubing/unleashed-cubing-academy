@@ -152,10 +152,13 @@ async function connectGan(options) {
         onError,
         onDisconnect,
         onBattery,
+        onFacelets,
+        onHardware,
         onPairingStage,
         requestMacAddress
     } = options;
-    const { connectGanCube } = await import(GAN_MODULE_URL);
+    const connectGanCube = options._connectGanCube
+        || (await import(GAN_MODULE_URL)).connectGanCube;
     let selectedDevice = null;
     let activeScanPromise = null;
 
@@ -189,11 +192,19 @@ async function connectGan(options) {
     const subscription = connection.events$.subscribe({
         next(event) {
             if (detached) return;
-            if (event?.type === 'MOVE' && event.move) {
-                onMove?.(event.move, null, event);
-            } else if (event?.type === 'BATTERY') {
+            const eventType = String(event?.type || '').toUpperCase();
+            if (eventType === 'MOVE' && event.move) {
+                const moveText = typeof event.move?.toString === 'function'
+                    ? event.move.toString()
+                    : String(event.move);
+                if (moveText) onMove?.(moveText, event.move, event);
+            } else if (eventType === 'FACELETS') {
+                onFacelets?.(event.facelets, event);
+            } else if (eventType === 'HARDWARE') {
+                onHardware?.(event, connection);
+            } else if (eventType === 'BATTERY') {
                 onBattery?.(event.batteryLevel);
-            } else if (event?.type === 'DISCONNECT') {
+            } else if (eventType === 'DISCONNECT') {
                 detached = true;
                 onDisconnect?.();
             }
@@ -205,11 +216,15 @@ async function connectGan(options) {
     });
 
     onName?.(name);
-    Promise.allSettled([
-        connection.sendCubeCommand({ type: 'REQUEST_HARDWARE' }),
-        connection.sendCubeCommand({ type: 'REQUEST_FACELETS' }),
-        connection.sendCubeCommand({ type: 'REQUEST_BATTERY' })
-    ]).catch(() => {});
+    // Chrome can reject or stall overlapping GATT writes. Keep the same order as
+    // GAN's reference client so notifications are fully attached before moves.
+    for (const command of [
+        { type: 'REQUEST_HARDWARE' },
+        { type: 'REQUEST_FACELETS' },
+        { type: 'REQUEST_BATTERY' }
+    ]) {
+        try { await connection.sendCubeCommand(command); } catch (_) {}
+    }
 
     return {
         name,

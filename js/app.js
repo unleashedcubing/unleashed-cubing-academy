@@ -4578,6 +4578,13 @@
                 const smartCubeActive = timerView.classList.contains('smart-cube-active');
                 if (!smartCubeActive && prefer2DForPuzzle(PUZZLE_DISPLAY[ev])) puzzleCube.setAttribute('visualization', '2D');
                 else puzzleCube.removeAttribute('visualization');
+                if (smartCubeActive) {
+                    puzzleCube.setAttribute('tempo-scale', '5');
+                    puzzleCube.setAttribute('experimental-drag-input', 'none');
+                } else {
+                    puzzleCube.removeAttribute('tempo-scale');
+                    puzzleCube.removeAttribute('experimental-drag-input');
+                }
                 puzzleCube.setAttribute('experimental-setup-alg', applyPuzzleViewSetup(PUZZLE_DISPLAY[ev], scrambleText || ''));
                 puzzleCube.alg = '';
                 if (smartCubeActive) resetSmartMoveNotation();
@@ -6055,6 +6062,7 @@
         const smartOtherBtn = document.getElementById('smart-cube-connect-other');
         const ganAutoDetectHelpBtn = document.getElementById('gan-auto-detect-help');
         const smartCubeLive = document.getElementById('smart-cube-live');
+        const smartCubeLiveStateEl = document.getElementById('smart-cube-live-state');
         const smartCubeMovesEl = document.getElementById('smart-cube-moves');
         const smartCubeMoveCountEl = document.getElementById('smart-cube-move-count');
         const SMART_MOVE_COLORS = {
@@ -6068,6 +6076,10 @@
         let smartMoveGroups = [];
         let smartPhysicalMoveCount = 0;
         let smartConnectedName = '';
+
+        function setSmartLiveState(text) {
+            if (smartCubeLiveStateEl) smartCubeLiveStateEl.textContent = text;
+        }
 
         function smartMoveDetails(moveText) {
             const raw = String(moveText || '').trim().replace(/\s+/g, '');
@@ -6125,6 +6137,7 @@
             });
             if (smartMoveGroups.length > 16) smartMoveGroups = smartMoveGroups.slice(-16);
             renderSmartMoveNotation();
+            setSmartLiveState('Tracking turns');
         }
         function setSmartStatus(text, connected) {
             if (smartStatusEl) smartStatusEl.textContent = text;
@@ -6133,6 +6146,7 @@
             if (smartOtherBtn) smartOtherBtn.disabled = !!connected;
             timerView.classList.toggle('smart-cube-active', !!connected);
             smartCubeLive?.setAttribute('aria-hidden', String(!connected));
+            setSmartLiveState(connected ? 'Waiting for a turn' : 'Cube connected');
             resetSmartMoveNotation();
             resetPuzzleCubeView(currentScramble);
             applyPuzzleCube();
@@ -6173,6 +6187,11 @@
 
         async function connectSmartCube(provider = 'gan') {
             try {
+                // GAN smart cubes are 3x3s, so keep the session and live view in sync.
+                if (provider === 'gan' && puzzleSelect.value !== '333') {
+                    puzzleSelect.value = '333';
+                    puzzleSelect.dispatchEvent(new Event('change'));
+                }
                 if (smartBtn) {
                     smartBtn.disabled = true;
                     if (provider === 'gan') smartBtn.textContent = 'Pairing GAN...';
@@ -6181,7 +6200,7 @@
                     smartOtherBtn.disabled = true;
                     if (provider === 'other') smartOtherBtn.textContent = 'Pairing...';
                 }
-                const mod = await import('./smart-cube.js');
+                const mod = await import('./smart-cube.js?v=20260720-smart-live-2');
                 smartCubeHandle = await mod.connectCube({
                     provider,
                     onPairingStage: message => {
@@ -6218,15 +6237,18 @@
                             smartStatusEl.textContent = `Connected: ${smartConnectedName} · ${level}%`;
                         }
                     },
+                    onFacelets: () => {
+                        setSmartLiveState('Cube synced');
+                    },
                     onMove: (moveStr, algLeaf) => {
                         // Stream physical turns into the connected 3D cube and notation strip.
                         const cube = document.getElementById('puzzle-cube');
                         appendSmartMove(moveStr);
                         try {
-                            if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
-                                cube.experimentalAddAlgLeaf(algLeaf, { cancel: true });
-                            } else if (typeof cube.experimentalAddMove === 'function') {
-                                cube.experimentalAddMove(moveStr, { cancel: false });
+                            if (typeof cube.experimentalAddMove === 'function') {
+                                cube.experimentalAddMove(algLeaf || moveStr, { cancel: false });
+                            } else if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
+                                cube.experimentalAddAlgLeaf(algLeaf, { cancel: false });
                             } else {
                                 throw new Error('Live move API unavailable');
                             }
