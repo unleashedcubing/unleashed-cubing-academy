@@ -9,6 +9,26 @@ function parseMove(moveText) {
     };
 }
 
+function displayMove(move) {
+    const base = move.base.endsWith('W')
+        ? move.base.slice(0, -1) + 'w'
+        : move.base;
+    return base + (move.quarterTurns === 2 ? '2' : '') + (move.direction < 0 ? "'" : '');
+}
+
+function inverseQuarterTurn(move) {
+    const inverse = {
+        base: move.base,
+        direction: move.direction * -1,
+        quarterTurns: 1
+    };
+    return { text: displayMove(inverse), move: inverse };
+}
+
+function sameQuarterTurn(expected, incoming) {
+    return expected?.base === incoming.base && expected.direction === incoming.direction;
+}
+
 export function createScrambleTracker(scramble) {
     const tokens = String(scramble || '').trim().split(/\s+/).filter(Boolean).map(text => ({
         text,
@@ -16,7 +36,7 @@ export function createScrambleTracker(scramble) {
         progress: 0,
         directionLock: 0
     }));
-    return { tokens, index: 0, hadMismatch: false };
+    return { tokens, corrections: [], index: 0, hadMismatch: false };
 }
 
 export function advanceScrambleTracker(tracker, moveText) {
@@ -31,21 +51,34 @@ export function advanceScrambleTracker(tracker, moveText) {
         }
 
         for (let turn = 0; turn < incoming.quarterTurns; turn++) {
+            const correction = tracker.corrections[0];
+            if (correction) {
+                if (sameQuarterTurn(correction.move, incoming)) {
+                    tracker.corrections.shift();
+                } else {
+                    tracker.hadMismatch = true;
+                    tracker.corrections.unshift(inverseQuarterTurn(incoming));
+                }
+                continue;
+            }
+
             const token = tracker.tokens[tracker.index];
             if (!token?.move) {
                 tracker.hadMismatch = true;
+                tracker.corrections.unshift(inverseQuarterTurn(incoming));
                 continue;
             }
 
             const sameFace = token.move.base === incoming.base;
             let sameDirection = token.move.direction === incoming.direction;
-            if (token.move.quarterTurns === 2) {
+            if (sameFace && token.move.quarterTurns === 2) {
                 if (!token.directionLock) token.directionLock = incoming.direction;
                 sameDirection = token.directionLock === incoming.direction;
             }
 
             if (!sameFace || !sameDirection) {
                 tracker.hadMismatch = true;
+                tracker.corrections.unshift(inverseQuarterTurn(incoming));
                 continue;
             }
 
@@ -63,9 +96,10 @@ export function completeScrambleTracker(tracker) {
         token.progress = token.move?.quarterTurns || 1;
     });
     tracker.index = tracker.tokens.length;
+    tracker.corrections = [];
     return tracker;
 }
 
 export function scrambleTrackerComplete(tracker) {
-    return !!tracker && tracker.index >= tracker.tokens.length;
+    return !!tracker && tracker.index >= tracker.tokens.length && tracker.corrections.length === 0;
 }

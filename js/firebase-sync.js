@@ -67,14 +67,18 @@ async function flushWrites() {
 
 export function noteLSWrite(key, value) {
     if (!enabled || !currentUser) return;
+    const isSessionKey = key === 'sessions_global' || key.startsWith('sess_');
+    const isProfileKey = PROFILE_KEYS.includes(key);
+    if (!isSessionKey && !isProfileKey) return;
     if (pendingUid && pendingUid !== currentUser.uid) clearPendingWrites();
     pendingUid = currentUser.uid;
-    if (key.startsWith('sess_')) {
+    if (key === 'sessions_global') {
+        pendingSessions.puzzle_sessions_global = value;
+    } else if (key.startsWith('sess_')) {
         pendingSessions['puzzle_' + key.slice(5)] = value;
-    } else if (PROFILE_KEYS.includes(key)) {
+    } else {
         pendingProfile[key] = value;
     }
-    // Unknown keys are kept local-only.
     scheduleWrite();
 }
 
@@ -88,7 +92,7 @@ async function pullCloud(uid) {
         sessions: s.exists() ? s.data() : null
     };
 }
-async function pushLocalToCloud(uid) {
+async function pushLocalToCloud(uid, includeSessions = true) {
     const profile = {};
     PROFILE_KEYS.forEach(k => {
         const raw = localStorage.getItem('uc_' + k);
@@ -97,16 +101,18 @@ async function pushLocalToCloud(uid) {
         }
     });
     const sessions = {};
-    const globalSessions = localStorage.getItem('uc_sessions_global');
-    if (globalSessions !== null) {
-        try { sessions.puzzle_sessions_global = JSON.parse(globalSessions); }
-        catch (e) {}
-    }
-    for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('uc_sess_')) {
-            try { sessions['puzzle_' + k.slice(8)] = JSON.parse(localStorage.getItem(k)); }
+    if (includeSessions) {
+        const globalSessions = localStorage.getItem('uc_sessions_global');
+        if (globalSessions !== null) {
+            try { sessions.puzzle_sessions_global = JSON.parse(globalSessions); }
             catch (e) {}
+        }
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('uc_sess_')) {
+                try { sessions['puzzle_' + k.slice(8)] = JSON.parse(localStorage.getItem(k)); }
+                catch (e) {}
+            }
         }
     }
     const tasks = [];
@@ -160,6 +166,13 @@ function solveFingerprint(solve) {
     ].join('|');
 }
 
+function solveIdentity(solve) {
+    const date = solve && solve.date;
+    return date !== undefined && date !== null && date !== ''
+        ? `date:${date}`
+        : `legacy:${solveFingerprint(solve)}`;
+}
+
 function mergeSessionStores(accountStore, guestStore) {
     const merged = accountStore && Array.isArray(accountStore.sessions)
         ? clone(accountStore)
@@ -178,13 +191,20 @@ function mergeSessionStores(accountStore, guestStore) {
             return;
         }
 
-        const seen = new Set((target.solves || []).map(solveFingerprint));
+        target.solves = Array.isArray(target.solves) ? target.solves : [];
+        const solveIndexes = new Map(target.solves.map((solve, solveIndex) => [solveIdentity(solve), solveIndex]));
         (guestSession.solves || []).forEach(solve => {
             if (!solve) return;
-            const fingerprint = solveFingerprint(solve);
-            if (!seen.has(fingerprint)) {
+            const identity = solveIdentity(solve);
+            const existingIndex = solveIndexes.get(identity);
+            if (existingIndex == null) {
                 target.solves.push(clone(solve));
-                seen.add(fingerprint);
+                solveIndexes.set(identity, target.solves.length - 1);
+            } else {
+                target.solves[existingIndex] = {
+                    ...target.solves[existingIndex],
+                    ...clone(solve)
+                };
             }
         });
     });
@@ -193,6 +213,23 @@ function mergeSessionStores(accountStore, guestStore) {
         merged.activeId = merged.sessions[0] ? merged.sessions[0].id : '';
     }
     return merged;
+}
+
+async function mergeSignedInSessionsIntoCloud(uid, cloud) {
+    const localStore = readLocalJson('uc_sessions_global');
+    if (!localStore || !Array.isArray(localStore.sessions) || !localStore.sessions.length) return cloud;
+
+    const cloudStore = cloud.sessions && cloud.sessions.puzzle_sessions_global;
+    const mergedStore = mergeSessionStores(cloudStore, localStore);
+    if (JSON.stringify(mergedStore) !== JSON.stringify(cloudStore || null)) {
+        await setDoc(doc(db, 'users', uid, 'data', 'sessions'), {
+            puzzle_sessions_global: mergedStore
+        }, { merge: true });
+    }
+    return {
+        ...cloud,
+        sessions: { ...(cloud.sessions || {}), puzzle_sessions_global: mergedStore }
+    };
 }
 
 function clearGuestSessionCache() {
@@ -282,12 +319,12 @@ async function initializeFirebase() {
             if (user) {
                 try {
                     let cloud = await pullCloud(user.uid);
+                    cloud = await mergeSignedInSessionsIntoCloud(user.uid, cloud);
                     cloud = await mergeGuestSessionsIntoCloud(user.uid, cloud);
-                    if (!cloud.profile && !cloud.sessions) {
-                        await pushLocalToCloud(user.uid);
-                    } else {
-                        applyCloudToLocal(cloud);
+                    if (!cloud.profile) {
+                        await pushLocalToCloud(user.uid, false);
                     }
+                    applyCloudToLocal(cloud);
                 } catch (e) {
                     console.error('Cloud pull failed:', e);
                 }

@@ -8861,7 +8861,7 @@
         /* Connected cube workspace: timer + cube on the left, live stats on the right. */
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) clamp(220px, 27%, 300px);
+            grid-template-columns: minmax(0, 1fr) clamp(310px, 31%, 380px);
             grid-template-rows: auto minmax(0, 1fr);
             grid-template-areas:
                 "smart-controls smart-controls"
@@ -8905,6 +8905,12 @@
             aspect-ratio: 1.35 / 1;
             border-radius: 16px;
         }
+        body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-center-stack > #puzzle-cube-wrap #puzzle-cube {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
+        }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .smart-cube-live-head {
             flex: 0 0 auto;
             width: 100%;
@@ -8913,7 +8919,7 @@
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             flex: 1 1 auto;
             width: 100%;
             max-width: none;
@@ -8928,19 +8934,24 @@
             display: none;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
-            min-width: 0;
-            padding: 8px 6px;
-            border-radius: 14px;
+            display: flex !important;
+            width: 100%;
+            min-width: 0 !important;
+            max-width: none !important;
+            min-height: 132px;
+            aspect-ratio: auto;
+            padding: 14px 10px;
+            border-radius: 16px;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-value {
-            font-size: clamp(.95rem, 2vw, 1.25rem);
+            font-size: clamp(1.2rem, 2.2vw, 1.65rem);
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-label {
-            font-size: .52rem;
+            font-size: .62rem;
             letter-spacing: .08em;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-sub {
-            font-size: .58rem;
+            font-size: .68rem;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-with-feedback #puzzle-timer {
             font-size: clamp(3.2rem, min(6vw, 9vh), 5.2rem);
@@ -8986,14 +8997,29 @@
                         0 0 16px color-mix(in srgb, var(--session-accent, var(--orange)) 18%, transparent);
             transform: translateY(-1px);
         }
-        #puzzle-scramble.smart-scramble-mismatch::after {
-            content: 'Undo extra turns';
-            display: block;
-            margin-top: .2em;
+        .smart-scramble-fix-label {
+            display: inline-block;
+            margin: 0 .12em 0 .2em;
             color: #ff6961;
             font: 700 .62em 'Space Grotesk', sans-serif;
             letter-spacing: .08em;
             text-transform: uppercase;
+        }
+        .smart-scramble-correction {
+            display: inline-block;
+            margin: 0 .08em;
+            padding: .04em .16em;
+            border-radius: .28em;
+            color: #ff6961;
+            background: rgba(255, 75, 75, .1);
+            box-shadow: inset 0 0 0 1px rgba(255, 105, 97, .3);
+            font-weight: 800;
+        }
+        .smart-scramble-correction.is-current {
+            color: #fff;
+            background: rgba(255, 75, 75, .32);
+            box-shadow: 0 0 0 1px #ff6961, 0 0 18px rgba(255, 75, 75, .24);
+            transform: translateY(-1px);
         }
         #timer-view.smart-cube-ready .timer-with-feedback {
             filter: drop-shadow(0 0 18px color-mix(in srgb, #5fe08c 22%, transparent));
@@ -9001,13 +9027,19 @@
 
         @media (max-width: 900px) {
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
-                grid-template-columns: minmax(0, 1fr) 190px;
+                grid-template-columns: minmax(0, 1fr) 230px;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
+                grid-template-columns: 1fr !important;
+            }
+            body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
+                min-height: 92px;
             }
         }
 
         @media (max-width: 640px) {
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
-                grid-template-columns: minmax(0, 1fr) 124px;
+                grid-template-columns: minmax(0, 1fr) 144px;
                 grid-template-rows: auto minmax(0, 1fr);
                 gap: 7px;
             }
@@ -9030,11 +9062,12 @@
                 font-size: .52rem;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr !important;
                 gap: 5px;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
                 min-height: 66px;
+                max-width: none !important;
                 aspect-ratio: auto;
                 padding: 5px 4px;
                 border-radius: 10px;
