@@ -4118,6 +4118,7 @@
 
         function applyZenMode() {
             timerView.classList.toggle('zen-mode', !!zenMode);
+            document.body.classList.toggle('timer-zen-active', !!zenMode);
             const button = document.getElementById('timer-zen-toggle');
             if (button) {
                 button.classList.toggle('on', !!zenMode);
@@ -4484,6 +4485,7 @@
             renderGraph();
             renderHistogram();
             renderCompactQuestPanels();
+            updatePuzzleHintVisibility();
         }
         // Graph hover tooltips (wired once; read _gdata / _hdata set by render functions)
         {
@@ -4573,10 +4575,12 @@
             if (PUZZLE_HAS_CUBE[ev]) {
                 puzzleCubeWrap.dataset.supported = '1';
                 puzzleCube.setAttribute('puzzle', PUZZLE_DISPLAY[ev]);
-                if (prefer2DForPuzzle(PUZZLE_DISPLAY[ev])) puzzleCube.setAttribute('visualization', '2D');
+                const smartCubeActive = timerView.classList.contains('smart-cube-active');
+                if (!smartCubeActive && prefer2DForPuzzle(PUZZLE_DISPLAY[ev])) puzzleCube.setAttribute('visualization', '2D');
                 else puzzleCube.removeAttribute('visualization');
                 puzzleCube.setAttribute('experimental-setup-alg', applyPuzzleViewSetup(PUZZLE_DISPLAY[ev], scrambleText || ''));
                 puzzleCube.alg = '';
+                if (smartCubeActive) resetSmartMoveNotation();
             } else {
                 puzzleCubeWrap.dataset.supported = '0';
             }
@@ -4814,13 +4818,13 @@
         // Touch-anywhere for puzzle timer (non-mouse pointer on non-interactive areas)
         timerView.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'mouse') return;
-            if (e.target.closest('button, input, select, a, [data-act], .session-card, .solve-row, .modal-backdrop')) return;
+            if (e.target.closest('button, input, select, a, [data-act], .session-card, .solve-row, .modal-backdrop, .timer-hidden-controls')) return;
             if (inputMode !== 'timer') return;
             puzzleTimer.press();
         });
         timerView.addEventListener('pointerup', (e) => {
             if (e.pointerType === 'mouse') return;
-            if (e.target.closest('button, input, select, a')) return;
+            if (e.target.closest('button, input, select, a, .timer-hidden-controls')) return;
             if (inputMode !== 'timer') return;
             puzzleTimer.release();
         });
@@ -4880,6 +4884,11 @@
         const precisionBtn = document.getElementById('ps-precision');
         const sessionLayoutBtn = document.getElementById('ps-session-layout');
         const puzzleHint = document.getElementById('puzzle-hint');
+        function updatePuzzleHintVisibility() {
+            const hidden = totalSolvesAll() >= 3;
+            puzzleHint.classList.toggle('lifetime-hint-hidden', hidden);
+            puzzleHint.setAttribute('aria-hidden', String(hidden));
+        }
         function applySettingsUI() {
             inspectionBtn.textContent = 'Inspection: ' + (inspectionEnabled ? 'On' : 'Off');
             inspectionBtn.classList.toggle('on', inspectionEnabled);
@@ -4893,6 +4902,7 @@
             puzzleHint.innerHTML = inspectionEnabled
                 ? 'Press <b>Space</b> to start 15s inspection, then hold &amp; release to solve'
                 : 'Hold <b>Space</b> (or tap below), release to start — press again to stop';
+            updatePuzzleHintVisibility();
         }
         inspectionBtn.addEventListener('click', () => {
             inspectionEnabled = !inspectionEnabled;
@@ -5059,7 +5069,8 @@
         function applyPuzzleCube() {
             puzzleCubeToggle.textContent = showPuzzleCube ? 'Hide cube' : 'Show cube';
             const supported = puzzleCubeWrap.dataset.supported !== '0';
-            puzzleCubeWrap.style.display = (showPuzzleCube && supported) ? '' : 'none';
+            const forceLiveView = timerView.classList.contains('smart-cube-active');
+            puzzleCubeWrap.style.display = ((showPuzzleCube || forceLiveView) && supported) ? '' : 'none';
         }
         trainCubeToggle.addEventListener('click', () => {
             showTrainCube = !showTrainCube;
@@ -6041,10 +6052,86 @@
         let smartCubeHandle = null;
         const smartStatusEl = document.getElementById('smart-cube-status');
         const smartBtn      = document.getElementById('smart-cube-connect');
+        const smartCubeLive = document.getElementById('smart-cube-live');
+        const smartCubeMovesEl = document.getElementById('smart-cube-moves');
+        const smartCubeMoveCountEl = document.getElementById('smart-cube-move-count');
+        const SMART_MOVE_COLORS = {
+            U: 'var(--session-accent, #FF9F0A)',
+            R: '#ff5c5c',
+            F: '#5fe08c',
+            D: '#ffd84d',
+            L: '#ff9f43',
+            B: '#5ab0ff'
+        };
+        let smartMoveGroups = [];
+        let smartPhysicalMoveCount = 0;
+
+        function smartMoveDetails(moveText) {
+            const raw = String(moveText || '').trim().replace(/\s+/g, '');
+            if (!raw) return null;
+            const suffix = (raw.match(/(2'?|')$/) || [''])[0];
+            const base = raw.slice(0, suffix ? -suffix.length : undefined) || raw;
+            const face = (base.match(/[URFDLB]/i) || [''])[0].toUpperCase();
+            return {
+                base,
+                direction: suffix.includes("'") ? -1 : 1,
+                quarterTurns: suffix.startsWith('2') ? 2 : 1,
+                color: SMART_MOVE_COLORS[face] || 'var(--session-accent, #FF9F0A)'
+            };
+        }
+        function renderSmartMoveNotation() {
+            if (!smartCubeMovesEl) return;
+            if (!smartMoveGroups.length) {
+                smartCubeMovesEl.innerHTML = '<span class="smart-cube-moves-empty">Turn your cube</span>';
+            } else {
+                smartCubeMovesEl.innerHTML = smartMoveGroups.map((group, index) => {
+                    const latest = index === smartMoveGroups.length - 1 ? ' is-latest' : '';
+                    const prime = group.turns === 1 && group.direction < 0 ? "'" : '';
+                    const suffix = group.turns === 2 ? '<span class="smart-move-suffix">2</span>' : prime;
+                    return `<span class="smart-move-token${latest}" style="--move-color:${group.color}"><span>${esc(group.base)}</span>${suffix}</span>`;
+                }).join('');
+                smartCubeMovesEl.scrollLeft = smartCubeMovesEl.scrollWidth;
+            }
+            if (smartCubeMoveCountEl) {
+                smartCubeMoveCountEl.textContent = `${smartPhysicalMoveCount} move${smartPhysicalMoveCount === 1 ? '' : 's'}`;
+            }
+        }
+        function resetSmartMoveNotation() {
+            smartMoveGroups = [];
+            smartPhysicalMoveCount = 0;
+            renderSmartMoveNotation();
+        }
+        function appendSmartMove(moveText) {
+            String(moveText || '').trim().split(/\s+/).filter(Boolean).forEach(rawMove => {
+                const move = smartMoveDetails(rawMove);
+                if (!move) return;
+                for (let turn = 0; turn < move.quarterTurns; turn++) {
+                    const previous = smartMoveGroups[smartMoveGroups.length - 1];
+                    if (previous && previous.base === move.base && previous.direction === move.direction && previous.turns === 1) {
+                        previous.turns = 2;
+                    } else {
+                        smartMoveGroups.push({
+                            base: move.base,
+                            direction: move.direction,
+                            turns: 1,
+                            color: move.color
+                        });
+                    }
+                    smartPhysicalMoveCount += 1;
+                }
+            });
+            if (smartMoveGroups.length > 16) smartMoveGroups = smartMoveGroups.slice(-16);
+            renderSmartMoveNotation();
+        }
         function setSmartStatus(text, connected) {
             if (smartStatusEl) smartStatusEl.textContent = text;
             smartStatusEl?.classList.toggle('connected', !!connected);
             if (smartBtn) smartBtn.textContent = connected ? '🛑 Disconnect Cube' : '🔵 Connect Smart Cube';
+            timerView.classList.toggle('smart-cube-active', !!connected);
+            smartCubeLive?.setAttribute('aria-hidden', String(!connected));
+            resetSmartMoveNotation();
+            resetPuzzleCubeView(currentScramble);
+            applyPuzzleCube();
         }
         // ---- Solved-state simulator for auto-stop (3x3 & 2x2) ----
         let solvedSim = null;
@@ -6082,12 +6169,17 @@
 
         async function connectSmartCube() {
             try {
+                if (smartBtn) {
+                    smartBtn.disabled = true;
+                    smartBtn.textContent = 'Pairing...';
+                }
                 const mod = await import('./smart-cube.js');
                 smartCubeHandle = await mod.connectCube({
                     onName: (name) => setSmartStatus('Connected: ' + name, true),
                     onMove: (moveStr, algLeaf) => {
-                        // Stream moves into the on-screen 2D cube on the Timer page
+                        // Stream physical turns into the connected 3D cube and notation strip.
                         const cube = document.getElementById('puzzle-cube');
+                        appendSmartMove(moveStr);
                         try {
                             if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
                                 cube.experimentalAddAlgLeaf(algLeaf, { cancel: true });
@@ -6123,6 +6215,8 @@
                     setSmartStatus('Failed: ' + (e.message || e), false);
                 }
                 smartCubeHandle = null;
+            } finally {
+                if (smartBtn) smartBtn.disabled = false;
             }
         }
         function disconnectSmartCube() {
@@ -6139,6 +6233,7 @@
             resetPuzzleCubeView();
             applyPuzzleCube();
             initSolvedSim(currentScramble);
+            resetSmartMoveNotation();
         });
 
         // ---- Battles ----

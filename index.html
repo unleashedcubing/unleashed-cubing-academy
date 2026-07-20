@@ -286,9 +286,16 @@
                             <button class="train-quick-btn timer-utility-btn" id="timer-zen-toggle" title="Toggle Zen mode (Z)" aria-pressed="false">Zen</button>
                         </div>
 
-                        <div class="timer-hidden-controls">
+                        <div class="timer-hidden-controls" id="smart-cube-live" aria-hidden="true">
+                            <div class="smart-cube-live-head">
+                                <span class="smart-cube-live-label"><i aria-hidden="true"></i> Live cube</span>
+                                <span class="smart-cube-move-count" id="smart-cube-move-count">0 moves</span>
+                            </div>
                             <div class="cube-container" id="puzzle-cube-wrap" style="display:none;">
                                 <twisty-player id="puzzle-cube" puzzle="3x3x3" visualization="2D" alg="" background="none" control-panel="none" viewer-link="none"></twisty-player>
+                            </div>
+                            <div class="smart-cube-moves" id="smart-cube-moves" aria-live="polite">
+                                <span class="smart-cube-moves-empty">Turn your cube</span>
                             </div>
                         </div>
 

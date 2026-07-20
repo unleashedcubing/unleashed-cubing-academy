@@ -3843,6 +3843,124 @@
         }
         .timer-hidden-controls { display: none; }
 
+        /* Connected smart-cube HUD. The Twisty Player receives the live move stream. */
+        #timer-view .timer-main-col { position: relative; }
+        #timer-view.smart-cube-active .timer-hidden-controls {
+            position: absolute;
+            top: 64px;
+            right: 14px;
+            z-index: 9;
+            display: flex;
+            width: clamp(164px, 17vw, 208px);
+            box-sizing: border-box;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid color-mix(in srgb, var(--session-accent, var(--orange)) 48%, rgba(255,255,255,.08));
+            border-radius: 16px;
+            background: rgba(8, 11, 16, .9);
+            box-shadow: 0 18px 42px rgba(0,0,0,.38), 0 0 28px color-mix(in srgb, var(--session-accent, var(--orange)) 12%, transparent);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            animation: smart-cube-in .24s cubic-bezier(.2,.8,.2,1) both;
+        }
+        .smart-cube-live-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            min-width: 0;
+            color: #f4f7fb;
+            font-size: .62rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .smart-cube-live-label {
+            display: inline-flex;
+            min-width: 0;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .smart-cube-live-label i {
+            width: 6px;
+            height: 6px;
+            flex: 0 0 auto;
+            border-radius: 50%;
+            background: #5fe08c;
+            box-shadow: 0 0 9px #5fe08c;
+            animation: smart-cube-pulse 1.6s ease-in-out infinite;
+        }
+        .smart-cube-move-count {
+            overflow: hidden;
+            color: var(--text-muted);
+            font-size: .54rem;
+            font-weight: 700;
+            letter-spacing: 0;
+            text-overflow: ellipsis;
+            text-transform: none;
+            white-space: nowrap;
+        }
+        #timer-view.smart-cube-active #puzzle-cube-wrap {
+            display: block;
+            width: 100%;
+            max-height: none;
+            aspect-ratio: 1 / .78;
+            margin: 0;
+            overflow: hidden;
+            border-radius: 11px;
+            background:
+                radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--session-accent, var(--orange)) 10%, transparent), transparent 64%),
+                rgba(255,255,255,.018);
+        }
+        #timer-view.smart-cube-active #puzzle-cube {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .smart-cube-moves {
+            display: flex;
+            min-height: 28px;
+            box-sizing: border-box;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 7px;
+            overflow-x: auto;
+            border: 1px solid rgba(255,255,255,.07);
+            border-radius: 9px;
+            background: rgba(255,255,255,.035);
+            scrollbar-width: none;
+            font: 800 .82rem 'Ubuntu Mono', monospace;
+            white-space: nowrap;
+        }
+        .smart-cube-moves::-webkit-scrollbar { display: none; }
+        .smart-cube-moves-empty {
+            color: color-mix(in srgb, var(--session-accent, var(--orange)) 74%, #77808d);
+            font-size: .62rem;
+            font-weight: 700;
+        }
+        .smart-move-token {
+            display: inline-flex;
+            align-items: baseline;
+            color: var(--move-color, var(--session-accent, var(--orange)));
+            text-shadow: 0 0 10px color-mix(in srgb, var(--move-color, var(--session-accent, var(--orange))) 38%, transparent);
+        }
+        .smart-move-token.is-latest { animation: smart-move-pop .2s cubic-bezier(.2,.8,.2,1); }
+        .smart-move-suffix {
+            color: var(--move-color, var(--session-accent, var(--orange)));
+            filter: brightness(1.16);
+        }
+        @keyframes smart-cube-in {
+            from { opacity: 0; transform: translateY(-6px) scale(.96); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes smart-cube-pulse { 50% { opacity: .45; transform: scale(.72); } }
+        @keyframes smart-move-pop {
+            from { opacity: .35; transform: translateY(3px) scale(.82); }
+            to { opacity: 1; transform: none; }
+        }
+
         /* Top toolbar */
         .timer-topbar {
             display: flex;
@@ -7277,6 +7395,7 @@
         .timer-with-feedback #puzzle-timer.running { animation: timer-breathe 1.1s ease-in-out infinite; }
         .uc-hint { color: #68717f; font-size: .75rem; }
         .uc-hint b { color: #cdd3dd; }
+        .uc-hint.lifetime-hint-hidden { visibility: hidden; }
         .widgets-row .widget-slot {
             background: rgba(255,255,255,.035);
             border: 1px solid rgba(255,255,255,.07);
@@ -8606,13 +8725,45 @@
         }
         body[data-active-mode="timer"] .session-rail-list::-webkit-scrollbar { display: none; }
 
-        #timer-view.zen-mode .timer-layout { grid-template-columns: minmax(0, 1fr); }
+        #timer-view.zen-mode .timer-layout { grid-template-columns: minmax(0, 1fr) 220px 58px; }
         #timer-view.zen-mode .timer-main-col { grid-template-rows: auto minmax(0, 1fr); }
-        #timer-view.zen-mode .timer-side,
-        #timer-view.zen-mode .session-rail,
         #timer-view.zen-mode .timer-graphs-row,
         #timer-view.zen-mode .widgets-row,
         #timer-view.zen-mode .cubey-coach { display: none !important; }
+        #timer-view.zen-mode .timer-side,
+        #timer-view.zen-mode .session-rail { display: flex !important; }
+        #timer-view.zen-mode .session-overview-panel,
+        #timer-view.zen-mode .compact-quest-panel,
+        #timer-view.zen-mode .mobile-side-close-bar { display: none !important; }
+        #timer-view.zen-mode .timer-side { gap: 0; }
+        #timer-view.zen-mode .time-list-panel {
+            height: 100%;
+            padding: 10px;
+            border-radius: 16px;
+        }
+        #timer-view.zen-mode .time-list-panel .panel-title { margin-bottom: 5px; font-size: .66rem; }
+        #timer-view.zen-mode .time-list-panel .panel-title-actions { display: none; }
+        #timer-view.zen-mode .time-list-search { display: none !important; }
+        #timer-view.zen-mode .solve-row {
+            grid-template-columns: 28px minmax(0, 1fr);
+            gap: 5px;
+            padding: 5px 6px;
+            border-radius: 7px;
+            font-size: .78rem;
+        }
+        #timer-view.zen-mode .solve-row > :nth-child(n+3) { display: none; }
+        #timer-view.zen-mode .solve-row.solve-row-head {
+            padding-block: 4px;
+            font-size: .58rem;
+        }
+        #timer-view.zen-mode .solve-note { display: none; }
+        body.session-layout-top #timer-view.zen-mode .timer-layout {
+            grid-template-columns: minmax(0, 1fr) 220px;
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+                "rail rail"
+                "main side";
+        }
         #timer-view.zen-mode .timer-zen-stats { display: flex; }
         #timer-view.zen-mode .timer-center-stack {
             min-height: 0;
@@ -8631,6 +8782,14 @@
             body[data-active-mode="timer"] .timer-layout { grid-template-columns: minmax(0, 1fr) 272px; }
             body[data-active-mode="timer"] .session-rail { display: none; }
             body[data-active-mode="timer"] .main-content { padding: 12px; }
+            body[data-active-mode="timer"] #timer-view.zen-mode .timer-layout {
+                grid-template-columns: minmax(0, 1fr) 188px 50px;
+                gap: 8px;
+            }
+            body[data-active-mode="timer"] #timer-view.zen-mode .session-rail { display: flex !important; }
+            body.session-layout-top[data-active-mode="timer"] #timer-view.zen-mode .timer-layout {
+                grid-template-columns: minmax(0, 1fr) 188px;
+            }
         }
 
         @media (max-width: 640px) {
@@ -8697,8 +8856,58 @@
             body[data-active-mode="timer"] .timer-graphs-row { display: none !important; }
             body[data-active-mode="timer"] .cubey-coach { display: none; }
             body[data-active-mode="timer"] .session-rail { height: 56px; }
-            #timer-view.zen-mode .session-rail { display: none !important; }
-            #timer-view.zen-mode .timer-layout { padding-bottom: 0; }
+            #timer-view.zen-mode .timer-layout {
+                grid-template-rows: minmax(0, 1fr) 118px;
+                padding-bottom: 58px;
+            }
+            body.session-layout-top #timer-view.zen-mode .timer-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: minmax(0, 1fr) 118px;
+                grid-template-areas: none;
+            }
+            body.session-layout-top #timer-view.zen-mode .timer-main-col,
+            body.session-layout-top #timer-view.zen-mode .timer-side,
+            body.session-layout-top #timer-view.zen-mode .session-rail { grid-area: auto; }
+            #timer-view.zen-mode .session-rail { display: flex !important; }
+            #timer-view.zen-mode .timer-side,
+            #timer-view.zen-mode .timer-side.mobile-open {
+                position: static !important;
+                inset: auto !important;
+                z-index: auto;
+                display: flex !important;
+                width: auto;
+                height: 118px;
+                max-height: none;
+                padding: 0;
+                overflow: hidden;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
+            }
+            #timer-view.zen-mode .time-list-panel { padding: 7px 8px; }
+            #timer-view.zen-mode .time-list-panel #puzzle-solves { max-height: none !important; }
+            body.timer-zen-active .mobile-side-fab { display: none !important; }
             #timer-view.zen-mode .timer-controls-bar #open-timer-settings,
             #timer-view.zen-mode .timer-controls-bar #timer-copy-scramble { display: none; }
+
+            #timer-view.smart-cube-active .timer-hidden-controls {
+                top: 50px;
+                right: 6px;
+                width: 116px;
+                gap: 3px;
+                padding: 5px;
+                border-radius: 12px;
+            }
+            #timer-view.smart-cube-active #puzzle-cube-wrap { border-radius: 8px; }
+            #timer-view.smart-cube-active .smart-cube-live-head { font-size: .5rem; }
+            #timer-view.smart-cube-active .smart-cube-move-count { display: none; }
+            #timer-view.smart-cube-active .smart-cube-moves {
+                min-height: 22px;
+                gap: 3px;
+                padding: 3px 5px;
+                font-size: .66rem;
+            }
+            #timer-view.smart-cube-active .smart-cube-moves-empty { font-size: .52rem; }
         }
