@@ -8861,7 +8861,7 @@
         /* Connected cube workspace: timer + cube on the left, live stats on the right. */
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-main-col {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) clamp(310px, 31%, 380px);
+            grid-template-columns: minmax(0, 1fr) clamp(260px, 27%, 320px);
             grid-template-rows: auto minmax(0, 1fr);
             grid-template-areas:
                 "smart-controls smart-controls"
@@ -8876,6 +8876,16 @@
             grid-area: smart-timer;
             min-width: 0;
             min-height: 0;
+        }
+        #timer-view:not(.smart-cube-active) .timer-center-stack > #puzzle-cube-wrap {
+            position: absolute;
+            left: -10000px;
+            top: 0;
+            width: 340px;
+            height: 205px;
+            margin: 0;
+            opacity: 0;
+            pointer-events: none;
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls {
             position: static;
@@ -8919,7 +8929,8 @@
         }
         body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            grid-template-columns: 1fr !important;
+            grid-template-rows: repeat(4, minmax(86px, auto));
             flex: 1 1 auto;
             width: 100%;
             max-width: none;
@@ -8938,7 +8949,7 @@
             width: 100%;
             min-width: 0 !important;
             max-width: none !important;
-            min-height: 132px;
+            min-height: 92px;
             aspect-ratio: auto;
             padding: 14px 10px;
             border-radius: 16px;
@@ -9031,6 +9042,7 @@
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
                 grid-template-columns: 1fr !important;
+                grid-template-rows: repeat(4, minmax(78px, auto));
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {
                 min-height: 92px;
@@ -9063,6 +9075,7 @@
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls > .widgets-row {
                 grid-template-columns: 1fr !important;
+                grid-template-rows: repeat(4, minmax(60px, auto));
                 gap: 5px;
             }
             body[data-active-mode="timer"] #timer-view.smart-cube-active .timer-hidden-controls .widget-slot {

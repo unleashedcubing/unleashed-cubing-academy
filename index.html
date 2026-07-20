@@ -12,7 +12,7 @@
     <link rel="icon" href="uc_logo.jpg">
 
     <script type="module" src="https://cdn.cubing.net/v0/js/cubing/twisty"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260720-account-bt-1">
+    <link rel="stylesheet" href="css/styles.css?v=20260720-smart-reliable-1">
 </head>
 <body>
     <div class="app-shell">
@@ -290,9 +290,6 @@
                             <div class="smart-cube-live-head">
                                 <span class="smart-cube-live-label"><i aria-hidden="true"></i><span id="smart-cube-live-state">Live stats</span></span>
                             </div>
-                            <div class="cube-container" id="puzzle-cube-wrap" style="display:none;">
-                                <twisty-player id="puzzle-cube" puzzle="3x3x3" visualization="2D" alg="" background="none" control-panel="none" viewer-link="none"></twisty-player>
-                            </div>
                         </div>
 
                         <!-- Center stack: scramble → timer (with feedback beside) → widgets -->
@@ -306,6 +303,9 @@
                             <div class="timer-with-feedback">
                                 <div id="puzzle-timer" class="uc-bigtimer">0.00</div>
                                 <div id="solve-feedback-inline" class="solve-feedback-inline" aria-hidden="true"></div>
+                            </div>
+                            <div class="cube-container" id="puzzle-cube-wrap">
+                                <twisty-player id="puzzle-cube" puzzle="3x3x3" visualization="3D" alg="" background="none" control-panel="none" viewer-link="none"></twisty-player>
                             </div>
                             <div class="uc-hint" id="puzzle-hint">Hold <b>Space</b> (or tap below), release to start — press again to stop</div>
                             <div class="timer-zen-stats" id="timer-zen-stats" aria-live="polite"></div>
@@ -1043,7 +1043,7 @@
     </div>
 
     <script src="js/dialogs.js"></script>
-    <script type="module" src="js/app.js?v=20260720-account-bt-1"></script>
+    <script type="module" src="js/app.js?v=20260720-smart-reliable-1"></script>
     <div id="graph-tooltip"></div>
 
     <!-- Sign-in choice modal -->

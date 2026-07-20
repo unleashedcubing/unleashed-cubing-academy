@@ -188,6 +188,14 @@ async function connectGan(options) {
     storeMac(selectedDevice, connection.deviceMAC);
     const name = connection.deviceName || 'GAN Smart Cube';
     let detached = false;
+    let commandQueue = Promise.resolve();
+
+    function sendCommand(command) {
+        commandQueue = commandQueue
+            .then(() => detached ? undefined : connection.sendCubeCommand(command))
+            .catch(() => undefined);
+        return commandQueue;
+    }
 
     const subscription = connection.events$.subscribe({
         next(event) {
@@ -223,13 +231,16 @@ async function connectGan(options) {
         { type: 'REQUEST_FACELETS' },
         { type: 'REQUEST_BATTERY' }
     ]) {
-        try { await connection.sendCubeCommand(command); } catch (_) {}
+        await sendCommand(command);
     }
 
     return {
         name,
         provider: 'gan',
         puzzle: connection,
+        requestFacelets() {
+            return sendCommand({ type: 'REQUEST_FACELETS' });
+        },
         async disconnect() {
             if (detached) return;
             detached = true;

@@ -2,7 +2,7 @@
         import { fbSync } from './firebase-sync.js';
         import * as social from './social.js';
         import { startWcaLogin, handleWcaCallback, wcaEnabled, fetchMyWcaCompetitions, clearWcaSession } from './wca-auth.js';
-        import { advanceScrambleTracker, completeScrambleTracker, createScrambleTracker, scrambleTrackerComplete } from './smart-scramble.js?v=20260720-account-bt-1';
+        import { advanceScrambleTracker, completeScrambleTracker, createScrambleTracker, scrambleCorrectionMoves, scrambleTrackerComplete } from './smart-scramble.js?v=20260720-smart-reliable-1';
 
         let Alg = null;
         let randomScrambleForEvent = null;
@@ -6134,17 +6134,17 @@
         const ganAutoDetectHelpBtn = document.getElementById('gan-auto-detect-help');
         const smartCubeLive = document.getElementById('smart-cube-live');
         const smartCubeLiveStateEl = document.getElementById('smart-cube-live-state');
-        const smartTimerWithFeedback = timerView.querySelector('.timer-with-feedback');
         const smartWidgetsRow = document.getElementById('widgets-row');
-        const smartCubeHome = document.createComment('smart-cube-home');
         const smartWidgetsHome = document.createComment('smart-widgets-home');
-        puzzleCubeWrap.parentNode?.insertBefore(smartCubeHome, puzzleCubeWrap);
         smartWidgetsRow.parentNode?.insertBefore(smartWidgetsHome, smartWidgetsRow);
         let smartConnectedName = '';
         let smartSolvePhase = 'disconnected';
         let smartScrambleTracker = null;
         let smartScrambleSim = null;
         let smartPendingStateMoves = [];
+        let smartPendingSolveMoves = [];
+        let smartVisualMoves = [];
+        let smartFaceletRequestTimer = 0;
         let smartSimGeneration = 0;
 
         function setSmartLiveState(text) {
@@ -6157,29 +6157,43 @@
 
         function arrangeSmartCubeWorkspace(connected) {
             if (connected) {
-                smartTimerWithFeedback?.parentNode?.insertBefore(puzzleCubeWrap, smartTimerWithFeedback.nextSibling);
                 smartCubeLive?.appendChild(smartWidgetsRow);
                 return;
             }
-            restoreAfter(smartCubeHome, puzzleCubeWrap);
             restoreAfter(smartWidgetsHome, smartWidgetsRow);
         }
 
-        function rebuildSmartCubePlayer() {
-            const fresh = document.createElement('twisty-player');
-            fresh.id = 'puzzle-cube';
-            fresh.setAttribute('puzzle', PUZZLE_DISPLAY[puzzleSelect.value] || '3x3x3');
-            fresh.setAttribute('visualization', '3D');
-            fresh.setAttribute('alg', '');
-            fresh.setAttribute('experimental-setup-alg', '');
-            fresh.setAttribute('background', 'none');
-            fresh.setAttribute('control-panel', 'none');
-            fresh.setAttribute('viewer-link', 'none');
-            fresh.setAttribute('experimental-drag-input', 'none');
-            fresh.setAttribute('tempo-scale', '5');
-            puzzleCube.replaceWith(fresh);
-            puzzleCube = fresh;
-            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        function prepareSmartCubePlayer() {
+            puzzleCubeWrap.style.display = '';
+            puzzleCube.style.width = '100%';
+            puzzleCube.style.height = '100%';
+            const refresh = () => {
+                if (!timerView.classList.contains('smart-cube-active')) return;
+                puzzleCube.setAttribute('visualization', '3D');
+                puzzleCube.setAttribute('experimental-setup-alg', smartVisualMoves.join(' '));
+                puzzleCube.setAttribute('alg', '');
+                window.dispatchEvent(new Event('resize'));
+            };
+            if (customElements.get('twisty-player')) requestAnimationFrame(refresh);
+            else customElements.whenDefined('twisty-player').then(() => requestAnimationFrame(refresh));
+        }
+
+        function resetSmartCubeVisual() {
+            smartVisualMoves = [];
+            puzzleCube.setAttribute('experimental-setup-alg', '');
+            puzzleCube.setAttribute('alg', '');
+            puzzleCube.alg = '';
+        }
+
+        function applySmartCubeVisualMove(moveStr) {
+            smartVisualMoves.push(moveStr);
+            try {
+                if (typeof puzzleCube.experimentalAddMove !== 'function') throw new Error('Live move API unavailable');
+                puzzleCube.experimentalAddMove(moveStr, { cancel: false });
+            } catch (_) {
+                puzzleCube.setAttribute('experimental-setup-alg', smartVisualMoves.join(' '));
+                puzzleCube.setAttribute('alg', '');
+            }
         }
 
         function normalScrambleLabel() {
@@ -6206,7 +6220,7 @@
             const prefix = currentTrainingCase
                 ? `<span class="smart-scramble-case">${esc(currentTrainingCase.name)} ·</span>`
                 : '';
-            const corrections = smartScrambleTracker.corrections || [];
+            const corrections = scrambleCorrectionMoves(smartScrambleTracker);
             const tokenParts = [];
             const correctionHtml = corrections.map((correction, index) =>
                 `<span class="smart-scramble-correction${index === 0 ? ' is-current' : ''}" title="Correction move">${esc(correction.text)}</span>`
@@ -6250,6 +6264,9 @@
             smartScrambleSim = null;
             smartScrambleTracker = null;
             smartPendingStateMoves = [];
+            smartPendingSolveMoves = [];
+            clearTimeout(smartFaceletRequestTimer);
+            resetSmartCubeVisual();
             if (!timerView.classList.contains('smart-cube-active')) {
                 smartSolvePhase = 'disconnected';
                 return;
@@ -6282,7 +6299,7 @@
             smartCubeLive?.setAttribute('aria-hidden', String(!connected));
             setSmartLiveState('Live stats');
             arrangeSmartCubeWorkspace(!!connected);
-            if (connected) rebuildSmartCubePlayer();
+            if (connected) prepareSmartCubePlayer();
             if (connected && inputMode !== 'timer') {
                 inputMode = 'timer';
                 LS.set('inputMode', inputMode);
@@ -6298,6 +6315,8 @@
                 smartScrambleTracker = null;
                 smartScrambleSim = null;
                 smartPendingStateMoves = [];
+                smartPendingSolveMoves = [];
+                clearTimeout(smartFaceletRequestTimer);
                 timerView.classList.remove('smart-cube-ready', 'smart-cube-solving');
                 puzzleScrambleEl.classList.remove('smart-scramble-ready');
                 puzzleScrambleEl.textContent = normalScrambleLabel();
@@ -6312,6 +6331,7 @@
             solvedSim = null;
             smartScrambleSim = null;
             smartPendingStateMoves = [];
+            smartPendingSolveMoves = [];
             smartScrambleTracker = createScrambleTracker(scrambleStr);
             if (timerView.classList.contains('smart-cube-active')) {
                 smartSolvePhase = 'scrambling';
@@ -6344,6 +6364,8 @@
                     try { smartScrambleSim.state = smartScrambleSim.state.applyAlg(new Alg(move)); }
                     catch (_) { smartScrambleTracker.hadMismatch = true; }
                 });
+                if (smartSolvePhase === 'solving' && replayPendingSmartSolveMoves(generation)) return;
+                if (generation !== smartSimGeneration) return;
                 if (!finishSmartScramble()) renderSmartScrambleProgress();
             } catch (e) {
                 console.warn('solved-state simulator unavailable:', e);
@@ -6361,6 +6383,48 @@
             } catch (e) { return false; }
         }
 
+        function stopSmartTimerForSolvedCube() {
+            if (smartSolvePhase !== 'solving' || puzzleTimer.getState() !== 'running') return false;
+            puzzleTimer.press();
+            return true;
+        }
+
+        function replayPendingSmartSolveMoves(generation) {
+            const queuedMoves = smartPendingSolveMoves.splice(0);
+            for (const move of queuedMoves) {
+                if (generation !== smartSimGeneration) return true;
+                if (checkSolvedAfterMove(move) && stopSmartTimerForSolvedCube()) return true;
+            }
+            return false;
+        }
+
+        function trackSmartSolveMove(moveStr) {
+            if (!solvedSim || !Alg) {
+                smartPendingSolveMoves.push(moveStr);
+                return false;
+            }
+            return checkSolvedAfterMove(moveStr) && stopSmartTimerForSolvedCube();
+        }
+
+        function smartFaceletsAreSolved(facelets) {
+            const state = String(facelets || '').replace(/\s+/g, '').toUpperCase();
+            if (state.length !== 54) return false;
+            const centers = new Set();
+            for (let offset = 0; offset < 54; offset += 9) {
+                const face = state.slice(offset, offset + 9);
+                if (!face || !face.split('').every(sticker => sticker === face[0])) return false;
+                centers.add(face[0]);
+            }
+            return centers.size === 6;
+        }
+
+        function scheduleSmartFaceletCheck() {
+            clearTimeout(smartFaceletRequestTimer);
+            smartFaceletRequestTimer = window.setTimeout(() => {
+                Promise.resolve(smartCubeHandle?.requestFacelets?.()).catch(() => {});
+            }, 140);
+        }
+
         async function connectSmartCube(provider = 'gan') {
             try {
                 // GAN smart cubes are 3x3s, so keep the session and live view in sync.
@@ -6376,7 +6440,7 @@
                     smartOtherBtn.disabled = true;
                     if (provider === 'other') smartOtherBtn.textContent = 'Pairing...';
                 }
-                const mod = await import('./smart-cube.js?v=20260720-account-bt-1');
+                const mod = await import('./smart-cube.js?v=20260720-smart-reliable-1');
                 smartCubeHandle = await mod.connectCube({
                     provider,
                     onPairingStage: message => {
@@ -6413,24 +6477,15 @@
                             smartStatusEl.textContent = `Connected: ${smartConnectedName} · ${level}%`;
                         }
                     },
-                    onFacelets: () => setSmartLiveState('Live stats'),
-                    onMove: (moveStr, algLeaf) => {
+                    onFacelets: (facelets) => {
+                        setSmartLiveState('Live stats');
+                        if (smartFaceletsAreSolved(facelets)) stopSmartTimerForSolvedCube();
+                    },
+                    onMove: (moveStr) => {
                         // Every physical turn updates the 3D state. During the
                         // scramble phase it must not start or stop the timer.
-                        const cube = document.getElementById('puzzle-cube');
-                        try {
-                            if (typeof cube.experimentalAddMove === 'function') {
-                                cube.experimentalAddMove(algLeaf || moveStr, { cancel: false });
-                            } else if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
-                                cube.experimentalAddAlgLeaf(algLeaf, { cancel: false });
-                            } else {
-                                throw new Error('Live move API unavailable');
-                            }
-                        } catch (e) {
-                            // Fallback: append to current alg
-                            const cur = cube.alg ? String(cube.alg) : '';
-                            cube.alg = (cur + ' ' + moveStr).trim();
-                        }
+                        applySmartCubeVisualMove(moveStr);
+                        scheduleSmartFaceletCheck();
 
                         if (smartSolvePhase === 'loading') return;
                         if (smartSolvePhase === 'scrambling') {
@@ -6444,9 +6499,7 @@
                             renderSmartScrambleProgress();
                             puzzleTimer.startImmediately();
                         }
-                        if (smartSolvePhase === 'solving' && checkSolvedAfterMove(moveStr) && puzzleTimer.getState() === 'running') {
-                            puzzleTimer.press();
-                        }
+                        if (smartSolvePhase === 'solving') trackSmartSolveMove(moveStr);
                     },
                     onError: (msg) => {
                         console.warn('Smart cube error:', msg);

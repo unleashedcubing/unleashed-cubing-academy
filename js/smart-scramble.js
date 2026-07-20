@@ -25,6 +25,31 @@ function inverseQuarterTurn(move) {
     return { text: displayMove(inverse), move: inverse };
 }
 
+function quarterTurnEntry(base, direction) {
+    const move = { base, direction, quarterTurns: 1 };
+    return { text: displayMove(move), move };
+}
+
+function prependCorrection(tracker, correction) {
+    const base = correction.move.base;
+    let runLength = 0;
+    let turns = correction.move.direction;
+    while (tracker.corrections[runLength]?.move?.base === base) {
+        turns += tracker.corrections[runLength].move.direction;
+        runLength += 1;
+    }
+
+    const normalized = ((turns % 4) + 4) % 4;
+    const replacement = normalized === 0
+        ? []
+        : normalized === 1
+            ? [quarterTurnEntry(base, 1)]
+            : normalized === 2
+                ? [quarterTurnEntry(base, 1), quarterTurnEntry(base, 1)]
+                : [quarterTurnEntry(base, -1)];
+    tracker.corrections.splice(0, runLength, ...replacement);
+}
+
 function sameQuarterTurn(expected, incoming) {
     return expected?.base === incoming.base && expected.direction === incoming.direction;
 }
@@ -57,7 +82,7 @@ export function advanceScrambleTracker(tracker, moveText) {
                     tracker.corrections.shift();
                 } else {
                     tracker.hadMismatch = true;
-                    tracker.corrections.unshift(inverseQuarterTurn(incoming));
+                    prependCorrection(tracker, inverseQuarterTurn(incoming));
                 }
                 continue;
             }
@@ -65,7 +90,7 @@ export function advanceScrambleTracker(tracker, moveText) {
             const token = tracker.tokens[tracker.index];
             if (!token?.move) {
                 tracker.hadMismatch = true;
-                tracker.corrections.unshift(inverseQuarterTurn(incoming));
+                prependCorrection(tracker, inverseQuarterTurn(incoming));
                 continue;
             }
 
@@ -78,7 +103,7 @@ export function advanceScrambleTracker(tracker, moveText) {
 
             if (!sameFace || !sameDirection) {
                 tracker.hadMismatch = true;
-                tracker.corrections.unshift(inverseQuarterTurn(incoming));
+                prependCorrection(tracker, inverseQuarterTurn(incoming));
                 continue;
             }
 
@@ -102,4 +127,29 @@ export function completeScrambleTracker(tracker) {
 
 export function scrambleTrackerComplete(tracker) {
     return !!tracker && tracker.index >= tracker.tokens.length && tracker.corrections.length === 0;
+}
+
+export function scrambleCorrectionMoves(tracker) {
+    const corrections = tracker?.corrections || [];
+    const combined = [];
+    for (let index = 0; index < corrections.length;) {
+        const first = corrections[index].move;
+        let turns = 0;
+        let next = index;
+        while (corrections[next]?.move?.base === first.base) {
+            turns += corrections[next].move.direction;
+            next += 1;
+        }
+        const normalized = ((turns % 4) + 4) % 4;
+        if (normalized) {
+            const move = {
+                base: first.base,
+                direction: normalized === 3 ? -1 : 1,
+                quarterTurns: normalized === 2 ? 2 : 1
+            };
+            combined.push({ text: displayMove(move), move });
+        }
+        index = next;
+    }
+    return combined;
 }
