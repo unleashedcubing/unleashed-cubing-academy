@@ -6052,6 +6052,7 @@
         let smartCubeHandle = null;
         const smartStatusEl = document.getElementById('smart-cube-status');
         const smartBtn      = document.getElementById('smart-cube-connect');
+        const smartOtherBtn = document.getElementById('smart-cube-connect-other');
         const smartCubeLive = document.getElementById('smart-cube-live');
         const smartCubeMovesEl = document.getElementById('smart-cube-moves');
         const smartCubeMoveCountEl = document.getElementById('smart-cube-move-count');
@@ -6065,6 +6066,7 @@
         };
         let smartMoveGroups = [];
         let smartPhysicalMoveCount = 0;
+        let smartConnectedName = '';
 
         function smartMoveDetails(moveText) {
             const raw = String(moveText || '').trim().replace(/\s+/g, '');
@@ -6126,7 +6128,8 @@
         function setSmartStatus(text, connected) {
             if (smartStatusEl) smartStatusEl.textContent = text;
             smartStatusEl?.classList.toggle('connected', !!connected);
-            if (smartBtn) smartBtn.textContent = connected ? '🛑 Disconnect Cube' : '🔵 Connect Smart Cube';
+            if (smartBtn) smartBtn.textContent = connected ? 'Disconnect Cube' : 'Connect GAN / iCarry';
+            if (smartOtherBtn) smartOtherBtn.disabled = !!connected;
             timerView.classList.toggle('smart-cube-active', !!connected);
             smartCubeLive?.setAttribute('aria-hidden', String(!connected));
             resetSmartMoveNotation();
@@ -6167,15 +6170,37 @@
             } catch (e) { return false; }
         }
 
-        async function connectSmartCube() {
+        async function connectSmartCube(provider = 'gan') {
             try {
                 if (smartBtn) {
                     smartBtn.disabled = true;
-                    smartBtn.textContent = 'Pairing...';
+                    if (provider === 'gan') smartBtn.textContent = 'Pairing GAN...';
+                }
+                if (smartOtherBtn) {
+                    smartOtherBtn.disabled = true;
+                    if (provider === 'other') smartOtherBtn.textContent = 'Pairing...';
                 }
                 const mod = await import('./smart-cube.js');
                 smartCubeHandle = await mod.connectCube({
-                    onName: (name) => setSmartStatus('Connected: ' + name, true),
+                    provider,
+                    requestMacAddress: async (device) => window.ucPrompt(
+                        `Chrome could not read ${device?.name || 'this GAN cube'}'s Bluetooth address automatically. Enter its MAC address (12 hexadecimal digits) to finish pairing.`,
+                        '',
+                        {
+                            title: 'Finish GAN pairing',
+                            placeholder: 'AA:BB:CC:DD:EE:FF',
+                            confirmLabel: 'Connect'
+                        }
+                    ),
+                    onName: (name) => {
+                        smartConnectedName = name;
+                        setSmartStatus('Connected: ' + name, true);
+                    },
+                    onBattery: (level) => {
+                        if (smartStatusEl && smartConnectedName) {
+                            smartStatusEl.textContent = `Connected: ${smartConnectedName} · ${level}%`;
+                        }
+                    },
                     onMove: (moveStr, algLeaf) => {
                         // Stream physical turns into the connected 3D cube and notation strip.
                         const cube = document.getElementById('puzzle-cube');
@@ -6183,8 +6208,10 @@
                         try {
                             if (algLeaf && typeof cube.experimentalAddAlgLeaf === 'function') {
                                 cube.experimentalAddAlgLeaf(algLeaf, { cancel: true });
+                            } else if (typeof cube.experimentalAddMove === 'function') {
+                                cube.experimentalAddMove(moveStr, { cancel: false });
                             } else {
-                                throw new Error('Algorithm leaf API unavailable');
+                                throw new Error('Live move API unavailable');
                             }
                         } catch (e) {
                             // Fallback: append to current alg
@@ -6206,6 +6233,7 @@
                     },
                     onDisconnect: () => {
                         smartCubeHandle = null;
+                        smartConnectedName = '';
                         setSmartStatus('Disconnected', false);
                     }
                 });
@@ -6217,6 +6245,10 @@
                 smartCubeHandle = null;
             } finally {
                 if (smartBtn) smartBtn.disabled = false;
+                if (smartOtherBtn) {
+                    smartOtherBtn.textContent = 'Connect Other Cube';
+                    smartOtherBtn.disabled = !!smartCubeHandle;
+                }
             }
         }
         function disconnectSmartCube() {
@@ -6224,11 +6256,13 @@
                 try { smartCubeHandle.disconnect(); } catch (e) {}
                 smartCubeHandle = null;
             }
+            smartConnectedName = '';
             setSmartStatus('Not connected', false);
         }
         smartBtn?.addEventListener('click', () => {
-            if (smartCubeHandle) disconnectSmartCube(); else connectSmartCube();
+            if (smartCubeHandle) disconnectSmartCube(); else connectSmartCube('gan');
         });
+        smartOtherBtn?.addEventListener('click', () => connectSmartCube('other'));
         document.getElementById('smart-cube-reset')?.addEventListener('click', () => {
             resetPuzzleCubeView();
             applyPuzzleCube();
