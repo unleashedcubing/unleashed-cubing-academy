@@ -6053,6 +6053,7 @@
         const smartStatusEl = document.getElementById('smart-cube-status');
         const smartBtn      = document.getElementById('smart-cube-connect');
         const smartOtherBtn = document.getElementById('smart-cube-connect-other');
+        const ganAutoDetectHelpBtn = document.getElementById('gan-auto-detect-help');
         const smartCubeLive = document.getElementById('smart-cube-live');
         const smartCubeMovesEl = document.getElementById('smart-cube-moves');
         const smartCubeMoveCountEl = document.getElementById('smart-cube-move-count');
@@ -6183,15 +6184,31 @@
                 const mod = await import('./smart-cube.js');
                 smartCubeHandle = await mod.connectCube({
                     provider,
-                    requestMacAddress: async (device) => window.ucPrompt(
-                        `Chrome could not read ${device?.name || 'this GAN cube'}'s Bluetooth address automatically. Enter its MAC address (12 hexadecimal digits) to finish pairing.`,
-                        '',
-                        {
-                            title: 'Finish GAN pairing',
-                            placeholder: 'AA:BB:CC:DD:EE:FF',
-                            confirmLabel: 'Connect'
+                    onPairingStage: message => {
+                        if (smartStatusEl) {
+                            smartStatusEl.textContent = message;
+                            smartStatusEl.classList.remove('connected');
                         }
-                    ),
+                    },
+                    requestMacAddress: async (device) => {
+                        while (true) {
+                            const value = await window.ucPrompt(
+                                `Chrome did not expose ${device?.name || 'this GAN cube'}'s address broadcast.\n\nFor automatic detection, cancel and use Set Up Auto-Detect.\n\nManual macOS backup: connect the cube in chrome://bluetooth-internals/#devices, then run system_profiler SPBluetoothDataType in Terminal and copy the GAN address from Connected devices.`,
+                                '',
+                                {
+                                    title: 'Finish GAN pairing',
+                                    placeholder: 'AA:BB:CC:DD:EE:FF',
+                                    confirmLabel: 'Connect'
+                                }
+                            );
+                            if (value === null) return null;
+                            if (String(value).replace(/[^0-9a-f]/gi, '').length === 12) return value;
+                            await window.ucAlert('Enter exactly 12 hexadecimal digits, such as AA:BB:CC:DD:EE:FF.', {
+                                title: 'Check the cube address',
+                                icon: 'BT'
+                            });
+                        }
+                    },
                     onName: (name) => {
                         smartConnectedName = name;
                         setSmartStatus('Connected: ' + name, true);
@@ -6263,6 +6280,18 @@
             if (smartCubeHandle) disconnectSmartCube(); else connectSmartCube('gan');
         });
         smartOtherBtn?.addEventListener('click', () => connectSmartCube('other'));
+        ganAutoDetectHelpBtn?.addEventListener('click', async () => {
+            const flagUrl = 'chrome://flags/#enable-experimental-web-platform-features';
+            let copied = false;
+            try {
+                await navigator.clipboard.writeText(flagUrl);
+                copied = true;
+            } catch (_) {}
+            await window.ucAlert(
+                `${copied ? 'The Chrome setup address is copied.' : `Copy this address: ${flagUrl}`}\n\n1. Paste it into Chrome's address bar.\n2. Set Experimental Web Platform features to Enabled.\n3. Relaunch Chrome.\n4. Return here, wake the cube, and choose Connect GAN / iCarry.\n\nKeep turning the cube while the app reads its broadcast. Once found, the address is remembered for future connections.`,
+                { title: 'Automatic GAN pairing', icon: 'BT' }
+            );
+        });
         document.getElementById('smart-cube-reset')?.addEventListener('click', () => {
             resetPuzzleCubeView();
             applyPuzzleCube();

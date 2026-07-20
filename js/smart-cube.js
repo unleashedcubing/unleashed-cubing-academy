@@ -8,6 +8,7 @@
 
 const GAN_MODULE_URL = 'https://esm.sh/gan-web-bluetooth@3.0.2?bundle&target=es2022';
 const CUBING_BLUETOOTH_URL = 'https://cdn.cubing.net/v0/js/cubing/bluetooth';
+const GAN_SCAN_TIMEOUT_MS = 10000;
 
 function normalizeMacAddress(value) {
     const compact = String(value || '').toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -20,6 +21,93 @@ function macStorageKey(device) {
     return `uc_gan_mac_${id}`;
 }
 
+function readStoredMac(device) {
+    try {
+        return normalizeMacAddress(localStorage.getItem(macStorageKey(device)));
+    } catch (_) {
+        return null;
+    }
+}
+
+function storeMac(device, value) {
+    const mac = normalizeMacAddress(value);
+    if (!device || !mac) return null;
+    try { localStorage.setItem(macStorageKey(device), mac); } catch (_) {}
+    return mac;
+}
+
+function bytesFromDataView(view) {
+    if (!view?.buffer) return null;
+    return new Uint8Array(view.buffer, view.byteOffset || 0, view.byteLength);
+}
+
+function extractGanMac(manufacturerData) {
+    let payload = null;
+
+    // Bluefy exposes a raw DataView containing the two-byte company ID first.
+    if (manufacturerData instanceof DataView) {
+        const bytes = bytesFromDataView(manufacturerData);
+        payload = bytes?.slice(2, 11) || null;
+    } else if (manufacturerData?.forEach) {
+        manufacturerData.forEach((view, companyIdentifier) => {
+            if (payload || (Number(companyIdentifier) & 0xff) !== 0x01) return;
+            const bytes = bytesFromDataView(view);
+            if (bytes) payload = bytes.slice(0, 9);
+        });
+    }
+
+    if (!payload || payload.length < 6) return null;
+    return Array.from(payload.slice(-6))
+        .reverse()
+        .map(byte => byte.toString(16).toUpperCase().padStart(2, '0'))
+        .join(':');
+}
+
+function activelyScanForGanMac(device) {
+    if (typeof navigator.bluetooth?.requestLEScan !== 'function') {
+        return Promise.resolve(null);
+    }
+
+    return new Promise(resolve => {
+        let scan = null;
+        let finished = false;
+        let timeoutId = null;
+
+        const finish = mac => {
+            if (finished) return;
+            finished = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            navigator.bluetooth.removeEventListener?.('advertisementreceived', onAdvertisement);
+            try { scan?.stop(); } catch (_) {}
+            resolve(normalizeMacAddress(mac));
+        };
+        const onAdvertisement = event => {
+            const eventDevice = event?.device;
+            if (eventDevice?.id && device?.id && eventDevice.id !== device.id) return;
+            const eventName = String(eventDevice?.name || event?.name || '');
+            if (!eventDevice?.id && eventName && !/^(GAN|MG|AiCube)/i.test(eventName)) return;
+            const mac = extractGanMac(event?.manufacturerData);
+            if (mac) finish(mac);
+        };
+
+        navigator.bluetooth.addEventListener?.('advertisementreceived', onAdvertisement);
+        timeoutId = setTimeout(() => finish(null), GAN_SCAN_TIMEOUT_MS);
+        navigator.bluetooth.requestLEScan({
+            filters: [
+                { namePrefix: 'GAN' },
+                { namePrefix: 'MG' },
+                { namePrefix: 'AiCube' }
+            ],
+            keepRepeatedDevices: true
+        }).then(activeScan => {
+            scan = activeScan;
+            if (finished) {
+                try { scan?.stop(); } catch (_) {}
+            }
+        }).catch(() => finish(null));
+    });
+}
+
 function readableError(error, provider) {
     const message = String(error?.message || error || '').trim();
     if (error?.name === 'NotFoundError' || error?.name === 'AbortError') {
@@ -28,7 +116,7 @@ function readableError(error, provider) {
             : 'Pairing was cancelled or no compatible cube was selected. Wake the cube and try again.';
     }
     if (/unable to determine cube mac/i.test(message)) {
-        return 'Chrome could not read the GAN cube address. Retry and enter the cube MAC when asked.';
+        return 'Chrome blocked the GAN address broadcast. Set up Bluetooth auto-detect in Timer Settings, relaunch Chrome, then retry.';
     }
     if (/gatt|network|already.*(use|connect)|connection.*(failed|lost)|connect/i.test(message)) {
         return 'The cube is already in use or Chrome lost its Bluetooth link. Disconnect it from every other tab or app, wake it with a turn, then retry.';
@@ -64,22 +152,37 @@ async function connectGan(options) {
         onError,
         onDisconnect,
         onBattery,
+        onPairingStage,
         requestMacAddress
     } = options;
     const { connectGanCube } = await import(GAN_MODULE_URL);
+    let selectedDevice = null;
+    let activeScanPromise = null;
 
     const macProvider = async (device, isFallbackCall) => {
-        const key = macStorageKey(device);
-        const cached = normalizeMacAddress(localStorage.getItem(key));
-        if (cached) return cached;
-        if (!isFallbackCall || typeof requestMacAddress !== 'function') return null;
+        selectedDevice = device;
+        const embedded = normalizeMacAddress(device?.id) || normalizeMacAddress(device?.name);
+        if (embedded) return storeMac(device, embedded);
 
+        const cached = readStoredMac(device);
+        if (cached) return cached;
+        if (!isFallbackCall) {
+            onPairingStage?.('Reading GAN address - keep turning the cube...');
+            activeScanPromise = activelyScanForGanMac(device).then(mac => storeMac(device, mac));
+            return null;
+        }
+
+        const activelyScanned = activeScanPromise ? await activeScanPromise : null;
+        if (activelyScanned) return activelyScanned;
+        if (typeof requestMacAddress !== 'function') return null;
+
+        onPairingStage?.('Automatic address access is blocked by Chrome.');
         const supplied = normalizeMacAddress(await requestMacAddress(device));
-        if (supplied) localStorage.setItem(key, supplied);
-        return supplied;
+        return storeMac(device, supplied);
     };
 
     const connection = await connectGanCube(macProvider);
+    storeMac(selectedDevice, connection.deviceMAC);
     const name = connection.deviceName || 'GAN Smart Cube';
     let detached = false;
 
