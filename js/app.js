@@ -31,7 +31,7 @@
             { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U R' U2' R U' R'", alts: ["y2' R2' DR' R U2 R' DR R U2' R"] },
             { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R' U' R'"] },
             { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
-            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "F R' F' U' R' F R U R U' R' F'", alts: ["y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
+            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "v R U R' U R' F R U R U R' F'", alts: ["y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
             { category: 'Megaminx CO', name: 'CO 5', setup: '', main_alg: "R U R' U R U2' R'", alts: ["y2 L U' R' U L' U' R U"] },
             { category: 'Megaminx CO', name: 'CO 6', setup: '', main_alg: "R' U' R U' R' U2 R", alts: ["y2 L' U' L U' L' U2 L"] },
             { category: 'Megaminx CO', name: 'CO 7', setup: '', main_alg: "R U2 R' U' R U' R'", alts: ["y' R' F R F' L F R' F' R L'"] },
@@ -89,11 +89,20 @@
         function megaminxViewPrefix() {
             return megaminxTopFace() === 'black' ? 'z' : 'x2';
         }
+        function normalizePuzzleAlg(puzzleId, algText = '') {
+            const text = String(algText || '').trim();
+            if (puzzleId !== 'megaminx') return text;
+            // Cubers write the vertical Megaminx rotation as `v`; cubing.js
+            // names the same whole-puzzle move `Uv`.
+            return text.split(/\s+/).map(token =>
+                /^v(?:2'?|')?$/i.test(token) ? `Uv${token.slice(1)}` : token
+            ).join(' ');
+        }
         function applyPuzzleViewSetup(puzzleId, setupText = '') {
             // Match the working trainer/timer previews: Megaminx setup algs must be
             // passed directly, because cube rotations like x2/z can make Twisty skip
             // the whole setup string for Megaminx.
-            return String(setupText || '').trim();
+            return normalizePuzzleAlg(puzzleId, setupText);
         }
         function algCategoryPuzzleId(category) {
             if (category.startsWith('2x2')) return '2x2x2';
@@ -301,13 +310,13 @@
         // A leading y-rotation is baked into the cube's orientation instead of
         // being animated before the moves. Returns the full text to display,
         // the moves to actually animate, and the y-rotation to bake (if any).
-        function parseAlgEntry(algText) {
+        function parseAlgEntry(algText, puzzleId = '') {
             const { rotation, cleanAlg: stripped } = extractPreRotation(algText);
             const isY = rotation === 'y' || rotation === "y'" || rotation === 'y2';
             const display = cleanAlg(algText);
             return {
                 display: display,
-                anim: isY ? stripped : display,
+                anim: normalizePuzzleAlg(puzzleId, isY ? stripped : display),
                 yrot: isY ? rotation : ''
             };
         }
@@ -435,12 +444,15 @@
                 const caseSetup = baseOrient ? `${baseOrient} ${effectiveSetup}` : effectiveSetup;
                 const esaFor = (yrot) => applyPuzzleViewSetup(puzzleFor, yrot ? `${caseSetup} ${yrot}` : caseSetup);
 
-                const mainEntry = parseAlgEntry(algList[0]);
+                const mainEntry = parseAlgEntry(algList[0], puzzleFor);
                 const viewRot = mainEntry.yrot;
                 const defaultEsa = esaFor(viewRot);
 
                 // Setup row animates solved -> case, ending in the default orientation
-                const setupAnim = viewRot ? `${effectiveSetup} ${viewRot}` : effectiveSetup;
+                const setupAnim = applyPuzzleViewSetup(
+                    puzzleFor,
+                    viewRot ? `${effectiveSetup} ${viewRot}` : effectiveSetup
+                );
 
                 // Choose the puzzle for this case
                 // Only show the 2D LL map for 3x3 LL subsets
@@ -453,7 +465,7 @@
 
                 let altsHTML = '';
                 algList.slice(1).forEach(a => {
-                    const alt = parseAlgEntry(a);
+                    const alt = parseAlgEntry(a, puzzleFor);
                     altsHTML += `<div class="alg alt-alg" data-player="player-${i}" data-anim="${alt.anim}" data-esa="${esaFor(alt.yrot)}">${alt.display}</div>`;
                 });
                 const referenceLink = item.reference_path ? `
