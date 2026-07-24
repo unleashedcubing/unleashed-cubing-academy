@@ -31,7 +31,7 @@
             { category: 'Megaminx CO', name: 'CO 1', setup: '', main_alg: "R U R' U R U R' U2' R U' R'", alts: ["y2' R2' DR' R U2 R' DR R U2' R"] },
             { category: 'Megaminx CO', name: 'CO 2', setup: '', main_alg: "F R U2 R' U' R U' R' F'", alts: ["y2' R BR R' F R BR' R' F'", "y' R U R U2 R' U' R U' R' U' R'"] },
             { category: 'Megaminx CO', name: 'CO 3', setup: '', main_alg: "R U2 R' U R U2 R'", alts: ["y' R U2' R' U' R U2' R'", "L' U2' L U' L' U2' L", "y L' U2 L U L' U2 L"] },
-            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "R U R' U R' F R U R U R' F'", alts: ["y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
+            { category: 'Megaminx CO', name: 'CO 4', setup: '', main_alg: "R U R' U' R' F R U R U' R' F'", alts: ["y F R U R' U R U2' R' F'", "L F R F' L'", "R' F R BR' R' F' R BR"] },
             { category: 'Megaminx CO', name: 'CO 5', setup: '', main_alg: "R U R' U R U2' R'", alts: ["y2 L U' R' U L' U' R U"] },
             { category: 'Megaminx CO', name: 'CO 6', setup: '', main_alg: "R' U' R U' R' U2 R", alts: ["y2 L' U' L U' L' U2 L"] },
             { category: 'Megaminx CO', name: 'CO 7', setup: '', main_alg: "R U2 R' U' R U' R'", alts: ["y' R' F R F' L F R' F' R L'"] },
